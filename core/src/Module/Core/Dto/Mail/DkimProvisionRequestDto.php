@@ -21,15 +21,20 @@ final readonly class DkimProvisionRequestDto
     public static function fromPayload(array $payload): self
     {
         $domainId = is_numeric($payload['domain_id'] ?? null) ? (int) $payload['domain_id'] : 0;
-        $domain = is_string($payload['domain'] ?? null) ? strtolower(trim($payload['domain'])) : '';
-        $selector = is_string($payload['selector'] ?? null) ? strtolower(trim($payload['selector'])) : '';
-        $publicKeyPem = is_string($payload['public_key_pem'] ?? null) ? trim($payload['public_key_pem']) : '';
-        $agentNodeId = is_string($payload['agent_node_id'] ?? null) ? trim($payload['agent_node_id']) : '';
+        $domain = strtolower(self::payloadText($payload['domain'] ?? null));
+        $selector = strtolower(self::payloadText($payload['selector'] ?? null));
+        $publicKeyPem = self::payloadText($payload['public_key_pem'] ?? null);
+        $agentNodeId = self::payloadText($payload['agent_node_id'] ?? null);
 
         if ($domainId <= 0 || $domain === '' || $selector === '' || $publicKeyPem === '' || $agentNodeId === '') {
             throw new \InvalidArgumentException('Invalid DKIM provision payload.');
         }
 
         return new self($domainId, $domain, $selector, $publicKeyPem, $agentNodeId);
+    }
+
+    private static function payloadText(mixed $value): string
+    {
+        return is_string($value) ? trim($value) : '';
     }
 }

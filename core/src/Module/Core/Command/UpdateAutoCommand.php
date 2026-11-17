@@ -87,7 +87,7 @@ final class UpdateAutoCommand extends Command
         $result = $this->updateService->applyUpdate();
         if (!$result->success) {
             $output->writeln('Update fehlgeschlagen: ' . ($result->error ?? $result->message));
-            if ($result->logPath) {
+            if ($result->logPath !== null && $result->logPath !== '' && $result->logPath !== '0') {
                 $output->writeln(sprintf('Log: %s', $result->logPath));
             }
             return Command::FAILURE;

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
-use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Application\AuditLogger;
@@ -17,7 +16,6 @@ use App\Module\Musicbot\Domain\Entity\MusicbotWorkflowExecution;
 use App\Module\Musicbot\Domain\Enum\MusicbotWorkflowActionType;
 use App\Module\Musicbot\Domain\Enum\MusicbotWorkflowConditionType;
 use App\Module\Musicbot\Domain\Enum\MusicbotWorkflowTriggerType;
-use App\Repository\MusicbotWorkflowExecutionRepository;
 use App\Repository\MusicbotWorkflowRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -26,7 +24,6 @@ final class MusicbotWorkflowService
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly MusicbotWorkflowRepository $workflowRepository,
-        private readonly MusicbotWorkflowExecutionRepository $executionRepository,
         private readonly MusicbotWorkflowExecutor $executor,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
         private readonly AuditLogger $auditLogger,

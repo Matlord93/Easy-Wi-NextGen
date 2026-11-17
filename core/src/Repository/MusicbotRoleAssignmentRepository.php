@@ -30,12 +30,6 @@ final class MusicbotRoleAssignmentRepository extends ServiceEntityRepository
         return $this->findBy(['role' => $role], ['createdAt' => 'ASC']);
     }
 
-    /** @return MusicbotRoleAssignment[] */
-    public function findBySubject(MusicbotRoleSubjectType $type, string $subjectId): array
-    {
-        return $this->findBy(['subjectType' => $type, 'subjectId' => $subjectId]);
-    }
-
     /**
      * Returns all assignments for a subject scoped to a specific bot instance.
      *

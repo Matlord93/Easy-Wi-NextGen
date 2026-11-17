@@ -189,7 +189,7 @@ final class CustomerGdprExportController
 
     /**
      * @param GdprExport[] $exports
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function normalizeExports(array $exports): array
     {

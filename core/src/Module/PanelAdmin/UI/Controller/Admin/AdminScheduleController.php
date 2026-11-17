@@ -189,7 +189,7 @@ final class AdminScheduleController
     }
 
     /**
-     * @param array<int,array<string,mixed>> $schedules
+     * @param array<array-key,array<string,mixed>> $schedules
      * @return array{scheduler_running: bool, last_heartbeat: \DateTimeImmutable|null, due_tasks: int,
      * failed_24h: int, created_jobs_24h: int}
      */
@@ -205,7 +205,7 @@ final class AdminScheduleController
             if (!($schedule['enabled'] ?? false)) {
                 continue;
             }
-            $next = $schedule['next_run_at'] ?? null;
+            $next = $this->parseDate($schedule['next_run_at'] ?? null);
             if ($next instanceof \DateTimeImmutable && $next <= $now) {
                 $due++;
             }
@@ -223,6 +223,10 @@ final class AdminScheduleController
 
     private function parseDate(mixed $value): ?\DateTimeImmutable
     {
+        if ($value instanceof \DateTimeImmutable) {
+            return $value;
+        }
+
         if (!is_string($value) || trim($value) === '') {
             return null;
         }

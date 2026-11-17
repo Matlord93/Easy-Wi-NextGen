@@ -16,6 +16,10 @@ class TokenGenerator
      */
     public function generate(int $bytes = 32): array
     {
+        if ($bytes < 1) {
+            throw new \ValueError('Token length must be greater than zero.');
+        }
+
         return $this->fromToken(bin2hex(random_bytes($bytes)));
     }
 

@@ -19,9 +19,4 @@ final class MailDkimKeyRepository extends ServiceEntityRepository
         parent::__construct($registry, MailDkimKey::class);
     }
 
-    /** @return MailDkimKey[] */
-    public function findByDomain(Domain $domain): array
-    {
-        return $this->findBy(['domain' => $domain], ['createdAt' => 'DESC']);
-    }
 }

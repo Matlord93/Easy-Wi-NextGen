@@ -341,14 +341,13 @@ final class AdminSinusbotNodeController
         ]));
     }
 
-    private function requireAdmin(Request $request): User
+    private function requireAdmin(Request $request): void
     {
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
-        return $actor;
     }
 
     private function findNode(int $id): SinusbotNode
@@ -517,7 +516,7 @@ final class AdminSinusbotNodeController
 
         foreach ($customers as $customer) {
             $label = sprintf('%s (%d)', $customer->getEmail(), EntityIdentifier::require($customer->getId()));
-            $choices[$label] = $customer->getId();
+            $choices[$label] = EntityIdentifier::require($customer->getId());
         }
 
         return $choices;

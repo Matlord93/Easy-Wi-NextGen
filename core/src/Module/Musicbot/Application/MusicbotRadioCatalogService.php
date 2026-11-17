@@ -177,7 +177,7 @@ class MusicbotRadioCatalogService
 
     /**
      * @param int[] $favoriteIds
-     * @return array<string, mixed>
+     * @return array{id:int|null,name:string,stream_url:string,is_favorite:bool,last_played_at:string|null,...<string,mixed>}
      */
     public function normalize(MusicbotRadioStation $s, array $favoriteIds = []): array
     {

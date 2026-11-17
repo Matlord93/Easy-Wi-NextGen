@@ -75,13 +75,10 @@ final class NodeDiskProtectionService
      */
     public function updateDiskStat(Agent $node, int $freeBytes, float $freePercent, \DateTimeImmutable $checkedAt): array
     {
-        $metadata = $node->getMetadata() ?? [];
-        if (!is_array($metadata)) {
-            $metadata = [];
-        }
+        $metadata = $node->getMetadata();
 
         $previousProtection = false;
-        $previous = $metadata[self::PROTECTION_KEY] ?? null;
+        $previous = \App\Infrastructure\Config\JsonMap::fromValue($metadata[self::PROTECTION_KEY] ?? null);
         if (is_array($previous) && array_key_exists('active', $previous)) {
             $previousProtection = (bool) $previous['active'];
         }

@@ -17,20 +17,6 @@ use Psr\Log\LoggerInterface;
 
 class SftpFilesystemService
 {
-    public const int MAX_EDIT_SIZE_BYTES = 1048576;
-
-    private const array ALLOWED_EDIT_EXTENSIONS = [
-        'txt',
-        'log',
-        'json',
-        'yml',
-        'yaml',
-        'md',
-        'php',
-        'go',
-        'env',
-    ];
-
     public function __construct(
         private readonly AppSettingsService $settingsService,
         private readonly WebspaceSftpCredentialRepository $credentialRepository,
@@ -69,33 +55,9 @@ class SftpFilesystemService
         return $entries;
     }
 
-    /**
-     * @return array<int, string>
-     */
-    public function testConnection(Webspace $webspace): array
-    {
-        return array_map(
-            static fn (array $entry): string => $entry['path'],
-            $this->list($webspace, ''),
-        );
-    }
-
     public function read(Webspace $webspace, string $path): string
     {
         return $this->buildFilesystem($webspace)->read($this->normalizePath($path));
-    }
-
-    /**
-     * @return resource
-     */
-    public function readStream(Webspace $webspace, string $path)
-    {
-        $stream = $this->buildFilesystem($webspace)->readStream($this->normalizePath($path));
-        if (!is_resource($stream)) {
-            throw new \RuntimeException('Unable to open remote stream.');
-        }
-
-        return $stream;
     }
 
     /**
@@ -103,11 +65,7 @@ class SftpFilesystemService
      */
     public function writeStream(Webspace $webspace, string $path, $stream): void
     {
-        if (!is_resource($stream)) {
-            throw new \InvalidArgumentException('Upload stream is invalid.');
-        }
-
-        $this->buildFilesystem($webspace)->writeStream($this->normalizePath($path), $stream);
+        $this->buildFilesystem($webspace)->writeStream($this->normalizePath($path), self::requireStream($stream));
     }
 
     public function write(Webspace $webspace, string $path, string $content): void
@@ -141,52 +99,9 @@ class SftpFilesystemService
         );
     }
 
-    public function isEditable(string $path): bool
-    {
-        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-        if ($extension === '') {
-            return false;
-        }
-
-        return in_array($extension, self::ALLOWED_EDIT_EXTENSIONS, true);
-    }
-
-    public function assertEditable(string $path, int $sizeBytes): void
-    {
-        if (!$this->isEditable($path)) {
-            throw new \RuntimeException('File type is not editable.');
-        }
-
-        if ($sizeBytes > self::MAX_EDIT_SIZE_BYTES) {
-            throw new \RuntimeException('File is too large to edit (max 1 MB).');
-        }
-    }
-
     public function fileSize(Webspace $webspace, string $path): int
     {
         return $this->buildFilesystem($webspace)->fileSize($this->normalizePath($path));
-    }
-
-    public function buildChildPath(string $directory, string $name): string
-    {
-        $directory = $this->normalizePath($directory);
-        $name = $this->normalizeName($name);
-
-        return $directory === '' ? $name : sprintf('%s/%s', $directory, $name);
-    }
-
-    public function normalizeName(string $name): string
-    {
-        $name = trim($name);
-        if ($name === '' || $name === '.' || $name === '..') {
-            throw new \InvalidArgumentException('Invalid name.');
-        }
-
-        if (str_contains($name, '/') || str_contains($name, '\\') || str_contains($name, "\0")) {
-            throw new \InvalidArgumentException('Invalid name.');
-        }
-
-        return $name;
     }
 
     public function normalizePath(string $path): string
@@ -213,7 +128,7 @@ class SftpFilesystemService
         $safe = [];
 
         foreach ($segments as $segment) {
-            if ($segment === '.' || $segment === '') {
+            if ($segment === '.') {
                 continue;
             }
 
@@ -267,5 +182,15 @@ class SftpFilesystemService
 
             throw new \RuntimeException($exception->getMessage(), 0, $exception);
         }
+    }
+
+    /** @return resource */
+    private static function requireStream(mixed $value)
+    {
+        if (!is_resource($value)) {
+            throw new \InvalidArgumentException('Upload stream is invalid.');
+        }
+
+        return $value;
     }
 }

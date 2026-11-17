@@ -83,19 +83,6 @@ class JobRepository extends ServiceEntityRepository
     /**
      * @return Job[]
      */
-    public function findQueuedForDispatch(int $limit = 20): array
-    {
-        return EntityQueryResult::all($this->createQueryBuilder('job')
-            ->andWhere('job.status = :status')
-            ->setParameter('status', JobStatus::Queued)
-            ->orderBy('job.createdAt', 'ASC')
-            ->setMaxResults($limit)
-            ->getQuery(), \App\Module\Core\Domain\Entity\Job::class);
-    }
-
-    /**
-     * @return Job[]
-     */
     public function findQueuedForDispatchForUpdate(int $limit = 20): array
     {
         $query = $this->createQueryBuilder('job')
@@ -191,26 +178,6 @@ class JobRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery(), \App\Module\Core\Domain\Entity\Job::class);
     }
-
-
-    public function findActiveByTypeAndDatabaseId(string $type, int $databaseId, int $limit = 40): ?Job
-    {
-        $jobs = $this->findLatestByType($type, $limit);
-        foreach ($jobs as $job) {
-            if ($job->getStatus()->isTerminal()) {
-                continue;
-            }
-            $payload = $job->getPayload();
-            if ((int) ($payload['database_id'] ?? 0) !== $databaseId) {
-                continue;
-            }
-
-            return $job;
-        }
-
-        return null;
-    }
-
 
     public function findActiveByTypeAndPayloadField(string $type, string $field, string $value, int $limit = 40): ?Job
     {

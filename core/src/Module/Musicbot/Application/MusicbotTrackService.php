@@ -95,7 +95,7 @@ final class MusicbotTrackService
 
         $track = new MusicbotTrack(
             $customer,
-            trim($title ?: $safeBaseName),
+            trim($title === null || $title === '' || $title === '0' ? $safeBaseName : $title),
             MusicbotTrackSourceType::Upload,
             $mimeType,
             $sha256,

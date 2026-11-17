@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application\Console;
 
+use App\Infrastructure\Config\JsonMap;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -45,10 +46,10 @@ final readonly class VmConsoleDiagnostics
             if (strlen($body) > 4096) {
                 return ['state' => 'unreachable', 'origin' => null];
             }
-            $data = json_decode($body, true, 8, JSON_THROW_ON_ERROR);
-            $origin = $data['public_origin'] ?? null;
+            $data = JsonMap::fromValue(json_decode($body, true, 8, JSON_THROW_ON_ERROR)) ?? [];
+            $origin = JsonMap::strings($data)['public_origin'] ?? null;
             $parts = is_string($origin) ? parse_url($origin) : false;
-            if (!is_array($data) || 'ok' !== ($data['status'] ?? null) || 1 !== ($data['protocol_version'] ?? null) || !is_array($parts) || empty($parts['host']) || !in_array($parts['scheme'] ?? '', ['http', 'https'], true) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment']) || !empty($parts['path'])) {
+            if ('ok' !== ($data['status'] ?? null) || 1 !== ($data['protocol_version'] ?? null) || !is_array($parts) || in_array($parts['host'] ?? null, [null, '', '0'], true) || !in_array($parts['scheme'] ?? '', ['http', 'https'], true) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment']) || !in_array($parts['path'] ?? null, [null, '', '0'], true)) {
                 return ['state' => 'update_gateway', 'origin' => null];
             }
 

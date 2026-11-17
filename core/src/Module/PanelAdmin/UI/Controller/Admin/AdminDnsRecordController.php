@@ -123,7 +123,7 @@ final class AdminDnsRecordController
             $formData['errors'][] = 'Domain is required.';
         }
 
-        if ($formData['errors'] !== [] || $formData['domain'] === null) {
+        if ($formData['errors'] !== [] || $domain === null) {
             return $this->renderFormWithErrors($domains, $formData, Response::HTTP_BAD_REQUEST);
         }
 
@@ -183,7 +183,7 @@ final class AdminDnsRecordController
             $formData['errors'][] = 'Domain is required.';
         }
 
-        if ($formData['errors'] !== [] || $formData['domain'] === null) {
+        if ($formData['errors'] !== [] || $domain === null) {
             return $this->renderFormWithErrors($domains, $formData, Response::HTTP_BAD_REQUEST, $record);
         }
 

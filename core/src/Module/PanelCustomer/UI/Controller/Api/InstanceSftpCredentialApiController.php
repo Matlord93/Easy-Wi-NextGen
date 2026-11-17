@@ -127,7 +127,7 @@ final class InstanceSftpCredentialApiController
                 'customer_id' => $instance->getCustomer()->getId(),
                 'status_code' => JsonResponse::HTTP_OK,
                 'job_id' => $job?->getId(),
-                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000.0),
             ]);
 
             $this->syncCredentialHealth($instance, $credential);
@@ -217,7 +217,7 @@ final class InstanceSftpCredentialApiController
                 'customer_id' => $instance->getCustomer()->getId(),
                 'status_code' => JsonResponse::HTTP_ACCEPTED,
                 'job_id' => $job->getId(),
-                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000.0),
             ]);
 
             return new JsonResponse([
@@ -352,7 +352,7 @@ final class InstanceSftpCredentialApiController
         $baseDir = rtrim($this->settingsService->getInstanceBaseDir(), '/');
         $instanceId = (string) ($instance->getId() ?? 'instance');
 
-        return ($baseDir !== '' ? $baseDir : '/srv') . '/gs' . preg_replace('/[^a-z0-9]/i', '', $instanceId);
+        return ($baseDir !== '' ? $baseDir : '/srv') . '/gs' . (preg_replace('/[^a-z0-9]/i', '', $instanceId) ?? '');
     }
 
 
@@ -390,13 +390,14 @@ final class InstanceSftpCredentialApiController
     private function normalizeCredential(InstanceSftpCredential $credential): array
     {
         $instance = $credential->getInstance();
+        $rootPath = $credential->getRootPath();
         $data = [
             'instance_id' => $credential->getInstance()->getId(),
             'username' => $credential->getUsername(),
             'backend' => $credential->getBackend(),
             'host' => $this->resolveHost($instance),
             'port' => $this->resolveCredentialPort($credential),
-            'root_path' => $credential->getRootPath() ?: $this->resolveInstanceRootPath($instance),
+            'root_path' => ($rootPath !== null && $rootPath !== '' && $rootPath !== '0' ? $rootPath : $this->resolveInstanceRootPath($instance)),
             'password_revealed' => $credential->getRevealedAt() !== null,
             'password_masked' => $this->maskPassword(),
             'rotated_at' => $credential->getRotatedAt()?->format(DATE_RFC3339),
@@ -585,8 +586,8 @@ final class InstanceSftpCredentialApiController
             return $requestId;
         }
 
-        $attribute = $request->attributes->get('request_id');
-        if (is_string($attribute) && $attribute !== '') {
+        $attribute = \App\Infrastructure\Config\JsonMap::strings($request->attributes->all())['request_id'] ?? '';
+        if ($attribute !== '') {
             return $attribute;
         }
 
@@ -620,7 +621,7 @@ final class InstanceSftpCredentialApiController
     private function resolveHost(Instance $instance): ?string
     {
         $metadata = $instance->getNode()->getMetadata();
-        $host = is_array($metadata) ? ($metadata['sftp_host'] ?? null) : null;
+        $host = \App\Infrastructure\Config\JsonMap::strings($metadata)['sftp_host'] ?? null;
         if (is_string($host) && $host !== '') {
             return $host;
         }
@@ -641,9 +642,9 @@ final class InstanceSftpCredentialApiController
     private function resolvePort(Instance $instance): int
     {
         $metadata = $instance->getNode()->getMetadata();
-        $port = is_array($metadata) ? ($metadata['sftp_port'] ?? null) : null;
-        if (is_numeric($port)) {
-            return max(1, (int) $port);
+        $port = self::numericPort($metadata['sftp_port'] ?? null);
+        if ($port !== null) {
+            return max(1, $port);
         }
 
         return $this->settingsService->getSftpPort();
@@ -657,5 +658,10 @@ final class InstanceSftpCredentialApiController
         }
 
         return $this->resolvePort($credential->getInstance());
+    }
+
+    private static function numericPort(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
     }
 }

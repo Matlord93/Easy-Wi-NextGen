@@ -55,15 +55,4 @@ final class ContactMessageRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
-    public function countRecentByIp(string $ip, \DateTimeImmutable $since): int
-    {
-        return (int) $this->createQueryBuilder('m')
-            ->select('COUNT(m.id)')
-            ->andWhere('m.ipAddress = :ip')
-            ->andWhere('m.createdAt >= :since')
-            ->setParameter('ip', $ip)
-            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
-            ->getQuery()
-            ->getSingleScalarResult();
-    }
 }

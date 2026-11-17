@@ -7,7 +7,6 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\MailNode;
@@ -33,7 +32,6 @@ final class AdminMailPlatformController
         private readonly DomainRepository $domainRepository,
         private readonly MailDomainRepository $mailDomainRepository,
         private readonly JobRepository $jobRepository,
-        private readonly EncryptionService $encryptionService,
         private readonly AuditLogger $auditLogger,
     ) {
     }

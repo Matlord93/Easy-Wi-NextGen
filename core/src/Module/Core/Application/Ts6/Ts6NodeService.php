@@ -104,7 +104,7 @@ final class Ts6NodeService
             $ports[] = $dto->queryHttpsPort;
         }
 
-        $ports = array_values(array_unique(array_filter($ports, static fn (int $port): bool => $port > 0 && $port <= 65535)));
+        $ports = array_values(array_unique(array_filter($ports, static fn (int $port): bool => $port <= 65535)));
         if ($ports === []) {
             return null;
         }

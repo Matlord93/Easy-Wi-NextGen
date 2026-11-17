@@ -20,11 +20,6 @@ final class MailRateLimitRepository extends ServiceEntityRepository
         parent::__construct($registry, MailRateLimit::class);
     }
 
-    public function findOneByMailbox(Mailbox $mailbox): ?MailRateLimit
-    {
-        return $this->findOneBy(['mailbox' => $mailbox]);
-    }
-
     /** @return MailRateLimit[] */
     public function findByDomain(?Domain $domain, int $limit = 200): array
     {

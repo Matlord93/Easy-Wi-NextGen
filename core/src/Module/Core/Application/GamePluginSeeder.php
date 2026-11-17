@@ -6,7 +6,6 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\Template;
-use App\Repository\GamePluginRepository;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
@@ -52,20 +51,14 @@ final class GamePluginSeeder
                 continue;
             }
 
-            $existingPlugin = $pluginRepository instanceof GamePluginRepository
-                ? $pluginRepository->findDuplicateForGameKey($templateGameKey, $pluginName, $pluginVersion)
-                : $pluginRepository->findOneBy([
-                    'template' => $template,
-                    'name' => $pluginName,
-                    'version' => $pluginVersion,
-                ]);
+            $existingPlugin = $pluginRepository->findDuplicateForGameKey($templateGameKey, $pluginName, $pluginVersion);
 
             if ($existingPlugin instanceof GamePlugin) {
                 if ($updateExisting) {
                     $existingPlugin->setTemplate($template);
                     $existingPlugin->setChecksum((string) ($pluginData['checksum'] ?? ''));
                     $existingPlugin->setDownloadUrl((string) ($pluginData['download_url'] ?? ''));
-                    $existingPlugin->setDescription($pluginData['description'] ?? null);
+                    $existingPlugin->setDescription(self::description($pluginData['description'] ?? null));
                     $existingPlugin->setInstallMode((string) ($pluginData['install_mode'] ?? 'extract'));
                     $existingPlugin->setExtractSubdir(isset($pluginData['extract_subdir']) ? (string) $pluginData['extract_subdir'] : null);
                     $pluginsUpdated++;
@@ -80,7 +73,7 @@ final class GamePluginSeeder
                 $pluginVersion,
                 (string) ($pluginData['checksum'] ?? ''),
                 (string) ($pluginData['download_url'] ?? ''),
-                $pluginData['description'] ?? null,
+                self::description($pluginData['description'] ?? null),
                 (string) ($pluginData['install_mode'] ?? 'extract'),
                 isset($pluginData['extract_subdir']) ? (string) $pluginData['extract_subdir'] : null,
             );
@@ -114,4 +107,13 @@ final class GamePluginSeeder
             'missing_game_keys' => array_values($missingGameKeys),
         ];
     }
+    private static function description(mixed $value): ?string
+    {
+        if ($value === null || is_string($value)) {
+            return $value;
+        }
+
+        throw new \InvalidArgumentException('Plugin descriptions must be strings or null.');
+    }
+
 }

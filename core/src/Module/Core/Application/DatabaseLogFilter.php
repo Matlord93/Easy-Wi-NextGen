@@ -57,7 +57,7 @@ final class DatabaseLogFilter
     ) {
     }
 
-    /** @param array<string, mixed> $payload */
+    /** @param array<array-key, mixed> $payload */
     public function shouldStore(string $action, array $payload = [], ?string $level = null): bool
     {
         $normalizedLevel = strtolower((string) ($level ?? $payload['level'] ?? $payload['severity'] ?? 'info'));
@@ -84,7 +84,7 @@ final class DatabaseLogFilter
         return $this->settingsService->shouldStoreRoutineDatabaseLogs();
     }
 
-    /** @param array<string, mixed> $payload */
+    /** @param array<array-key, mixed> $payload */
     private function isErrorPayload(array $payload): bool
     {
         $status = strtolower((string) ($payload['status'] ?? $payload['result'] ?? ''));

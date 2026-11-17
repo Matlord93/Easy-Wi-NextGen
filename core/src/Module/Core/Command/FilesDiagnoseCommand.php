@@ -107,7 +107,6 @@ final class FilesDiagnoseCommand extends Command
                     ['sftp_username_override' => $metadata['sftp_username'] ?? '<unset>'],
                 );
 
-                $resolvedRoot = '';
                 $owner = '<unknown>';
                 $perms = '<unknown>';
                 $accessible = 'no';

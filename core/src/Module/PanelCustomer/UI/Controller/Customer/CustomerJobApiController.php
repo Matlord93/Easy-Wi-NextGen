@@ -260,15 +260,15 @@ final class CustomerJobApiController
         }
 
         $payload = $job->getPayload();
-        $payloadCustomerId = $payload['customer_id'] ?? null;
-        if (is_string($payloadCustomerId) || is_int($payloadCustomerId)) {
+        $payloadCustomerId = self::payloadIdentifier($payload['customer_id'] ?? null);
+        if ($payloadCustomerId !== null) {
             if ((string) $payloadCustomerId === (string) $customer->getId()) {
                 return $job;
             }
         }
 
-        $payloadInstanceId = $payload['instance_id'] ?? null;
-        if (is_string($payloadInstanceId) || is_int($payloadInstanceId)) {
+        $payloadInstanceId = self::payloadIdentifier($payload['instance_id'] ?? null);
+        if ($payloadInstanceId !== null) {
             $instance = $this->instanceRepository->find((int) $payloadInstanceId);
             if ($instance !== null && $instance->getCustomer()->getId() === $customer->getId()) {
                 return $job;
@@ -303,7 +303,7 @@ final class CustomerJobApiController
             throw new BadRequestHttpException('Invalid JSON payload.', $exception);
         }
 
-        return JsonArray::orEmpty($payload);
+        return \App\Infrastructure\Config\JsonMap::fromValue($payload) ?? [];
     }
 
     /**
@@ -413,5 +413,10 @@ final class CustomerJobApiController
             'port_block_ports' => $portBlockPorts,
             'install_command' => $this->templateInstallResolver->resolveInstallCommand($instance),
         ];
+    }
+
+    private static function payloadIdentifier(mixed $value): int|string|null
+    {
+        return is_int($value) || is_string($value) ? $value : null;
     }
 }

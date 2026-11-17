@@ -16,11 +16,6 @@ final class ScheduledTaskRunRepository extends ServiceEntityRepository
         parent::__construct($registry, ScheduledTaskRun::class);
     }
 
-    public function findLatestRun(): ?ScheduledTaskRun
-    {
-        return $this->findOneBy([], ['startedAt' => 'DESC']);
-    }
-
     public function countFailedSince(\DateTimeImmutable $since): int
     {
         return (int) $this->createQueryBuilder('run')

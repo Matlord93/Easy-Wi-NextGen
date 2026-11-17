@@ -48,7 +48,7 @@ final class AdminActivityController
     private function normalizeEntries(array $entries): array
     {
         return array_map(static function (array $entry): array {
-            $payload = is_string($entry['payload_preview'] ?? null) ? $entry['payload_preview'] : '{}';
+            $payload = \App\Infrastructure\Config\JsonMap::strings($entry)['payload_preview'] ?? '{}';
 
             return [
                 'id' => (int) ($entry['id'] ?? 0),

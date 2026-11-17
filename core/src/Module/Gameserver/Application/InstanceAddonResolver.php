@@ -93,20 +93,15 @@ final class InstanceAddonResolver
     private function resolveInstalledVersions(Instance $instance): array
     {
         $installedVersions = [];
-        $installedRaw = $instance->getConfigOverrides()['addons'] ?? [];
-        if (!is_array($installedRaw)) {
-            return $installedVersions;
-        }
-
-        foreach ($installedRaw as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $name = strtolower(trim(($entry['name'] ?? '')));
+        // Legacy installations can carry add-on state alongside file overrides.
+        $installedRaw = \App\Infrastructure\Config\JsonArray::orEmpty($instance->getConfigOverrides()['addons'] ?? null);
+        foreach (array_keys($installedRaw) as $key) {
+            $entry = \App\Infrastructure\Config\JsonMap::strings($installedRaw[$key]);
+            $name = strtolower(trim($entry['name'] ?? ''));
             if ($name === '') {
                 continue;
             }
-            $installedVersions[$name] = trim((string) ($entry['version'] ?? ''));
+            $installedVersions[$name] = trim($entry['version'] ?? '');
         }
 
         return $installedVersions;

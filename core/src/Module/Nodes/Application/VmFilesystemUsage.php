@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application;
 
+use App\Infrastructure\Config\JsonArray;
+
 /**
  * Only mounted, local guest filesystems; never provisioned/image allocation.
  * @psalm-type FilesystemUsage = array{state: string, used_bytes: float|null, total_bytes: float|null, filesystems: int, partial: bool}
@@ -31,7 +33,7 @@ final class VmFilesystemUsage
                 $partial = true;
                 continue;
             }
-            $type = is_string($row['type'] ?? null) ? strtolower($row['type']) : '';
+            $type = self::filesystemType($row['type'] ?? null);
             // A zram device can contain ext4; its filesystem type alone does not
             // identify it as volatile memory. Do not filter by mountpoint.
             if (self::memoryDevice($row['name'] ?? null) || self::memoryBackedDisks($row['disk'] ?? null)) {
@@ -82,11 +84,22 @@ final class VmFilesystemUsage
         $used = self::bytes($input['used_bytes'] ?? null);
         $total = self::bytes($input['total_bytes'] ?? null);
         $count = $input['filesystems'] ?? null;
-        if ($used === null || $total === null || $total <= 0 || $used > $total || !is_int($count) || $count < 1 || $count > 128 || !is_bool($input['partial'] ?? null)) {
+        $partial = self::partialFlag($input['partial'] ?? null);
+        if ($used === null || $total === null || $total <= 0 || $used > $total || !is_int($count) || $count < 1 || $count > 128 || $partial === null) {
             return self::unavailable();
         }
 
-        return ['state' => 'available', 'used_bytes' => $used, 'total_bytes' => $total, 'filesystems' => $count, 'partial' => $input['partial']];
+        return ['state' => 'available', 'used_bytes' => $used, 'total_bytes' => $total, 'filesystems' => $count, 'partial' => $partial];
+    }
+
+    private static function filesystemType(mixed $value): string
+    {
+        return is_string($value) ? strtolower($value) : '';
+    }
+
+    private static function partialFlag(mixed $value): ?bool
+    {
+        return is_bool($value) ? $value : null;
     }
 
     private static function bytes(mixed $value): ?float
@@ -108,8 +121,9 @@ final class VmFilesystemUsage
         if (!is_array($disks) || count($disks) > 128) {
             return false;
         }
-        foreach ($disks as $disk) {
-            if (is_array($disk) && self::memoryDevice($disk['dev'] ?? null)) {
+        foreach (array_keys($disks) as $key) {
+            $disk = JsonArray::fromValue($disks[$key]);
+            if ($disk !== null && self::memoryDevice($disk['dev'] ?? null)) {
                 return true;
             }
         }

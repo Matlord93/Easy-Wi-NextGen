@@ -66,12 +66,11 @@ final class DomainEventSubscriber implements EventSubscriber
             return;
         }
 
-        [$previous, $current] = $changeSet['status'];
         $this->eventBus->publish(new JobStateChangedEvent(
             $entity->getId(),
             $entity->getType(),
-            $this->normalizeStatus($previous),
-            $this->normalizeStatus($current),
+            $this->normalizeStatus($changeSet['status'][0]),
+            $this->normalizeStatus($changeSet['status'][1]),
         ));
     }
 

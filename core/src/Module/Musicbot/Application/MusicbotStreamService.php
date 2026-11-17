@@ -53,9 +53,10 @@ final class MusicbotStreamService
         }
 
         if (array_key_exists('access_mode', $data)) {
-            $mode = MusicbotStreamAccessMode::tryFrom((string) $data['access_mode']);
+            $accessMode = \App\Infrastructure\Config\ScalarValue::text($data['access_mode']);
+            $mode = MusicbotStreamAccessMode::tryFrom($accessMode);
             if ($mode === null) {
-                throw new \InvalidArgumentException(sprintf('Invalid access mode: "%s".', $data['access_mode']));
+                throw new \InvalidArgumentException(sprintf('Invalid access mode: "%s".', $accessMode));
             }
             $settings->setAccessMode($mode);
         }

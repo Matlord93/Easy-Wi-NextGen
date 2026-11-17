@@ -56,10 +56,10 @@ final class Ts3ViewerService
         $cacheKey = sprintf('ts3_viewer_%s', $publicId);
         $ttlSeconds = max(1, (int) ceil($viewer->getCacheTtlMs() / 1000));
 
-        $snapshot = $this->cache->get($cacheKey, function (ItemInterface $item) use ($ttlSeconds): array {
+        $snapshot = \App\Infrastructure\Config\JsonMap::fromValue($this->cachedData($cacheKey, function (ItemInterface $item) use ($ttlSeconds): array {
             $item->expiresAfter($ttlSeconds);
             return [];
-        });
+        })) ?? [];
 
         if ($snapshot === []) {
             $server = $viewer->getVirtualServer();
@@ -82,13 +82,11 @@ final class Ts3ViewerService
             ];
         }
 
-        if (is_array($snapshot)) {
-            $normalized = ViewerSnapshotNormalizer::normalize($snapshot);
-            $snapshot['server'] = $normalized['server'];
-            $snapshot['channels'] = $normalized['channels'];
-            $snapshot['clients'] = $normalized['clients'];
-            $snapshot['snapshot'] = $normalized;
-        }
+        $normalized = ViewerSnapshotNormalizer::normalize($snapshot);
+        $snapshot['server'] = $normalized['server'];
+        $snapshot['channels'] = $normalized['channels'];
+        $snapshot['clients'] = $normalized['clients'];
+        $snapshot['snapshot'] = $normalized;
 
         return $snapshot;
     }
@@ -123,5 +121,11 @@ final class Ts3ViewerService
         }
 
         return false;
+    }
+
+    /** @param callable(ItemInterface, bool): mixed $loader */
+    private function cachedData(string $key, callable $loader): mixed
+    {
+        return $this->cache->get($key, $loader);
     }
 }

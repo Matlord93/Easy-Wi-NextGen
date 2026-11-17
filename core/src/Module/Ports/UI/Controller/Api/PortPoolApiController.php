@@ -30,7 +30,7 @@ final class PortPoolApiController
     #[Route(path: '/api/v1/admin/port-pools', name: 'admin_port_pools_list_v1', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
-        $actor = $this->requireAdmin($request);
+        $this->requireAdmin($request);
 
         $pools = $this->portPoolRepository->findBy([], ['createdAt' => 'DESC']);
         $payload = [];

@@ -63,7 +63,7 @@ final class AdminMailPolicyController
         }
 
         try {
-            $dto = MailPolicyUpsertDto::fromPayload($request->toArray());
+            $dto = MailPolicyUpsertDto::fromPayload(\App\Infrastructure\Config\JsonMap::fromValue($request->toArray()) ?? []);
         } catch (\InvalidArgumentException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }

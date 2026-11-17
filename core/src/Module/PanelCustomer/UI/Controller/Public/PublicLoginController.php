@@ -91,7 +91,7 @@ final class PublicLoginController
                 $status = Response::HTTP_TOO_MANY_REQUESTS;
                 $errors = ['Unable to sign in. Please try again later.'];
                 foreach ([$ipLimit, $idLimit] as $limit) {
-                    if (!$limit->isAccepted() && $limit->getRetryAfter() !== null) {
+                    if (!$limit->isAccepted()) {
                         if ($retryAfter === null || $limit->getRetryAfter() > $retryAfter) {
                             $retryAfter = $limit->getRetryAfter();
                         }
@@ -108,7 +108,7 @@ final class PublicLoginController
 
             if ($errors === []) {
                 $user = $this->users->findOneByEmail($email);
-                if (!$this->credentialVerifier->isValid($user, $password)) {
+                if (!$this->credentialVerifier->isValid($user, $password) || $user === null) {
                     $status = Response::HTTP_UNAUTHORIZED;
                     $errors[] = 'Invalid credentials.';
                     $this->auditLogger->log($user, 'auth.login_failed', [
@@ -124,7 +124,7 @@ final class PublicLoginController
                         $session = $request->getSession();
                         $session->set('auth_pending_user_id', $user->getId());
                         $session->set('auth_pending_since', time());
-                        $requestedTarget = (string) ($request->request->get('target', $request->query->get('target', $session->get(PostLoginRedirectResolver::SESSION_TARGET_KEY, ''))));
+                        $requestedTarget = (string) ($request->request->get('target', $request->query->get('target', \App\Infrastructure\Config\ScalarValue::text($session->get(PostLoginRedirectResolver::SESSION_TARGET_KEY, '')))));
                         $session->set('auth_pending_target_path', $requestedTarget);
                         $session->remove('auth_2fa_attempts');
                         $session->remove('auth_2fa_locked_until');
@@ -182,6 +182,6 @@ final class PublicLoginController
     {
         $loader = $this->twig->getLoader();
 
-        return method_exists($loader, 'exists') && $loader->exists($template);
+        return $loader->exists($template);
     }
 }

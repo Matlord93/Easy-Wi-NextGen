@@ -96,6 +96,7 @@ final class AdminNotificationController
         return $actor;
     }
 
+    /** @param Notification[] $notifications */
     private function normalizeNotifications(array $notifications): array
     {
         return array_map([$this, 'normalizeNotification'], $notifications);

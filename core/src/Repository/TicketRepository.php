@@ -35,19 +35,6 @@ final class TicketRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return Ticket[]
-     */
-    public function findForAdminList(): array
-    {
-        return EntityQueryResult::all($this->createQueryBuilder('ticket')
-            ->addSelect('customer', 'assignedTo')
-            ->innerJoin('ticket.customer', 'customer')
-            ->leftJoin('ticket.assignedTo', 'assignedTo')
-            ->orderBy('ticket.lastMessageAt', 'DESC')
-            ->getQuery(), \App\Module\Core\Domain\Entity\Ticket::class);
-    }
-
-    /**
      * Returns the operational admin queue for one support user.
      *
      * The queue contains only unassigned open tickets plus tickets that are

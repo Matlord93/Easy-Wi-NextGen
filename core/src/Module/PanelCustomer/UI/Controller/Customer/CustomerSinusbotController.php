@@ -118,8 +118,9 @@ final class CustomerSinusbotController
         $customer = $instance->getCustomer();
         $instances = $customer !== null ? $this->loadInstances($customer) : [$instance];
         $passwords = [];
-        if ($instance->getId() !== null) {
-            $passwords[$instance->getId()] = $password;
+        $instanceId = $instance->getId();
+        if ($instanceId !== null) {
+            $passwords[$instanceId] = $password;
         }
         $soloNodes = $customer !== null ? $this->nodeRepository->findSoloByCustomer($customer) : [];
         $soloNodeUrls = [];

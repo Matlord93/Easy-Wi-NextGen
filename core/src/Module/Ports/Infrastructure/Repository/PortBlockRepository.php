@@ -9,7 +9,6 @@ use App\Repository\QueryParameter;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Ports\Domain\Entity\PortBlock;
-use App\Module\Ports\Domain\Entity\PortPool;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -54,12 +53,6 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
     public function findByNode(\App\Module\Core\Domain\Entity\Agent $node): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('block')->join('block.pool', 'pool')->where('pool.node = :node')->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))->getQuery(), \App\Module\Ports\Domain\Entity\PortBlock::class);
-    }
-
-    /** @return list<\App\Module\Ports\Domain\Entity\PortBlock> */
-    public function findByPool(PortPool $pool): array
-    {
-        return $this->findBy(['pool' => $pool], ['startPort' => 'ASC']);
     }
 
     /**

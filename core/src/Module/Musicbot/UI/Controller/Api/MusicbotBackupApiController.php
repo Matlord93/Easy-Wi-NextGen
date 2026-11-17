@@ -14,7 +14,6 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Musicbot\Application\Backup\MusicbotBackupOptions;
 use App\Module\Musicbot\Application\Backup\MusicbotBackupService;
-use App\Module\Musicbot\Application\Backup\MusicbotMigrationService;
 use App\Module\Musicbot\Application\Backup\MusicbotRestoreService;
 use App\Module\Musicbot\Application\MusicbotPermissionService;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
@@ -34,7 +33,6 @@ final class MusicbotBackupApiController
         private readonly MusicbotInstanceRepository $instanceRepository,
         private readonly MusicbotBackupService $backupService,
         private readonly MusicbotRestoreService $restoreService,
-        private readonly MusicbotMigrationService $migrationService,
         private readonly MusicbotPermissionService $permissionService,
         private readonly AuditLogger $auditLogger,
     ) {

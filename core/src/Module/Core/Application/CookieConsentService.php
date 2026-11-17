@@ -59,15 +59,14 @@ final class CookieConsentService
     }
 
     /**
-     * @param string|array<string, mixed> $raw
+     * @param string|array<array-key, mixed> $raw
      * @return array{version:int, necessary:bool, statistics:bool, marketing:bool}
      */
     private function normalize(string|array $raw): array
     {
         $payload = $raw;
         if (is_string($raw)) {
-            $decoded = json_decode(rawurldecode($raw), true);
-            $payload = JsonArray::orEmpty($decoded);
+            $payload = JsonArray::decode(rawurldecode($raw)) ?? [];
         }
 
         $defaults = $this->defaultConsent();

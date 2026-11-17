@@ -38,8 +38,6 @@ use App\Module\Musicbot\Application\MusicbotRuntimeStatusNormalizer;
 use App\Module\Musicbot\Application\MusicbotQuotaService;
 use App\Module\Musicbot\Application\MusicbotWorkflowService;
 use App\Module\Musicbot\Domain\Entity\MusicbotWorkflow;
-use App\Repository\MusicbotAutoDjSettingsRepository;
-use App\Repository\MusicbotStreamSettingsRepository;
 use App\Repository\MusicbotWorkflowRepository;
 use App\Module\Musicbot\Application\PluginRegistryService;
 use App\Module\Musicbot\Application\MusicbotPlanLimitResolver;
@@ -104,11 +102,9 @@ final class AdminMusicbotController
         private readonly MusicbotQueueItemRepository $queueItemRepository,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
         private readonly MusicbotAutoDjService $autoDjService,
-        private readonly MusicbotAutoDjSettingsRepository $autoDjSettingsRepository,
         private readonly MusicbotScheduleService $scheduleService,
         private readonly MusicbotScheduleRepository $scheduleRepository,
         private readonly MusicbotStreamService $streamService,
-        private readonly MusicbotStreamSettingsRepository $streamSettingsRepository,
         private readonly MusicbotWorkflowService $workflowService,
         private readonly MusicbotWorkflowRepository $workflowRepository,
         private readonly MusicbotSecretConfigService $secretConfigService,
@@ -788,8 +784,8 @@ final class AdminMusicbotController
      * command_prefix: string, commands_enabled: bool, events_enabled: bool, allowed_server_groups:
      * list<string>, dj_server_groups: list<string>, admin_server_groups: list<string>, host: string, port:
      * int, nickname: string, channel_id: string}
+     * @param list<string> $errors
      */
-    /** @param list<string> $errors */
     private function parseTeamspeakConfig(Request $request, array &$errors): array
     {
         $profile = MusicbotTeamspeakProfile::tryFrom((string) $request->request->get('teamspeak_profile', MusicbotTeamspeakProfile::Ts3->value));
@@ -916,7 +912,7 @@ final class AdminMusicbotController
         return ['length' => count($queue), 'currentTrack' => $current, 'items' => array_slice($queue, 0, 10)];
     }
 
-    /** @param array<string, mixed> $runtimePayload */
+    /** @param array<array-key, mixed> $runtimePayload */
     private function resolveLastError(array $runtimePayload): ?string
     {
         return $this->runtimeStatusNormalizer->resolveActiveLastError($runtimePayload);

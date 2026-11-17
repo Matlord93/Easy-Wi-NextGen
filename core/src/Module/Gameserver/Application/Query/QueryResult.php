@@ -32,34 +32,6 @@ final class QueryResult
         return new self('unknown', null, null, $message, $normalized);
     }
 
-    public function getStatus(): ?string
-    {
-        return $this->status;
-    }
-
-    public function getPlayers(): ?int
-    {
-        return $this->players;
-    }
-
-    public function getMaxPlayers(): ?int
-    {
-        return $this->maxPlayers;
-    }
-
-    public function getMessage(): ?string
-    {
-        return $this->message;
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    public function getNormalized(): ?array
-    {
-        return $this->normalized;
-    }
-
     /**
      * @return array<string, mixed>
      */

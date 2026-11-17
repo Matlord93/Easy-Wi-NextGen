@@ -31,7 +31,7 @@ final class GameserverAutoRestartScheduleHandler implements ScheduleHandlerInter
     #[\Override]
     public function schedules(): array
     {
-        return array_values(array_map(function (InstanceSchedule $schedule): InternalSchedule {
+        return array_map(function (InstanceSchedule $schedule): InternalSchedule {
             $instance = $schedule->getInstance();
 
             return new InternalSchedule(
@@ -53,7 +53,7 @@ final class GameserverAutoRestartScheduleHandler implements ScheduleHandlerInter
                 $schedule->getCreatedAt(),
                 $schedule->getUpdatedAt(),
             );
-        }, $this->repository->findBy(['action' => InstanceScheduleAction::Restart], ['id' => 'ASC'])));
+        }, $this->repository->findBy(['action' => InstanceScheduleAction::Restart], ['id' => 'ASC']));
     }
 
     #[\Override]

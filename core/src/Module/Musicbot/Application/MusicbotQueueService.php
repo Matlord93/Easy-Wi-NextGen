@@ -60,7 +60,8 @@ final class MusicbotQueueService
     {
         $this->assertCustomerOwnsInstance($customer, $instance);
         $this->assertCustomerOwnsTrack($customer, $track);
-        if ($track->getInstance() instanceof MusicbotInstance && $track->getInstance()->getId() !== $instance->getId()) {
+        $trackInstance = $track->getInstance();
+        if ($trackInstance !== null && $trackInstance->getId() !== $instance->getId()) {
             throw new \InvalidArgumentException('Track belongs to another musicbot instance.');
         }
         $this->quotaService->assertCanAddToQueue($customer, $instance);
@@ -83,7 +84,8 @@ final class MusicbotQueueService
     {
         $this->assertCustomerOwnsInstance($customer, $instance);
         $this->assertCustomerOwnsTrack($customer, $track);
-        if ($track->getInstance() instanceof MusicbotInstance && $track->getInstance()->getId() !== $instance->getId()) {
+        $trackInstance = $track->getInstance();
+        if ($trackInstance !== null && $trackInstance->getId() !== $instance->getId()) {
             throw new \InvalidArgumentException('Track belongs to another musicbot instance.');
         }
         $this->quotaService->assertCanAddToQueue($customer, $instance);
@@ -110,13 +112,6 @@ final class MusicbotQueueService
         $this->entityManager->flush();
         $this->normalizePositions($instance);
         $this->dispatchQueueSync($instance);
-    }
-
-    public function removeTrack(User $customer, MusicbotTrack $track): void
-    {
-        $this->assertCustomerOwnsTrack($customer, $track);
-        $this->entityManager->remove($track);
-        $this->entityManager->flush();
     }
 
     /** @param list<int> $queueItemIds */
@@ -156,19 +151,6 @@ final class MusicbotQueueService
         $this->dispatchQueueSync($instance);
     }
 
-    /** @return MusicbotQueueItem[] */
-    public function queueForCustomerInstance(User $customer, MusicbotInstance $instance): array
-    {
-        $this->assertCustomerOwnsInstance($customer, $instance);
-
-        return $this->queueItemRepository->findQueueForInstanceOrdered($instance);
-    }
-
-    public function findTrackForCustomer(int $trackId, User $customer): ?MusicbotTrack
-    {
-        return $this->trackRepository->findOneForCustomer($trackId, $customer);
-    }
-
     private function normalizePositions(MusicbotInstance $instance): void
     {
         $position = 0;
@@ -179,7 +161,7 @@ final class MusicbotQueueService
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{instance_id:string,items:list<array<string,mixed>>,revision:int,generated_at:string}
      */
     public function buildQueueSnapshot(MusicbotInstance $instance): array
     {

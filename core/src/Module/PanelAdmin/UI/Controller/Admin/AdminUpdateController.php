@@ -48,8 +48,6 @@ final class AdminUpdateController
         private readonly RateLimiterFactory $updateLimiter,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
-        #[Autowire('%kernel.project_dir%')]
-        private readonly string $projectDir,
     ) {
     }
 

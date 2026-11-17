@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Module\PanelAdmin\UI\Controller\Admin\AdminUpdateController;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\Response;
+use Twig\Environment;
+use Twig\Loader\ArrayLoader;
 
 final class AdminUpdateCardContractTest extends TestCase
 {
@@ -41,8 +45,8 @@ final class AdminUpdateCardContractTest extends TestCase
     public function testUpdateCardUsesTailLimitFifty(): void
     {
         $controller = (string) file_get_contents(__DIR__.'/../../src/Module/PanelAdmin/UI/Controller/Admin/AdminUpdateController.php');
-        self::assertStringContainsString("tailLog(\$latestJob['logPath'] ?? null, 50)", $controller);
-        self::assertStringNotContainsString("tailLog(\$latestJob['logPath'] ?? null, 200)", $controller);
+        self::assertStringContainsString("tailLog(\$this->optionalString(\$latestJob['logPath'] ?? null), 50)", $controller);
+        self::assertStringNotContainsString("tailLog(\$this->optionalString(\$latestJob['logPath'] ?? null), 200)", $controller);
     }
 
     public function testUpdateCardPollsOnlyWhenJobIsRunning(): void
@@ -109,12 +113,27 @@ final class AdminUpdateCardContractTest extends TestCase
         self::assertStringContainsString("Cache-Control', 'no-store, no-cache, must-revalidate", $controller);
     }
 
-    public function testUpdateControllerProvidesHtmxResponseHelpers(): void
+    public function testUpdateCardsReturnHtmlWithoutCachingOrNavigation(): void
     {
-        $controller = (string) file_get_contents(__DIR__.'/../../src/Module/PanelAdmin/UI/Controller/Admin/AdminUpdateController.php');
-        self::assertStringContainsString('private function htmxRefresh(): Response', $controller);
-        self::assertStringContainsString("'HX-Refresh' => 'true'", $controller);
-        self::assertStringContainsString('private function htmxRedirect(string $url): Response', $controller);
-        self::assertStringContainsString('\'HX-Redirect\' => $url', $controller);
+        $reflection = new \ReflectionClass(AdminUpdateController::class);
+        $controller = $reflection->newInstanceWithoutConstructor();
+        $reflection->getProperty('twig')->setValue($controller, new Environment(new ArrayLoader([
+            'admin/dashboard/_web_update_card.html.twig' => '{{ coreUpdate.notice }}',
+            'admin/updates/_agent_update_card.html.twig' => '{{ agentUpdate.notice }}',
+        ])));
+
+        foreach (['renderUpdateCard', 'renderAgentUpdateCard'] as $method) {
+            $response = $reflection->getMethod($method)->invoke($controller, ['notice' => 'Updated card']);
+
+            self::assertInstanceOf(Response::class, $response);
+            self::assertSame(Response::HTTP_OK, $response->getStatusCode());
+            self::assertSame('Updated card', $response->getContent());
+            self::assertSame('text/html; charset=UTF-8', $response->headers->get('Content-Type'));
+            self::assertTrue($response->headers->hasCacheControlDirective('no-store'));
+            self::assertTrue($response->headers->hasCacheControlDirective('no-cache'));
+            self::assertTrue($response->headers->hasCacheControlDirective('must-revalidate'));
+            self::assertFalse($response->headers->has('HX-Refresh'));
+            self::assertFalse($response->headers->has('HX-Redirect'));
+        }
     }
 }

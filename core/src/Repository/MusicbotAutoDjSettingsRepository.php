@@ -23,15 +23,4 @@ final class MusicbotAutoDjSettingsRepository extends ServiceEntityRepository
         return $this->findOneBy(['instance' => $instance]);
     }
 
-    /** @return MusicbotAutoDjSettings[] */
-    public function findEnabledByCustomer(User $customer): array
-    {
-        return $this->findBy(['customer' => $customer, 'enabled' => true]);
-    }
-
-    /** @return MusicbotAutoDjSettings[] */
-    public function findAllEnabled(): array
-    {
-        return $this->findBy(['enabled' => true]);
-    }
 }

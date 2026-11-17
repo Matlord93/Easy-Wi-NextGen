@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
-use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotRuntimeEvent;
 use App\Repository\MusicbotRuntimeEventRepository;
@@ -39,12 +38,6 @@ final class MusicbotRuntimeEventService implements MusicbotRuntimeEventServiceIn
     public function latestForInstance(MusicbotInstance $instance, int $limit = 50): array
     {
         return $this->eventRepository->findLatestForInstance($instance, $limit);
-    }
-
-    /** @return MusicbotRuntimeEvent[] */
-    public function latestForCustomer(User $customer, int $limit = 100): array
-    {
-        return $this->eventRepository->findByCustomer($customer, $limit);
     }
 
     /** @return MusicbotRuntimeEvent[] */

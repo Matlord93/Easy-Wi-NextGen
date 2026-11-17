@@ -93,8 +93,8 @@ final class PublicServerStatusService
         $cache['status'] = $online ? 'online' : 'offline';
         $cache['players'] = is_numeric($output['players'] ?? null) ? (int) $output['players'] : null;
         $cache['max_players'] = is_numeric($output['max_players'] ?? null) ? (int) $output['max_players'] : null;
-        $cache['map'] = is_string($output['map'] ?? null) && $output['map'] !== '' ? $output['map'] : null;
-        $cache['name'] = is_string($output['name'] ?? null) && $output['name'] !== '' ? $output['name'] : null;
+        $cache['map'] = self::optionalText($output['map'] ?? null);
+        $cache['name'] = self::optionalText($output['name'] ?? null);
         $cache['last_error'] = $online ? null : $this->normalizeError($output);
         $cache['query_duration_ms'] = is_numeric($output['query_duration_ms'] ?? $output['duration_ms'] ?? null) ? (int) ($output['query_duration_ms'] ?? $output['duration_ms']) : null;
         $cache['last_checked_at'] = $checkedAt->format(DATE_RFC3339);
@@ -153,11 +153,17 @@ final class PublicServerStatusService
 
 
 
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
     private function normalizeError(array $output): string
     {
         foreach (['last_error', 'error', 'message', 'reason'] as $key) {
-            if (is_string($output[$key] ?? null) && trim($output[$key]) !== '') {
-                return mb_substr(trim($output[$key]), 0, 240);
+            $message = self::optionalText($output[$key] ?? null);
+            if ($message !== null && trim($message) !== '') {
+                return mb_substr(trim($message), 0, 240);
             }
         }
         return 'Query fehlgeschlagen oder Server nicht erreichbar.';

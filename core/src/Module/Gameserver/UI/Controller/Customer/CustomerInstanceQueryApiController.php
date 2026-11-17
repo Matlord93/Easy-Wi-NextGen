@@ -173,11 +173,16 @@ final class CustomerInstanceQueryApiController
 
     private function resolveRequestId(Request $request): string
     {
-        return trim((string) ($request->headers->get('X-Request-ID') ?: $request->attributes->get('request_id') ?: ''));
+        $header = $request->headers->get('X-Request-ID');
+        $requestId = in_array($header, [null, '', '0'], true)
+            ? \App\Infrastructure\Config\ScalarValue::text($request->attributes->get('request_id'))
+            : $header;
+
+        return trim($requestId === '0' ? '' : $requestId);
     }
 
     /**
-     * @param array<string, mixed> $normalized
+     * @param array<array-key, mixed> $normalized
      * @return array{resolved_host: null|string, resolved_port: int|null, resolved_protocol: null|string,
      * host_source: string, resolved_host_source: string, port_source: string, timeout_ms: int,
      * network_mode: string, instance_game_port: int|null, instance_query_port: int|null,

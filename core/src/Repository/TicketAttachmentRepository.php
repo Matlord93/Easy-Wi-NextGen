@@ -21,15 +21,6 @@ final class TicketAttachmentRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return TicketAttachment[]
-     */
-    public function findByMessage(TicketMessage $message): array
-    {
-        return $this->findBy(['message' => $message], ['createdAt' => 'ASC']);
-    }
-
-
-    /**
      * @param TicketMessage[] $messages
      *
      * @return TicketAttachment[]
@@ -47,11 +38,4 @@ final class TicketAttachmentRepository extends ServiceEntityRepository
             ->getQuery(), \App\Module\Core\Domain\Entity\TicketAttachment::class);
     }
 
-    /**
-     * @return TicketAttachment[]
-     */
-    public function findByTicket(Ticket $ticket): array
-    {
-        return $this->findBy(['ticket' => $ticket], ['createdAt' => 'ASC']);
-    }
 }

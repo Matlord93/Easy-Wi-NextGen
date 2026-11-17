@@ -20,21 +20,6 @@ final class ForumPostRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return list<ForumPost>
-     */
-    public function findVisibleByThreadWithAuthor(ForumThread $thread): array
-    {
-        $rows = EntityQueryResult::all($this->createQueryBuilder('post')
-            ->leftJoin('post.authorUser', 'author')->addSelect('author')
-            ->andWhere('post.thread = :thread')
-            ->setParameter('thread', QueryParameter::entityId($thread->getId(), \App\Module\Core\Domain\Entity\ForumThread::class))
-            ->orderBy('post.createdAt', 'ASC')
-            ->getQuery(), \App\Module\Core\Domain\Entity\ForumPost::class);
-
-        return $rows;
-    }
-
-    /**
      * @return array{items: list<ForumPost>, total: int}
      */
     public function paginateVisibleByThreadWithAuthor(ForumThread $thread, int $page, int $perPage): array

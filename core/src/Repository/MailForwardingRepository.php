@@ -19,9 +19,4 @@ final class MailForwardingRepository extends ServiceEntityRepository
         parent::__construct($registry, MailForwarding::class);
     }
 
-    /** @return MailForwarding[] */
-    public function findEnabledByDomain(Domain $domain): array
-    {
-        return $this->findBy(['domain' => $domain, 'enabled' => true], ['id' => 'ASC']);
-    }
 }

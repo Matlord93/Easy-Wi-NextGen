@@ -22,14 +22,6 @@ final class JobLogRepository extends ServiceEntityRepository
     /**
      * @return JobLog[]
      */
-    public function findByJob(Job $job): array
-    {
-        return $this->findBy(['job' => $job], ['createdAt' => 'ASC']);
-    }
-
-    /**
-     * @return JobLog[]
-     */
     public function findByJobAfterId(Job $job, ?int $afterId = null, int $limit = 200): array
     {
         $builder = $this->createQueryBuilder('log')
@@ -46,58 +38,4 @@ final class JobLogRepository extends ServiceEntityRepository
         return EntityQueryResult::all($builder->getQuery(), \App\Module\Core\Domain\Entity\JobLog::class);
     }
 
-    /**
-     * @return JobLog[]
-     */
-    public function findLastByJob(Job $job, int $limit = 200): array
-    {
-        return EntityQueryResult::all($this->createQueryBuilder('log')
-            ->andWhere('log.job = :job')
-            ->setParameter('job', QueryParameter::entityId($job->getId(), \App\Module\Core\Domain\Entity\Job::class))
-            ->orderBy('log.id', 'DESC')
-            ->setMaxResults($limit)
-            ->getQuery(), \App\Module\Core\Domain\Entity\JobLog::class);
-    }
-
-    /**
-     * @param Job[] $jobs
-     * @return JobLog[]
-     */
-    public function findByJobsAfterId(array $jobs, ?int $afterId = null, int $limit = 200): array
-    {
-        if ($jobs === []) {
-            return [];
-        }
-
-        $builder = $this->createQueryBuilder('log')
-            ->andWhere('log.job IN (:jobs)')
-            ->setParameter('jobs', $jobs)
-            ->orderBy('log.id', 'ASC')
-            ->setMaxResults($limit);
-
-        if ($afterId !== null) {
-            $builder->andWhere('log.id > :afterId')
-                ->setParameter('afterId', $afterId);
-        }
-
-        return EntityQueryResult::all($builder->getQuery(), \App\Module\Core\Domain\Entity\JobLog::class);
-    }
-
-    /**
-     * @param Job[] $jobs
-     * @return JobLog[]
-     */
-    public function findLastByJobs(array $jobs, int $limit = 200): array
-    {
-        if ($jobs === []) {
-            return [];
-        }
-
-        return EntityQueryResult::all($this->createQueryBuilder('log')
-            ->andWhere('log.job IN (:jobs)')
-            ->setParameter('jobs', $jobs)
-            ->orderBy('log.id', 'DESC')
-            ->setMaxResults($limit)
-            ->getQuery(), \App\Module\Core\Domain\Entity\JobLog::class);
-    }
 }

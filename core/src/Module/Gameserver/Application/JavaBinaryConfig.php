@@ -27,15 +27,4 @@ final class JavaBinaryConfig
         return 'java'.$version;
     }
 
-    /** @return array<array-key, string> map of version → binary */
-    public function allBinaries(): array
-    {
-        $result = MinecraftJavaVersionResolver::JAVA_BIN_BY_VERSION;
-        foreach ($this->overrides as $version => $bin) {
-            if (isset($result[$version])) {
-                $result[$version] = $bin;
-            }
-        }
-        return $result;
-    }
 }

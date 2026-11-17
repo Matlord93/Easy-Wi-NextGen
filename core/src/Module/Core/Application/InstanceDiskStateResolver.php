@@ -17,7 +17,7 @@ final class InstanceDiskStateResolver
         }
 
         $used = $instance->getDiskUsedBytes();
-        $percent = ($used / $limit) * 100;
+        $percent = ((float) $used / (float) $limit) * 100.0;
 
         $node = $instance->getNode();
         $warningPercent = $node->getDiskWarningPercent();
@@ -36,13 +36,4 @@ final class InstanceDiskStateResolver
         return InstanceDiskState::Ok;
     }
 
-    public function resolvePercent(Instance $instance): float
-    {
-        $limit = $instance->getDiskLimitBytes();
-        if ($limit <= 0) {
-            return 0.0;
-        }
-
-        return ($instance->getDiskUsedBytes() / $limit) * 100;
-    }
 }

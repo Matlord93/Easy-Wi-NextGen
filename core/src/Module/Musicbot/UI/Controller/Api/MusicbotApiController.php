@@ -20,7 +20,6 @@ use App\Module\Musicbot\Application\MusicbotPlaylistService;
 use App\Module\Musicbot\Application\MusicbotPluginEventService;
 use App\Module\Musicbot\Application\MusicbotPluginLogService;
 use App\Module\Musicbot\Application\MusicbotPluginService;
-use App\Module\Musicbot\Application\MusicbotQueueService;
 use App\Module\Musicbot\Application\MusicbotQuotaService;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventService;
 use App\Module\Musicbot\Application\MusicbotAutoDjService;
@@ -28,7 +27,6 @@ use App\Module\Musicbot\Application\MusicbotScheduleService;
 use App\Module\Musicbot\Application\MusicbotSecretConfigService;
 use App\Module\Musicbot\Application\MusicbotStreamService;
 use App\Module\Musicbot\Application\MusicbotWorkflowService;
-use App\Module\Musicbot\Domain\Entity\MusicbotStreamSettings;
 use App\Module\Musicbot\Domain\Entity\MusicbotWorkflow;
 use App\Module\Musicbot\Domain\Enum\MusicbotWorkflowTriggerType;
 use App\Repository\MusicbotStreamSettingsRepository;
@@ -80,7 +78,6 @@ final class MusicbotApiController
         private readonly MusicbotTrackService $trackService,
         private readonly MusicbotYoutubeService $youtubeService,
         private readonly MusicbotPlaylistService $playlistService,
-        private readonly MusicbotQueueService $queueService,
         private readonly MusicbotPluginService $pluginService,
         private readonly MusicbotPluginEventService $pluginEventService,
         private readonly MusicbotPluginLogService $pluginLogService,
@@ -220,8 +217,8 @@ final class MusicbotApiController
         $instance = $this->findCustomerInstance($id, $customer);
         $this->assertPerm($customer, $instance, MusicbotPermission::QueueManage);
         $payload = JsonMap::fromValue((JsonMap::fromValue($request->toArray()) ?? [])) ?? [];
-        $trackId = $payload['track_id'] ?? null;
-        $track = is_numeric($trackId) ? $this->trackRepository->findOneForCustomer((int) $trackId, $customer) : null;
+        $trackId = $this->numericTrackId($payload['track_id'] ?? null);
+        $track = $trackId !== null ? $this->trackRepository->findOneForCustomer($trackId, $customer) : null;
         if (!$track instanceof MusicbotTrack) {
             return $this->error('Track not found.', JsonResponse::HTTP_NOT_FOUND);
         }
@@ -894,7 +891,7 @@ final class MusicbotApiController
             $this->quotaService->assertCanCreateMusicbot($customer);
             if ($parsed['teamspeak_enabled']) {
                 $this->quotaService->assertCanManageTeamspeakConnection($customer);
-                $profile = MusicbotTeamspeakProfile::tryFrom((string) ($parsed['teamspeak_config']['profile'] ?? 'ts3'));
+                $profile = MusicbotTeamspeakProfile::tryFrom($parsed['teamspeak_config']['profile'] ?? 'ts3');
                 if ($profile === MusicbotTeamspeakProfile::Ts6) {
                     $this->quotaService->assertCanUseTeamspeak6Profile($customer);
                 }
@@ -1860,6 +1857,11 @@ final class MusicbotApiController
         return $instance;
     }
 
+    private function numericTrackId(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
+    }
+
     /** @return array<string, mixed> */
     private function normalizeInstance(MusicbotInstance $instance): array
     {
@@ -1943,15 +1945,6 @@ final class MusicbotApiController
         return array_values(array_filter(
             $this->playlistRepository->findByCustomer($customer),
             static fn ($playlist): bool => $playlist->getInstance() === null || $playlist->getInstance() === $instance,
-        ));
-    }
-
-    /** @return array<int, \App\Module\Musicbot\Domain\Entity\MusicbotPlugin> */
-    private function loadPlugins(User $customer, MusicbotInstance $instance): array
-    {
-        return array_values(array_filter(
-            $this->pluginRepository->findByCustomer($customer),
-            static fn ($plugin): bool => $plugin->getInstance() === null || $plugin->getInstance() === $instance,
         ));
     }
 

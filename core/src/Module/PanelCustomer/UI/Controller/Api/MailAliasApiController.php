@@ -66,14 +66,14 @@ final class MailAliasApiController
         }
 
         $payload = $request->toArray();
-        $domainId = $payload['domain_id'] ?? null;
+        $domainId = self::numericDomainId($payload['domain_id'] ?? null);
         $localPart = strtolower(trim((string) ($payload['local_part'] ?? '')));
         $destinationsInput = trim((string) ($payload['destinations'] ?? ''));
         $enabled = filter_var($payload['enabled'] ?? true, FILTER_VALIDATE_BOOL);
 
         $domain = null;
-        if (is_numeric($domainId)) {
-            $domain = $this->domainRepository->find((int) $domainId);
+        if ($domainId !== null) {
+            $domain = $this->domainRepository->find($domainId);
         }
 
         if ($domain === null) {
@@ -346,5 +346,10 @@ final class MailAliasApiController
         }
 
         return null;
+    }
+
+    private static function numericDomainId(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
     }
 }

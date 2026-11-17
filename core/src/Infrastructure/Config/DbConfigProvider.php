@@ -150,22 +150,42 @@ final class DbConfigProvider
     /**
      * @param array<string, mixed> $payload
      *
-     * @return array<string, string|int>
+     * @return array{driver: 'pdo_mysql', host?: non-empty-string, port?: int, dbname?: non-empty-string, user?: non-empty-string, password?: non-empty-string, serverVersion?: non-empty-string, charset?: non-empty-string}
      */
     public function toConnectionParams(array $payload): array
     {
         $port = self::port($payload['port'] ?? null);
 
-        return array_filter([
-            'driver' => 'pdo_mysql',
-            'host' => (string) ($payload['host'] ?? ''),
-            'port' => is_int($port) ? $port : null,
-            'dbname' => (string) ($payload['dbname'] ?? ''),
-            'user' => (string) ($payload['user'] ?? ''),
-            'password' => (string) ($payload['password'] ?? ''),
-            'serverVersion' => isset($payload['serverVersion']) ? (string) $payload['serverVersion'] : null,
-            'charset' => (string) ($payload['charset'] ?? 'utf8mb4'),
-        ], static fn ($value) => $value !== null && $value !== '');
+        $params = ['driver' => 'pdo_mysql'];
+        $host = (string) ($payload['host'] ?? '');
+        if ($host !== '') {
+            $params['host'] = $host;
+        }
+        if ($port !== null) {
+            $params['port'] = $port;
+        }
+        $dbname = (string) ($payload['dbname'] ?? '');
+        if ($dbname !== '') {
+            $params['dbname'] = $dbname;
+        }
+        $user = (string) ($payload['user'] ?? '');
+        if ($user !== '') {
+            $params['user'] = $user;
+        }
+        $password = (string) ($payload['password'] ?? '');
+        if ($password !== '') {
+            $params['password'] = $password;
+        }
+        $serverVersion = (string) ($payload['serverVersion'] ?? '');
+        if ($serverVersion !== '') {
+            $params['serverVersion'] = $serverVersion;
+        }
+        $charset = (string) ($payload['charset'] ?? 'utf8mb4');
+        if ($charset !== '') {
+            $params['charset'] = $charset;
+        }
+
+        return $params;
     }
 
     /**

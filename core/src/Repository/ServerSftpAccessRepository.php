@@ -19,8 +19,4 @@ final class ServerSftpAccessRepository extends ServiceEntityRepository
         parent::__construct($registry, ServerSftpAccess::class);
     }
 
-    public function findOneByServer(Instance $server): ?ServerSftpAccess
-    {
-        return $this->findOneBy(['server' => $server]);
-    }
 }

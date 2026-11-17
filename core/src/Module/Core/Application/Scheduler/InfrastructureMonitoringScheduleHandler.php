@@ -25,7 +25,7 @@ final readonly class InfrastructureMonitoringScheduleHandler implements Schedule
     {
         $state = $this->settings->state();
 
-        return [new InternalSchedule('system', $this->type(), 'VM/node monitoring', $this->type(), 'infrastructure', '* * * * *', (bool) $this->settings->get()['enabled'], [], isset($state['last_run_at']) ? new \DateTimeImmutable($state['last_run_at']) : null)];
+        return [new InternalSchedule('system', $this->type(), 'VM/node monitoring', $this->type(), 'infrastructure', '* * * * *', $this->settings->get()['enabled'], [], isset($state['last_run_at']) ? new \DateTimeImmutable($state['last_run_at']) : null)];
     }
 
     #[\Override]
@@ -44,6 +44,7 @@ final readonly class InfrastructureMonitoringScheduleHandler implements Schedule
         return $this->result($this->collector->run(true, $now));
     }
 
+    /** @param array{skipped:bool,samples:int,unavailable:int,pruned:int,...} $result */
     private function result(array $result): ScheduleExecutionResult
     {
         return $result['skipped'] ? ScheduleExecutionResult::skipped('Monitoring disabled, already processed, or locked.') : ScheduleExecutionResult::success(sprintf('Saved %d samples; %d unavailable; pruned %d.', $result['samples'], $result['unavailable'], $result['pruned']));

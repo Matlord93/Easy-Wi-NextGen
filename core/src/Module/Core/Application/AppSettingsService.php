@@ -9,7 +9,6 @@ use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Domain\Entity\AppSetting;
 use App\Module\Core\Domain\Enum\MailBackend;
 use App\Module\Gameserver\Application\ConsoleCommandSettings;
-use App\Module\Gameserver\Application\JavaBinaryConfig;
 use App\Repository\AppSettingRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -343,14 +342,6 @@ TWIG;
         return is_string($value) && $value !== '' ? $value : $this->getSiteTitle();
     }
 
-    public function getBrandingLogoUrl(): ?string
-    {
-        $settings = $this->getSettings();
-        $value = $settings[self::KEY_BRANDING_LOGO_URL] ?? null;
-
-        return is_string($value) && $value !== '' ? $value : null;
-    }
-
     public function getSupportEmail(): ?string
     {
         $settings = $this->getSettings();
@@ -508,14 +499,6 @@ TWIG;
         return is_numeric($value) ? max(1, (int) $value) : self::DEFAULTS[self::KEY_GAMESERVER_MAX_SLOTS];
     }
 
-    public function isGameserverPortRangeVisible(): bool
-    {
-        $settings = $this->getSettings();
-        $value = $settings[self::KEY_GAMESERVER_SHOW_PORT_RANGE] ?? self::DEFAULTS[self::KEY_GAMESERVER_SHOW_PORT_RANGE];
-
-        return (bool) $value;
-    }
-
     public function isGameserverStartStopAllowed(): bool
     {
         $settings = $this->getSettings();
@@ -566,14 +549,6 @@ TWIG;
         }
 
         return array_values(array_filter(array_map('trim', $parts), static fn (string $entry) => $entry !== ''));
-    }
-
-    public function getCustomerLogsLabel(): ?string
-    {
-        $settings = $this->getSettings();
-        $value = $settings[self::KEY_CUSTOMER_LOGS_LABEL] ?? null;
-
-        return is_string($value) && $value !== '' ? $value : null;
     }
 
     public function getInstanceBaseDir(): string
@@ -944,13 +919,6 @@ TWIG;
         return max(1, is_numeric($value) ? (int) $value : 30);
     }
 
-    public function getDatabaseLoggingErrorRetentionDays(): int
-    {
-        $value = $this->getSettings()[self::KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS] ?? 180;
-
-        return max(1, is_numeric($value) ? (int) $value : 180);
-    }
-
     public function markSchedulerHeartbeat(string $status, ?\DateTimeImmutable $now = null): void
     {
         $now ??= new \DateTimeImmutable();
@@ -1036,23 +1004,6 @@ TWIG;
         $this->logger->warning('settings.decrypt_failed.secret_reset', [
             'keys' => array_keys($keysToReset),
         ]);
-    }
-
-    public function getMinecraftJavaBinaryConfig(): JavaBinaryConfig
-    {
-        $settings = $this->getSettings();
-
-        $overrides = [];
-        foreach (['8' => self::KEY_MINECRAFT_JAVA_BINARY_8, '16' => self::KEY_MINECRAFT_JAVA_BINARY_16, '17' => self::KEY_MINECRAFT_JAVA_BINARY_17, '21' => self::KEY_MINECRAFT_JAVA_BINARY_21, '25' => self::KEY_MINECRAFT_JAVA_BINARY_25] as $version => $key) {
-            $value = $settings[$key] ?? null;
-            if (is_string($value) && $value !== '') {
-                $overrides[$version] = $value;
-            }
-        }
-
-        $autoInstall = (bool) ($settings[self::KEY_MINECRAFT_AUTO_INSTALL_JAVA] ?? false);
-
-        return new JavaBinaryConfig($overrides, $autoInstall);
     }
 
     /** @return SettingValue */

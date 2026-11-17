@@ -25,12 +25,6 @@ class MailPolicyRepository extends ServiceEntityRepository
         return $this->findOneBy(['domain' => $domain]);
     }
 
-    /** @return MailPolicy[] */
-    public function findByOwner(User $owner): array
-    {
-        return $this->findBy(['owner' => $owner], ['updatedAt' => 'DESC']);
-    }
-
     /**
      * @return array{total:int,strict_tls:int,external_forwarding_enabled:int,high_spam_protection:int,greylisting_enabled:int}
      */

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\UI\Controller\Admin;
 
+use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Nodes\Application\Console\VmConsoleDiagnostics;
 use App\Module\Nodes\Application\Console\VmConsoleBroker;
@@ -28,13 +29,15 @@ final class AdminVmConsoleController extends AbstractController
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new AccessDeniedHttpException();
         }
-        $core = realpath($this->projectDir) ?: $this->projectDir;
+        $resolvedCore = realpath($this->projectDir);
+        $core = $resolvedCore === false || $resolvedCore === '' || $resolvedCore === '0' ? $this->projectDir : $resolvedCore;
         $helper = $core.'/tools/console/setup-vm-console.sh';
         $nodes = [];
         foreach ($this->agents->findBy([], ['name' => 'ASC'], 100) as $node) {
-            $metadata = $node->getMetadata()['kvm_managed'] ?? [];
+            $metadata = JsonArray::orEmpty($node->getMetadata()['kvm_managed'] ?? null);
+            $name = $node->getName();
             if (true === ($metadata['supported'] ?? false)) {
-                $nodes[] = ['id' => $node->getId(), 'name' => $node->getName() ?: $node->getId(), 'console' => 1 === ($metadata['console_version'] ?? null), 'transport' => $this->broker->kvmTransportAvailable($node)];
+                $nodes[] = ['id' => $node->getId(), 'name' => (in_array($name, [null, '', '0'], true) ? $node->getId() : $name), 'console' => 1 === ($metadata['console_version'] ?? null), 'transport' => $this->broker->kvmTransportAvailable($node)];
             }
         }
 

@@ -18,7 +18,7 @@ final class BackupTargetValidator
 
     private function validateLocal(BackupStorageTarget $target): void
     {
-        $path = trim((string) ($target->config()['base_path'] ?? $target->config()['path'] ?? ''));
+        $path = trim(self::configText($target->config()['base_path'] ?? $target->config()['path'] ?? ''));
         if ($path === '' || !str_starts_with($path, '/') || str_contains(str_replace('\\', '/', $path), '/../')) {
             throw new \InvalidArgumentException('Invalid local backup path.');
         }
@@ -26,7 +26,7 @@ final class BackupTargetValidator
 
     private function validateNetwork(BackupStorageTarget $target): void
     {
-        $host = trim((string) ($target->config()['host'] ?? ''));
+        $host = trim(self::configText($target->config()['host'] ?? ''));
         if ($host === '') {
             throw new \InvalidArgumentException('Network backup target requires host.');
         }
@@ -34,7 +34,7 @@ final class BackupTargetValidator
 
     private function validateWebdav(BackupStorageTarget $target): void
     {
-        $url = trim((string) ($target->config()['url'] ?? ''));
+        $url = trim(self::configText($target->config()['url'] ?? ''));
         UrlSafetyGuard::assertSafeHttpsEndpoint($url);
 
         $secrets = $target->secrets();
@@ -45,5 +45,14 @@ final class BackupTargetValidator
         if (!$hasToken && !$hasUserPass) {
             throw new \InvalidArgumentException('WebDAV/Nextcloud target requires token or username/password secret.');
         }
+    }
+
+    private static function configText(mixed $value): string
+    {
+        if ($value === null || is_scalar($value)) {
+            return (string) $value;
+        }
+
+        throw new \InvalidArgumentException('Backup configuration fields must contain scalar values.');
     }
 }

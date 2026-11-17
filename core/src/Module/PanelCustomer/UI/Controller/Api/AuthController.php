@@ -68,7 +68,7 @@ final class AuthController
         $idLimit = $this->loginIdentifierLimiter->create($identifier)->consume(1);
         if (!$ipLimit->isAccepted() || !$idLimit->isAccepted()) {
             foreach ([$ipLimit, $idLimit] as $limit) {
-                if (!$limit->isAccepted() && $limit->getRetryAfter() !== null) {
+                if (!$limit->isAccepted()) {
                     if ($retryAfter === null || $limit->getRetryAfter() > $retryAfter) {
                         $retryAfter = $limit->getRetryAfter();
                     }
@@ -98,7 +98,7 @@ final class AuthController
         }
 
         $user = $this->users->findOneByEmail($email);
-        if (!$this->credentialVerifier->isValid($user, $password)) {
+        if (!$this->credentialVerifier->isValid($user, $password) || $user === null) {
             $this->auditLogger->log($user, 'auth.login_failed', [
                 'channel' => 'auth',
                 'ip_address' => $ipAddress,

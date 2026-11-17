@@ -36,17 +36,6 @@ final class CmsTemplateCatalog
         return array_values($templatesByKey);
     }
 
-    public function getTemplate(string $key): ?array
-    {
-        foreach ($this->listTemplates() as $template) {
-            if ($template['key'] === $key) {
-                return $template;
-            }
-        }
-
-        return null;
-    }
-
     /**
      * @return array<int, array{key:string,...<string,mixed>}>
      */
@@ -1125,25 +1114,6 @@ HTML;
     </div>
 </section>
 HTML;
-    }
-
-    private function hostingHighlights(): string
-    {
-        return <<<HTML
-        <section class="rounded-xl border border-slate-200 bg-white p-6">
-            <h3 class="text-lg font-semibold">Warum Kunden wechseln</h3>
-            <div class="mt-4 grid gap-4 md:grid-cols-2">
-                <div>
-                    <p class="text-sm font-semibold">Sofortige Aktivierung</p>
-                    <p class="mt-2 text-sm text-slate-600">Bestellen, zahlen, starten – ohne Wartezeit.</p>
-                </div>
-                <div>
-                    <p class="text-sm font-semibold">Transparente Kosten</p>
-                    <p class="mt-2 text-sm text-slate-600">Klare Preise, monatlich kündbar.</p>
-                </div>
-            </div>
-        </section>
-        HTML;
     }
 
     private static function text(mixed $value): string

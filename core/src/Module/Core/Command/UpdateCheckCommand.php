@@ -36,7 +36,7 @@ final class UpdateCheckCommand extends Command
         $output->writeln(sprintf('Installed version: %s', $status->installedVersion ?? 'unknown'));
         $output->writeln(sprintf('Latest version: %s', $status->latestVersion ?? 'unknown'));
 
-        if ($status->notes) {
+        if ($status->notes !== null && $status->notes !== '' && $status->notes !== '0') {
             $output->writeln('Release notes:');
             $output->writeln($status->notes);
         }

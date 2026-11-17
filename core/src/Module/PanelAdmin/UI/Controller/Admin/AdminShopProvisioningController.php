@@ -55,16 +55,16 @@ final class AdminShopProvisioningController
 
         $payload = $request->toArray();
         $email = trim((string) ($payload['email'] ?? ''));
-        $templateId = $payload['template_id'] ?? null;
+        $templateId = \App\Infrastructure\Config\ScalarValue::text($payload['template_id'] ?? null);
         $nodeId = (string) ($payload['node_id'] ?? '');
         $cpuLimitValue = $payload['cpu_limit'] ?? null;
         $ramLimitValue = $payload['ram_limit'] ?? null;
         $diskLimitValue = $payload['disk_limit'] ?? null;
-        $portBlockId = $payload['port_block_id'] ?? null;
+        $portBlockId = \App\Infrastructure\Config\ScalarValue::text($payload['port_block_id'] ?? null);
         $password = (string) ($payload['password'] ?? '');
         $instanceBaseDir = trim((string) ($payload['instance_base_dir'] ?? ''));
 
-        if ($email === '' || $templateId === null || $nodeId === '' || $cpuLimitValue === null || $ramLimitValue === null || $diskLimitValue === null) {
+        if ($email === '' || $templateId === '' || $nodeId === '' || $cpuLimitValue === null || $ramLimitValue === null || $diskLimitValue === null) {
             return new JsonResponse(['error' => $this->translator->trans('gs_api_missing_required_fields')], JsonResponse::HTTP_BAD_REQUEST);
         }
 
@@ -135,8 +135,8 @@ final class AdminShopProvisioningController
         }
 
         $portBlock = null;
-        if ($portBlockId !== null && $portBlockId !== '') {
-            $portBlock = $this->portBlockRepository->find((string) $portBlockId);
+        if ($portBlockId !== '') {
+            $portBlock = $this->portBlockRepository->find($portBlockId);
             if ($portBlock === null) {
                 return new JsonResponse(['error' => 'Port block not found.'], JsonResponse::HTTP_NOT_FOUND);
             }
@@ -251,7 +251,7 @@ final class AdminShopProvisioningController
     }
 
     /**
-     * @param array<int, mixed> $supportedOs
+     * @param array<array-key, mixed> $supportedOs
      */
     private function isTemplateSupportedOnNode(array $supportedOs, \App\Module\Core\Domain\Entity\Agent $node): bool
     {

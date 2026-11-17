@@ -53,7 +53,7 @@ final class StatusBatchUpdater
             $cache['map'] = is_string($item['map'] ?? null) && trim((string) $item['map']) !== '' ? (string) $item['map'] : null;
             $cache['latency_ms'] = is_numeric($item['latency_ms'] ?? null) ? (int) $item['latency_ms'] : null;
             $cache['error'] = is_string($item['error'] ?? null) ? (string) $item['error'] : null;
-            $cache['raw'] = is_array($item['raw'] ?? null) ? $item['raw'] : null;
+            $cache['raw'] = \App\Infrastructure\Config\JsonArray::fromValue($item['raw'] ?? null);
 
             $observedAt = $this->parseDateTime($item['observed_at'] ?? null) ?? new \DateTimeImmutable();
             $cache['observed_at'] = $observedAt->format(DATE_ATOM);

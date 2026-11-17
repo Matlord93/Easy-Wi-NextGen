@@ -21,16 +21,6 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotSchedule[] */
-    public function findByCustomer(User $customer): array
-    {
-        return EntityQueryResult::all($this->createQueryBuilder('s')
-            ->where('s.customer = :customer')
-            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
-            ->orderBy('s.createdAt', 'DESC')
-            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotSchedule::class);
-    }
-
-    /** @return MusicbotSchedule[] */
     public function findByInstance(MusicbotInstance $instance): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('s')
@@ -84,13 +74,4 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
         return EntityQueryResult::all($qb->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotSchedule::class);
     }
 
-    public function countByCustomer(User $customer): int
-    {
-        return (int) $this->createQueryBuilder('s')
-            ->select('COUNT(s.id)')
-            ->where('s.customer = :customer')
-            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
-            ->getQuery()
-            ->getSingleScalarResult();
-    }
 }

@@ -127,11 +127,11 @@ final class CustomerShopController
     {
         $productsByCategory = [];
         foreach ($products as $product) {
-            $productsByCategory[$product->getCategory()->getId()][] = $product;
+            $productsByCategory[\App\Infrastructure\Doctrine\EntityIdentifier::require($product->getCategory()->getId())][] = $product;
         }
 
         return array_map(function ($category) use ($productsByCategory): array {
-            $categoryProducts = $productsByCategory[$category->getId()] ?? [];
+            $categoryProducts = $productsByCategory[\App\Infrastructure\Doctrine\EntityIdentifier::require($category->getId())] ?? [];
 
             return [
                 'id' => $category->getId(),

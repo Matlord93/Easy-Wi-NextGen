@@ -176,13 +176,14 @@ final class MinecraftVersionImportService
         }
         $items = [];
         $versions = isset($data['versions']) && is_array($data['versions']) ? $data['versions'] : $data;
-        foreach ($versions as $version => $value) {
+        foreach (array_keys($versions) as $version) {
+            $value = self::paperValue($versions[$version]);
             $url = is_string($value) ? $value : (is_array($value) ? (string) ($value['url'] ?? '') : '');
             $javaVersion = is_array($value) && isset($value['java_version']) && is_int($value['java_version'])
                 ? (string) $value['java_version']
                 : null;
             $build = null;
-            if (preg_match('/paper-.+-(\d+)\.jar(?:$|\?)/', basename(parse_url($url, PHP_URL_PATH) ?: ''), $matches)) {
+            if (preg_match('/paper-.+-(\d+)\.jar(?:$|\?)/', basename(self::urlPath($url)), $matches)) {
                 $build = $matches[1];
             }
             if ($build === null && preg_match('/builds\/(\d+)\//', $url, $matches)) {
@@ -211,8 +212,9 @@ final class MinecraftVersionImportService
             if (!is_array($group)) {
                 continue;
             }
-            foreach ($group as $version => $platforms) {
-                if (!is_array($platforms)) {
+            foreach (array_keys($group) as $version) {
+                $platforms = JsonArray::fromValue($group[$version]);
+                if ($platforms === null) {
                     continue;
                 }
                 $url = (string) ($platforms['linux']['url'] ?? '');
@@ -220,6 +222,18 @@ final class MinecraftVersionImportService
             }
         }
         return $items;
+    }
+
+    /** @return string|array<array-key,mixed>|null */
+    private static function paperValue(mixed $value): string|array|null
+    {
+        return is_string($value) || is_array($value) ? $value : null;
+    }
+
+    private static function urlPath(string $url): string
+    {
+        $path = parse_url($url, PHP_URL_PATH);
+        return is_string($path) && $path !== '0' ? $path : '';
     }
 
     private function readFile(string $path): string
@@ -259,7 +273,7 @@ final class MinecraftVersionImportService
         ];
     }
 
-    /** @param array{downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string}} $item */
+    /** @param array{downloadUrl:string,sha256:?string,releasedAt:?\DateTimeImmutable,javaVersion:?string,metadata:array{release_type:string},...} $item */
     private function applyImportFields(MinecraftVersionCatalog $entry, array $item): void
     {
         $entry->setDownloadUrl($item['downloadUrl']);

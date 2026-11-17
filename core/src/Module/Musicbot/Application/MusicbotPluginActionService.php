@@ -62,7 +62,6 @@ final class MusicbotPluginActionService
             'send_chat_message' => $this->sendChatMessage($customer, $instance, (string) ($payload['message'] ?? '')),
             'reconnect'         => $this->reconnect($customer, $instance),
             'trigger_autodj'    => ['tracks_added' => $this->autoDjService->trigger($customer, $instance)],
-            default             => throw new \InvalidArgumentException('Unsupported plugin action.'),
         };
     }
 

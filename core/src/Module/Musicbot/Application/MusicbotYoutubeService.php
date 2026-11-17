@@ -135,7 +135,7 @@ final class MusicbotYoutubeService
         $this->assertCustomerOwnsInstance($customer, $instance);
         $config = $instance->getInstanceConfig();
         $youtube = JsonArray::orEmpty($config['youtube'] ?? null);
-        $secrets = JsonArray::orEmpty($youtube['secrets'] ?? null);
+        $secrets = \App\Infrastructure\Config\JsonMap::fromValue($youtube['secrets'] ?? null) ?? [];
         $youtube['secrets'] = $this->secretConfigService->mergeSecretUpdates($secrets, ['youtube_cookies' => $cookies]);
         $config['youtube'] = $youtube;
         $instance->setInstanceConfig($config);
@@ -281,8 +281,8 @@ final class MusicbotYoutubeService
     private function cookiesForInstance(MusicbotInstance $instance): string
     {
         $config = $instance->getInstanceConfig();
-        $secrets = $config['youtube']['secrets'] ?? [];
-        if (!is_array($secrets)) { return ''; }
+        $youtube = \App\Infrastructure\Config\JsonArray::orEmpty($config['youtube'] ?? null);
+        $secrets = \App\Infrastructure\Config\JsonMap::fromValue($youtube['secrets'] ?? null) ?? [];
         return $this->secretConfigService->normalizeForRuntime($secrets)['youtube_cookies'] ?? '';
     }
 

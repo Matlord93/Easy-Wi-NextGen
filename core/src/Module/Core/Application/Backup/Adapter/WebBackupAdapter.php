@@ -75,8 +75,8 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
             throw new \InvalidArgumentException('Unable to inspect archive entries.');
         }
         $entries = [];
-        foreach (preg_split('/\R/', trim($namesOutput)) as $entry) {
-            if (!is_string($entry) || trim($entry) === '') {
+        foreach ((preg_split('/\R/', trim($namesOutput)) ?: []) as $entry) {
+            if (trim($entry) === '') {
                 continue;
             }
             $normalized = str_replace('\\', '/', trim($entry));
@@ -88,8 +88,8 @@ final class WebBackupAdapter implements BackupModuleAdapterInterface
         $verbose->mustRun();
         $verboseOutput = $verbose->getOutput();
         if ($verboseOutput !== '') {
-            foreach (preg_split('/\R/', trim($verboseOutput)) as $line) {
-                if (!is_string($line) || $line === '' || $line[0] !== 'l') {
+            foreach ((preg_split('/\R/', trim($verboseOutput)) ?: []) as $line) {
+                if ($line === '' || $line[0] !== 'l') {
                     continue;
                 }
                 throw new \InvalidArgumentException('Symlink entries are not allowed in backup archive.');

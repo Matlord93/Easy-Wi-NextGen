@@ -197,7 +197,7 @@ final class AgentApiController
 
         $agent->recordHeartbeat($stats, $version, $ip, $roles, $metadata, $status);
         $this->entityManager->persist($agent);
-        $ingested = $this->metricsIngestionService->ingestBatch($agent, [JsonArray::orEmpty($stats['metrics'] ?? null)]);
+        $ingested = $this->metricsIngestionService->ingestBatch($agent, [JsonMap::fromValue($stats['metrics'] ?? null) ?? []]);
         if ($ingested > 0) {
             $this->auditLogger->log(null, 'agent.metrics.batch_recorded', [
                 'agent_id' => $agent->getId(),
@@ -272,7 +272,7 @@ final class AgentApiController
             $samples = array_slice($samples, 0, 1000);
         }
 
-        $ingested = $this->metricsIngestionService->ingestBatch($agent, array_values(array_filter($samples, static fn ($v): bool => is_array($v))));
+        $ingested = $this->metricsIngestionService->ingestBatch($agent, array_values(array_filter(array_map(static fn (mixed $sample): ?array => JsonMap::fromValue($sample), $samples), static fn (?array $sample): bool => $sample !== null)));
         $this->auditLogger->log(null, 'agent.metrics.batch_recorded', ['agent_id' => $agent->getId(), 'ingested' => $ingested]);
         $this->entityManager->flush();
 
@@ -334,7 +334,7 @@ final class AgentApiController
                 (string) ($event['source'] ?? 'agent'),
                 (string) ($event['event_type'] ?? 'policy'),
                 $message !== '' ? $message : 'mail event',
-                JsonArray::orEmpty($event['payload'] ?? null),
+                JsonMap::fromValue($event['payload'] ?? null) ?? [],
                 $user,
             );
             $this->entityManager->persist($mailLog);
@@ -803,7 +803,7 @@ final class AgentApiController
         }
         if (isset($output['logs']) && is_array($output['logs'])) {
             foreach (array_filter($output['logs'], 'is_string') as $entry) {
-                if (is_string($entry) && trim($entry) !== '') {
+                if (trim($entry) !== '') {
                     $candidates[] = $entry;
                 }
             }
@@ -850,7 +850,7 @@ final class AgentApiController
 
         if (isset($payload['logs']) && is_array($payload['logs'])) {
             foreach (array_filter($payload['logs'], 'is_string') as $entry) {
-                if (is_string($entry) && trim($entry) !== '') {
+                if (trim($entry) !== '') {
                     $candidates[] = $entry;
                 }
             }
@@ -1604,7 +1604,7 @@ final class AgentApiController
             $bannedIps = array_filter(JsonArray::orEmpty($jail['banned_ips'] ?? null), 'is_string');
 
             foreach ($bannedIps as $ip) {
-                if (!is_string($ip) || trim($ip) === '') {
+                if (trim($ip) === '') {
                     continue;
                 }
 
@@ -2683,7 +2683,7 @@ final class AgentApiController
                     'completed_at' => $completedAt->format(DATE_RFC3339),
                 ]);
             } else {
-                $message = is_string($output['message'] ?? null) ? $output['message'] : 'Disk scan failed.';
+                $message = JsonMap::strings($output)['message'] ?? 'Disk scan failed.';
                 $instance->setDiskLastScannedAt($completedAt);
                 $instance->setDiskScanError($message);
                 $this->entityManager->persist($instance);
@@ -2886,7 +2886,7 @@ final class AgentApiController
         $cache['max_players'] = $resultStatus === JobResultStatus::Succeeded && is_numeric($output['max_players'] ?? null)
             ? (int) $output['max_players']
             : null;
-        $cache['message'] = is_string($output['message'] ?? null) ? $output['message'] : null;
+        $cache['message'] = JsonMap::strings($output)['message'] ?? null;
         $cache['map'] = $resultStatus === JobResultStatus::Succeeded && is_string($output['map'] ?? null)
             ? (string) $output['map']
             : null;
@@ -2897,7 +2897,7 @@ final class AgentApiController
             ? (string) $output['motd']
             : null;
         $cache['latency_ms'] = is_numeric($output['latency_ms'] ?? null) ? (int) $output['latency_ms'] : null;
-        $cache['result'] = QueryResultNormalizer::fromAgentOutput($output, $payload['query_type'] ?? null, $resultStatus);
+        $cache['result'] = QueryResultNormalizer::fromAgentOutput(JsonMap::fromValue($output) ?? [], JsonMap::strings($payload)['query_type'] ?? null, $resultStatus);
         $cache['checked_at'] = $completedAt->format(DATE_RFC3339);
         unset($cache['queued_at']);
 
@@ -3145,8 +3145,8 @@ final class AgentApiController
     }
 
     /**
-     * @param array<string,mixed> $payload
-     * @return array<string,mixed>
+     * @param array<array-key,mixed> $payload
+     * @return array<array-key,mixed>
      */
     private function resolveBackupTargetPayload(string $jobType, array $payload): array
     {
@@ -3199,8 +3199,7 @@ final class AgentApiController
             $secret = [];
             foreach (['password', 'token', 'username'] as $key) {
                 $credential = JsonMap::strings($encrypted[$key] ?? null);
-                if (is_array($credential)
-                    && is_string($credential['key_id'] ?? null)
+                if (is_string($credential['key_id'] ?? null)
                     && is_string($credential['nonce'] ?? null)
                     && is_string($credential['ciphertext'] ?? null)
                 ) {

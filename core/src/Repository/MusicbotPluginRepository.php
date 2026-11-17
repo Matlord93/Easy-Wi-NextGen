@@ -29,12 +29,6 @@ class MusicbotPluginRepository extends ServiceEntityRepository
         return $this->findOneBy(['id' => $id, 'customer' => $customer]);
     }
 
-    /** @return MusicbotPlugin[] */
-    public function findByInstanceForCustomer(MusicbotInstance $instance, User $customer): array
-    {
-        return $this->findBy(['customer' => $customer, 'instance' => $instance], ['identifier' => 'ASC']);
-    }
-
     public function findOneByIdentifierForInstance(string $identifier, MusicbotInstance $instance, User $customer): ?MusicbotPlugin
     {
         return $this->findOneBy(['identifier' => $identifier, 'instance' => $instance, 'customer' => $customer]);

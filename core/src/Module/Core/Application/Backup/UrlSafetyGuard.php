@@ -50,8 +50,8 @@ final class UrlSafetyGuard
 
         $ips = [];
         foreach ($records as $record) {
-            $ip = $record['ip'] ?? $record['ipv6'] ?? null;
-            if (is_string($ip) && $ip !== '') {
+            $ip = \App\Infrastructure\Config\ScalarValue::text($record['ip'] ?? $record['ipv6'] ?? null);
+            if ($ip !== '') {
                 $ips[] = $ip;
             }
         }

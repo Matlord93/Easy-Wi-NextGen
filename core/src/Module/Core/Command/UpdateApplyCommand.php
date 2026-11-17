@@ -39,7 +39,7 @@ final class UpdateApplyCommand extends Command
         }
 
         $result = $this->updateService->applyUpdate();
-        if ($result->logPath) {
+        if ($result->logPath !== null && $result->logPath !== '' && $result->logPath !== '0') {
             $output->writeln(sprintf('Log: %s', $result->logPath));
         }
 
@@ -49,7 +49,7 @@ final class UpdateApplyCommand extends Command
         }
 
         $output->writeln(sprintf('<error>%s</error>', $result->message));
-        if ($result->error) {
+        if ($result->error !== null && $result->error !== '' && $result->error !== '0') {
             $output->writeln(sprintf('<comment>%s</comment>', $result->error));
         }
 

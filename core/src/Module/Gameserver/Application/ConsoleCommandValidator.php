@@ -37,7 +37,8 @@ final class ConsoleCommandValidator
 
         $allowed = $this->commandSettings->getCustomerConsoleAllowedCommands();
         if ($allowed !== []) {
-            $commandName = strtolower(strtok($command, ' ') ?: $command);
+            $firstToken = strtok($command, ' ');
+            $commandName = strtolower($firstToken === false || $firstToken === '0' ? $command : $firstToken);
             $allowedNormalized = array_map(static fn (string $value): string => strtolower($value), $allowed);
             if (!in_array($commandName, $allowedNormalized, true)) {
                 return 'Command is not allowed.';

@@ -32,19 +32,6 @@ class MusicbotRadioHistoryRepository extends ServiceEntityRepository
             ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioHistory::class);
     }
 
-    /** @return MusicbotRadioHistory[] */
-    public function findByCustomerAndInstance(User $customer, MusicbotInstance $instance, int $limit = 20): array
-    {
-        return EntityQueryResult::all($this->createQueryBuilder('h')
-            ->where('h.customer = :customer')
-            ->andWhere('h.instance = :instance')
-            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
-            ->setParameter('instance', QueryParameter::entityId($instance->getId(), \App\Module\Musicbot\Domain\Entity\MusicbotInstance::class))
-            ->orderBy('h.playedAt', 'DESC')
-            ->setMaxResults($limit)
-            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioHistory::class);
-    }
-
     /** Prune history entries older than $keepDays days for the customer. */
     public function pruneOld(User $customer, int $keepRows = 100): void
     {

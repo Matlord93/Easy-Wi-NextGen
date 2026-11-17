@@ -206,7 +206,10 @@ final class GameserverInstanceScheduleRunner
             return null;
         }
 
-        $scheduleTz = $schedule->getTimeZone() !== null && $schedule->getTimeZone() !== '' ? $schedule->getTimeZone() : 'UTC';
+        $scheduleTz = $schedule->getTimeZone();
+        if ($scheduleTz === null || $scheduleTz === '') {
+            $scheduleTz = 'UTC';
+        }
         try {
             $timeZone = new \DateTimeZone($scheduleTz);
         } catch (\Throwable) {
@@ -293,13 +296,14 @@ final class GameserverInstanceScheduleRunner
         }
 
         $normalizedCapabilities = [];
-        foreach ($capabilities as $key => $value) {
-            if (is_string($key) && $key !== '' && $value === true) {
+        foreach (array_keys($capabilities) as $key) {
+            $value = \App\Infrastructure\Config\ScalarValue::text($capabilities[$key]);
+            if (is_string($key) && $key !== '' && $capabilities[$key] === true) {
                 $normalizedCapabilities[] = trim($key);
                 continue;
             }
 
-            $normalizedCapabilities[] = trim((string) $value);
+            $normalizedCapabilities[] = trim($value);
         }
         $normalizedCapabilities = array_values(array_filter($normalizedCapabilities));
         if ($normalizedCapabilities === []) {

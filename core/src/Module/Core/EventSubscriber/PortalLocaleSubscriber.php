@@ -102,8 +102,7 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
             }
         }
 
-        $sessionLocale = $request->hasSession() ? $request->getSession()->get(self::LOCALE_SESSION_KEY) : null;
-        $normalizedSession = PortalLocale::normalize($sessionLocale);
+        $normalizedSession = PortalLocale::normalize($request->hasSession() ? $request->getSession()->get(self::LOCALE_SESSION_KEY) : null);
         if (null !== $normalizedSession) {
             return $normalizedSession;
         }

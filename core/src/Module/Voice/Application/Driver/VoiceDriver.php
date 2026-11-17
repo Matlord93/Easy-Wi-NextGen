@@ -18,7 +18,7 @@ interface VoiceDriver
     /** @return array<string, mixed> */
     public function createServer(VoiceServer $server, VoiceQueryEngine $engine): array;
 
-    /** @return list<array<string, mixed>> */
+    /** @return array<string, mixed> Raw query payload; this operation does not normalize runner results. */
     public function listUsers(VoiceServer $server, VoiceQueryEngine $engine): array;
 
     /** @return array<string, mixed> */

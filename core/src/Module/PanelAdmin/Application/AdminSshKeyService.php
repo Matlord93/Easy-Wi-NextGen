@@ -52,14 +52,13 @@ final class AdminSshKeyService
         }
 
         $coreAgents = array_values(array_filter($agents, static function ($agent): bool {
-            return $agent instanceof \App\Module\Core\Domain\Entity\Agent
-                && in_array('Core', $agent->getRoles(), true);
+            return in_array('Core', $agent->getRoles(), true);
         }));
 
         if ($coreAgents !== []) {
             return $coreAgents;
         }
 
-        return array_values(array_filter($agents, static fn ($agent): bool => $agent instanceof \App\Module\Core\Domain\Entity\Agent));
+        return $agents;
     }
 }

@@ -19,31 +19,6 @@ final class LogIndexRepository extends ServiceEntityRepository
         parent::__construct($registry, LogIndex::class);
     }
 
-    public function findIdentity(
-        string $source,
-        string $scopeType,
-        string $scopeId,
-        string $logName,
-        ?Agent $agent = null,
-    ): ?LogIndex {
-        return $this->findOneBy([
-            'source' => $source,
-            'scopeType' => $scopeType,
-            'scopeId' => $scopeId,
-            'logName' => $logName,
-            'agent' => $agent,
-        ]);
-    }
-
-    public function deleteOlderThan(\DateTimeImmutable $cutoff): int
-    {
-        return EntityQueryResult::affected($this->createQueryBuilder('log')
-            ->delete()
-            ->andWhere('log.updatedAt < :cutoff')
-            ->setParameter('cutoff', $cutoff, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
-            ->getQuery());
-    }
-
     /**
      * @param list<string> $sources
      */

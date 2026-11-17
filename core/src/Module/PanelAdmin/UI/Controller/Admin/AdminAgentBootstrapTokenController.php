@@ -174,7 +174,7 @@ final class AdminAgentBootstrapTokenController
 
     /**
      * @param AgentBootstrapToken[] $tokens
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function normalizeTokens(array $tokens): array
     {

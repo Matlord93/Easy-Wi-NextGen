@@ -139,6 +139,11 @@ final class CustomerInstanceSlotsApiController
 
     private function resolveRequestId(Request $request): string
     {
-        return trim((string) ($request->headers->get('X-Request-ID') ?: $request->attributes->get('request_id') ?: ''));
+        $header = $request->headers->get('X-Request-ID');
+        $requestId = in_array($header, [null, '', '0'], true)
+            ? \App\Infrastructure\Config\ScalarValue::text($request->attributes->get('request_id'))
+            : $header;
+
+        return trim($requestId === '0' ? '' : $requestId);
     }
 }

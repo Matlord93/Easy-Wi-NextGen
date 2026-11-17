@@ -68,11 +68,11 @@ final class DiskScanReconcileCommand extends Command
 
         foreach ($nodes as $node) {
             $metadata = $node->getMetadata();
-            $stat = is_array($metadata) ? ($metadata['disk_stat'] ?? null) : null;
+            $stat = \App\Infrastructure\Config\JsonMap::fromValue($metadata['disk_stat'] ?? null);
             $checkedAt = null;
             if (is_array($stat) && is_string($stat['checked_at'] ?? null)) {
                 try {
-                    $checkedAt = new \DateTimeImmutable($stat['checked_at']);
+                    $checkedAt = new \DateTimeImmutable(\App\Infrastructure\Config\ScalarValue::text($stat['checked_at']));
                 } catch (\Exception) {
                     $checkedAt = null;
                 }

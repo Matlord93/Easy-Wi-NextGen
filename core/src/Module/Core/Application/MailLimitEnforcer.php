@@ -37,11 +37,14 @@ final class MailLimitEnforcer
 
     public function canCreateMailbox(Domain $domain, ?MailDomain $mailDomain, int $requestedQuotaMb): ?string
     {
-        if ($mailDomain === null || $mailDomain->getQuotaPolicy() === null) {
+        if ($mailDomain === null) {
             return null;
         }
 
         $policy = $mailDomain->getQuotaPolicy();
+        if ($policy === null) {
+            return null;
+        }
         $domainId = $domain->getId();
         if ($domainId === null) {
             return null;

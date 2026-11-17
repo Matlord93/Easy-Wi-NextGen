@@ -64,6 +64,9 @@ final class InstanceUpdateQueueCommand extends Command
             }
 
             $timeZone = $schedule->getTimeZone() ?? 'UTC';
+            if ($timeZone === '') {
+                $timeZone = 'UTC';
+            }
             $timeZoneObj = new \DateTimeZone($timeZone);
             $nowLocal = $now->setTimezone($timeZoneObj);
             $cron = new CronExpression($cronExpression);

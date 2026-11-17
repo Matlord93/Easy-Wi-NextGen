@@ -52,8 +52,8 @@ final class PrivacyGdprScheduleHandler implements ScheduleHandlerInterface
             $lastRunAt,
             null,
             $enabled ? $this->nextRunAt($interval) : null,
-            is_string($settings[AppSettingsService::KEY_PRIVACY_GDPR_LAST_STATUS] ?? null) ? $settings[AppSettingsService::KEY_PRIVACY_GDPR_LAST_STATUS] : null,
-            is_string($settings[AppSettingsService::KEY_PRIVACY_GDPR_LAST_ERROR] ?? null) ? $settings[AppSettingsService::KEY_PRIVACY_GDPR_LAST_ERROR] : null,
+            self::optionalText($settings[AppSettingsService::KEY_PRIVACY_GDPR_LAST_STATUS] ?? null),
+            self::optionalText($settings[AppSettingsService::KEY_PRIVACY_GDPR_LAST_ERROR] ?? null),
         )];
     }
 
@@ -126,6 +126,11 @@ final class PrivacyGdprScheduleHandler implements ScheduleHandlerInterface
         }
 
         return $lastRunAt < $previousRunAt;
+    }
+
+    private static function optionalText(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 
     private function parseDate(mixed $value): ?\DateTimeImmutable

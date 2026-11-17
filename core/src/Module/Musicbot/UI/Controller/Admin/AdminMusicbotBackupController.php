@@ -191,9 +191,8 @@ final class AdminMusicbotBackupController
         $options = MusicbotBackupOptions::fromArray(['type' => MusicbotBackupType::Admin->value], true);
         $manifest = $this->backupService->createBackup($instance, $options);
 
-        $newServiceName = is_string($payload['new_service_name'] ?? null) && $payload['new_service_name'] !== ''
-            ? $payload['new_service_name']
-            : null;
+        $serviceNameValue = \App\Infrastructure\Config\JsonMap::strings($payload)['new_service_name'] ?? '';
+        $newServiceName = $serviceNameValue !== '' ? $serviceNameValue : null;
 
         $migrationManifest = $this->migrationService->prepareForMigration(
             $manifest,

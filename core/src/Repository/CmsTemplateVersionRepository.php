@@ -19,8 +19,4 @@ final class CmsTemplateVersionRepository extends ServiceEntityRepository
         parent::__construct($registry, CmsTemplateVersion::class);
     }
 
-    public function findActiveForTemplate(CmsTemplate $template): ?CmsTemplateVersion
-    {
-        return $this->findOneBy(['template' => $template, 'active' => true]);
-    }
 }

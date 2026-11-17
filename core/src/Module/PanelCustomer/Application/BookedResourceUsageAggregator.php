@@ -37,7 +37,7 @@ final class BookedResourceUsageAggregator
                 $bookedCpuTotal += $bookedCpu;
                 if ($usedCpuPercent !== null && $usedCpuPercent >= 0) {
                     $hasUsedCpu = true;
-                    $usedCpuCoresTotal += ($usedCpuPercent / 100) * $bookedCpu;
+                    $usedCpuCoresTotal += ($usedCpuPercent / 100.0) * $bookedCpu;
                 }
             }
 
@@ -55,12 +55,12 @@ final class BookedResourceUsageAggregator
 
         $totalCpuPercent = null;
         if ($hasBookedCpu && $hasUsedCpu && $bookedCpuTotal > 0) {
-            $totalCpuPercent = ($usedCpuCoresTotal / $bookedCpuTotal) * 100;
+            $totalCpuPercent = ($usedCpuCoresTotal / $bookedCpuTotal) * 100.0;
         }
 
         $totalRamPercent = null;
         if ($hasBookedRam && $hasUsedRam && $bookedRamTotal > 0) {
-            $totalRamPercent = ($usedRamTotal / $bookedRamTotal) * 100;
+            $totalRamPercent = ((float) $usedRamTotal / (float) $bookedRamTotal) * 100.0;
         }
 
         return [

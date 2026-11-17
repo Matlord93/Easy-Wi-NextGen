@@ -359,11 +359,6 @@ final class UpdateJobService implements MigrationStatusProviderInterface, Update
         ];
     }
 
-    public function getCoreDir(): string
-    {
-        return $this->coreDir;
-    }
-
     #[\Override]
     public function getJobsDir(): string
     {

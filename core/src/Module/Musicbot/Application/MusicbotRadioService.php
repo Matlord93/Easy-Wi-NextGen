@@ -52,22 +52,6 @@ final class MusicbotRadioService
         return $this->stationRepository->findByCustomer($customer);
     }
 
-    /** @return MusicbotRadioStation[] */
-    public function favoritesForCustomer(User $customer): array
-    {
-        $this->assertWebradioAllowed($customer);
-
-        return $this->stationRepository->findFavoritesByCustomer($customer);
-    }
-
-    /** @return MusicbotRadioStation[] */
-    public function historyForCustomer(User $customer): array
-    {
-        $this->assertWebradioAllowed($customer);
-
-        return $this->stationRepository->findRecentlyPlayed($customer, 20);
-    }
-
     /**
      * Create a new private station for the customer. The stream URL is validated
      * and, if it is a playlist file, the resolved direct URL is cached.
@@ -100,8 +84,8 @@ final class MusicbotRadioService
         $station->setLogoUrl(isset($data['logo_url']) && $data['logo_url'] !== '' ? $data['logo_url'] : null);
         $station->setCountry(isset($data['country']) && $data['country'] !== '' ? $data['country'] : null);
         $station->setLanguage(isset($data['language']) && $data['language'] !== '' ? $data['language'] : null);
-        if (isset($data['tags']) && is_array($data['tags'])) {
-            $station->setTags($data['tags']);
+        if (isset($data['tags'])) {
+            $station->setTags($this->stringTags($data['tags']));
         }
         if (isset($data['bitrate'])) {
             $station->setBitrate($data['bitrate'] ?: null);
@@ -154,7 +138,7 @@ final class MusicbotRadioService
         }
 
         if (isset($data['tags']) && is_array($data['tags'])) {
-            $station->setTags($data['tags']);
+            $station->setTags($this->stringTags($data['tags']));
         }
 
         if (array_key_exists('bitrate', $data)) {
@@ -321,12 +305,26 @@ final class MusicbotRadioService
     }
 
     /**
-     * @return array{id: int|null, name: string, stream_url: string, is_favorite: bool, last_played_at:
-     * string|null}
+     * @return array{id:int|null,name:string,stream_url:string,is_favorite:bool,last_played_at:string|null,...<string,mixed>}
      */
     public function normalize(MusicbotRadioStation $station): array
     {
         return $this->catalogService->normalize($station);
+    }
+
+    /** @return list<string> */
+    private function stringTags(mixed $value): array
+    {
+        $tags = \App\Infrastructure\Config\JsonArray::orEmpty($value);
+        $result = [];
+        foreach (array_keys($tags) as $key) {
+            $tag = $tags[$key];
+            if (!is_string($tag)) {
+                throw new \InvalidArgumentException('Radio tags must be strings.');
+            }
+            $result[] = $tag;
+        }
+        return $result;
     }
 
     // -------------------------------------------------------------------------
@@ -374,7 +372,7 @@ final class MusicbotRadioService
 
     private function assertCustomerOwnsInstance(User $customer, MusicbotInstance $instance): void
     {
-        if ($instance->getCustomer()?->getId() !== $customer->getId()) {
+        if ($instance->getCustomer()->getId() !== $customer->getId()) {
             throw new \RuntimeException('Instance not found.');
         }
     }

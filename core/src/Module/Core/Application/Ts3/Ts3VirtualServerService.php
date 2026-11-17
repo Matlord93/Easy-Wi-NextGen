@@ -28,14 +28,7 @@ final class Ts3VirtualServerService
         if ($dto->voicePort !== null) {
             $params['voice_port'] = $dto->voicePort;
         }
-        if ($filetransferPort !== null) {
-            $params['filetransfer_port'] = $filetransferPort;
-        }
-
-        $payload = [
-            'name' => $dto->name,
-            'params' => $params,
-        ];
+        $params['filetransfer_port'] = $filetransferPort;
 
         $virtualServer = new Ts3VirtualServer($node, $customerId, 0, $dto->name);
         $virtualServer->setVoicePort($dto->voicePort);
@@ -210,6 +203,7 @@ final class Ts3VirtualServerService
         return $job;
     }
 
+    /** @param array<string, mixed> $banParams */
     public function addBan(Ts3VirtualServer $server, array $banParams): AgentJob
     {
         $payload = array_merge([

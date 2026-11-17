@@ -56,6 +56,7 @@ final class SecurityStatusScheduleHandler implements ScheduleHandlerInterface
         return $this->queueJobsForAllAgents([$jobType]);
     }
 
+    /** @param list<string> $jobTypes */
     private function queueJobsForAllAgents(array $jobTypes): ScheduleExecutionResult
     {
         $agents = $this->agentRepository->findAll();
@@ -74,7 +75,7 @@ final class SecurityStatusScheduleHandler implements ScheduleHandlerInterface
 
         $this->entityManager->flush();
 
-        $jobIds = array_filter(array_map(fn (Job $j) => $j->getId(), $jobs));
+        $jobIds = array_values(array_filter(array_map(fn (Job $j) => $j->getId(), $jobs)));
 
         return ScheduleExecutionResult::success(
             sprintf('Queued %d security status job(s) for %d agent(s).', count($jobs), count($agents)),

@@ -133,7 +133,7 @@ final class MailService
         ], $context);
     }
 
-    private function resolveLocale(?string $locale): string
+    private function resolveLocale(mixed $locale): string
     {
         if (!is_string($locale)) {
             return $this->appSettingsService->getMailDefaultLocale();

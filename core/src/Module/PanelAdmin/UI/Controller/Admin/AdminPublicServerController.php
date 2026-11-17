@@ -421,8 +421,7 @@ final class AdminPublicServerController
     {
         return array_map(function (PublicServer $server): array {
             $statusCache = $server->getStatusCache();
-            $status = $statusCache['status'] ?? ($statusCache['online'] ?? null);
-            $statusLabel = $this->normalizeStatus($status);
+            $statusLabel = $this->normalizeStatus($statusCache['status'] ?? ($statusCache['online'] ?? null));
 
             return [
                 'id' => $server->getId(),

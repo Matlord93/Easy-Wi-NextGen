@@ -75,10 +75,6 @@ final class FallbackConsoleEventBus implements ConsoleEventBusInterface
                 return;
             }
 
-            if (!is_array($event)) {
-                continue;
-            }
-
             if (!array_key_exists('seq', $event) || !is_int($event['seq'])) {
                 $event['seq'] = $this->nextSequence($instanceId);
             }

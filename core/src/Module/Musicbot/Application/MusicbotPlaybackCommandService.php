@@ -106,9 +106,6 @@ final class MusicbotPlaybackCommandService
             throw new \RuntimeException('Kein Track oder Webradio ausgewählt.');
         }
         $track = $item->getTrack();
-        if ($track === null) {
-            throw new \RuntimeException(MusicbotTrackPathResolver::MISSING_FILE_MESSAGE);
-        }
         if ($track->getSourceType() === MusicbotTrackSourceType::Webradio) {
             $url = (string) ($track->getMetadata()['stream_url'] ?? '');
             if ($url === '') {

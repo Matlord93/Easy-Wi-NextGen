@@ -56,7 +56,7 @@ class DatabaseProvisioningService
         if ($node instanceof DatabaseNode) {
             $payload['database_node_id'] = (string) $node->getId();
             $payload['tls_mode'] = $node->getTlsMode();
-            if ($node->getCaCert() !== null && trim($node->getCaCert()) !== '') {
+            if ($node->getCaCert() !== null && trim($node->getCaCert() ?? '') !== '') {
                 $payload['ca_cert'] = $node->getCaCert();
             }
 

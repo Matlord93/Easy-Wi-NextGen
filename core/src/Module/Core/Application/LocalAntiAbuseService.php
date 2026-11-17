@@ -24,7 +24,7 @@ final class LocalAntiAbuseService
     /** @return array{nonce:string,issued_at:int} */
     public function registerFormSession(SessionInterface $session, string $formKey): array
     {
-        $current = $session->get($this->sessionKey($formKey));
+        $current = \App\Infrastructure\Config\JsonMap::fromValue($session->get($this->sessionKey($formKey)));
         if (is_array($current) && isset($current['nonce'], $current['issued_at'])) {
             return [
                 'nonce' => (string) $current['nonce'],

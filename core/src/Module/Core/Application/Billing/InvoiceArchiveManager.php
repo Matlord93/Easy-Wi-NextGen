@@ -41,7 +41,7 @@ final class InvoiceArchiveManager
             $contents,
             $file->getClientOriginalName() ?: sprintf('%s.pdf', $invoice->getNumber()),
             $file->getMimeType() ?? 'application/pdf',
-            $file->getSize() ?? strlen($contents),
+            ($file->getSize() === false ? strlen($contents) : $file->getSize()),
             $hash,
             $actor,
         );

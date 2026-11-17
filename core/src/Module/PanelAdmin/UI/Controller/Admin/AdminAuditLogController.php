@@ -36,7 +36,7 @@ final class AdminAuditLogController
         $filters = $this->filters($request);
         $logs = $this->auditLogRepository->searchSummaries($filters['action'], $filters['actor'], $filters['since'], 50);
         $total = $this->auditLogRepository->count([]);
-        $latest = $logs[0]['created_at'] ?? null;
+        $latest = \App\Infrastructure\Config\JsonMap::strings($logs[0] ?? null)['created_at'] ?? null;
 
         return new Response($this->twig->render('admin/audit-logs/index.html.twig', [
             'activeNav' => 'audit-logs',
@@ -102,7 +102,7 @@ final class AdminAuditLogController
     private function normalizeLogs(array $logs): array
     {
         return array_map(static function (array $log): array {
-            $payload = is_string($log['payload_preview'] ?? null) ? $log['payload_preview'] : '{}';
+            $payload = \App\Infrastructure\Config\JsonMap::strings($log)['payload_preview'] ?? '{}';
 
             return [
                 'id' => (int) ($log['id'] ?? 0),

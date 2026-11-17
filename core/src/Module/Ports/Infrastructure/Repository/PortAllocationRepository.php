@@ -40,30 +40,6 @@ final class PortAllocationRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return int[]
-     */
-    public function findUsedPorts(Agent $node, string $proto, int $start, int $end): array
-    {
-        $qb = $this->createQueryBuilder('allocation');
-        $qb
-            ->select('allocation.port')
-            ->where('allocation.node = :node')
-            ->andWhere('allocation.proto = :proto')
-            ->andWhere('allocation.port BETWEEN :start AND :end')
-            ->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
-            ->setParameter('proto', $proto)
-            ->setParameter('start', $start)
-            ->setParameter('end', $end);
-
-        return array_map('intval', array_column($qb->getQuery()->getArrayResult(), 'port'));
-    }
-
-    public function isPortAllocated(Agent $node, string $proto, int $port): bool
-    {
-        return $this->count(['node' => $node, 'proto' => $proto, 'port' => $port]) > 0;
-    }
-
-    /**
      * @return list<array{pool_tag: string, allocated: int}>
      */
     public function countAllocationsByPoolTag(Agent $node): array

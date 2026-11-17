@@ -21,9 +21,4 @@ final class MusicbotPluginLogRepository extends ServiceEntityRepository
         return $this->findBy(['instance' => $instance], ['createdAt' => 'DESC'], $limit);
     }
 
-    /** @return MusicbotPluginLog[] */
-    public function findForCustomer(User $customer, int $limit = 100): array
-    {
-        return $this->findBy(['customer' => $customer], ['createdAt' => 'DESC'], $limit);
-    }
 }

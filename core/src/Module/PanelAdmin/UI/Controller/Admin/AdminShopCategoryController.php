@@ -248,6 +248,7 @@ final class AdminShopCategoryController
         ];
     }
 
+    /** @param array{errors: list<string>, ...} $formData */
     private function renderFormWithErrors(array $formData, int $status, ?ShopCategory $category = null): Response
     {
         return new Response($this->twig->render('admin/shop/categories/_form.html.twig', [

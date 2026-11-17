@@ -26,14 +26,7 @@ final class Ts6VirtualServerService
     {
         $voicePort = $dto->voicePort ?? $node->getVoicePort();
         $params = ['slots' => $dto->slots];
-        if ($voicePort !== null) {
-            $params['voice_port'] = $voicePort;
-        }
-
-        $payload = [
-            'name' => $dto->name,
-            'params' => $params,
-        ];
+        $params['voice_port'] = $voicePort;
 
         $virtualServer = new Ts6VirtualServer($node, $customerId, 0, $dto->name, $dto->slots);
         $virtualServer->setVoicePort($voicePort);
@@ -42,7 +35,7 @@ final class Ts6VirtualServerService
         $this->entityManager->persist($virtualServer);
         $this->entityManager->flush();
 
-        if ($voicePort !== null && $voicePort > 0) {
+        if ($voicePort > 0) {
             $firewallJob = new Job('firewall.open_ports', [
                 'agent_id' => $node->getAgent()->getId(),
                 'ts6_virtual_server_id' => (string) $virtualServer->getId(),
@@ -220,6 +213,7 @@ final class Ts6VirtualServerService
         return $job;
     }
 
+    /** @param array<string, mixed> $banParams */
     public function addBan(Ts6VirtualServer $server, array $banParams): AgentJob
     {
         $payload = array_merge([

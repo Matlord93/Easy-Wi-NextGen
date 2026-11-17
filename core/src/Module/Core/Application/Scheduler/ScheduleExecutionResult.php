@@ -14,6 +14,7 @@ final class ScheduleExecutionResult
     ) {
     }
 
+    /** @param list<string> $createdJobIds */
     public static function success(?string $message = null, array $createdJobIds = []): self
     {
         return new self('success', $message, $createdJobIds);

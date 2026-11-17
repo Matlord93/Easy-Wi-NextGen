@@ -170,8 +170,6 @@ final class CustomerFileManagerController extends AbstractController
         $form = $this->createForm(UploadFileType::class);
         $form->handleRequest($request);
 
-        $path = '';
-
         if (!$form->isSubmitted() || !$form->isValid()) {
             $this->addFlash('error', 'customer_files_upload_invalid');
             return $this->redirectToRoute('customer_files_browse', [
@@ -258,7 +256,7 @@ final class CustomerFileManagerController extends AbstractController
         $parent = '';
 
         try {
-            $parent = $this->resolveParentPath($path);
+            $this->resolveParentPath($path);
             if (trim($path) === '') {
                 throw new \RuntimeException($this->translator->trans('customer_files_missing_path', [], 'portal', $request->getLocale()));
             }
@@ -339,7 +337,6 @@ final class CustomerFileManagerController extends AbstractController
         $path = $request->query->getString('path', '');
         $webspaceId = $request->query->getString('webspace', '');
         $webspace = $this->findCustomerWebspace($customer, $webspaceId);
-        $normalized = '';
         $content = '';
         $error = null;
 
@@ -443,7 +440,7 @@ final class CustomerFileManagerController extends AbstractController
     }
 
     /**
-     * @param array<int, Webspace> $webspaces
+     * @param array<array-key, Webspace> $webspaces
      */
     private function resolveWebspace(array $webspaces, string $selectedId): ?Webspace
     {
@@ -459,13 +456,14 @@ final class CustomerFileManagerController extends AbstractController
     }
 
     /**
-     * @return array<int, array{id: int, domain: string, system_username: string, ftp_enabled: bool,
+     * @param Webspace[] $webspaces
+     * @return array<array-key, array{id: int, domain: string, system_username: string, ftp_enabled: bool,
      * sftp_enabled: bool, ftp_host: string, ftp_port: int, sftp_port: int, root_path: string, docroot:
      * string}>
      */
     private function normalizeWebspaces(array $webspaces): array
     {
-        return array_map(fn ($webspace) => $this->normalizeWebspace($webspace), $webspaces);
+        return array_map(fn (Webspace $webspace) => $this->normalizeWebspace($webspace), $webspaces);
     }
 
     /**
@@ -477,7 +475,7 @@ final class CustomerFileManagerController extends AbstractController
         $host = $webspace->getDomain() !== '' ? $webspace->getDomain() : ($webspace->getNode()->getName() ?? $webspace->getNode()->getId());
 
         return [
-            'id' => $webspace->getId(),
+            'id' => \App\Infrastructure\Doctrine\EntityIdentifier::require($webspace->getId()),
             'domain' => $webspace->getDomain(),
             'system_username' => $webspace->getSystemUsername(),
             'ftp_enabled' => $webspace->isFtpEnabled(),
@@ -568,7 +566,7 @@ final class CustomerFileManagerController extends AbstractController
         $safe = [];
 
         foreach ($segments as $segment) {
-            if ($segment === '.' || $segment === '') {
+            if ($segment === '.') {
                 continue;
             }
 

@@ -31,12 +31,6 @@ final class MusicbotRuntimeEventRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotRuntimeEvent[] */
-    public function findByType(string $type, int $limit = 100): array
-    {
-        return $this->findBy(['type' => $type], ['createdAt' => 'DESC'], $limit);
-    }
-
-    /** @return MusicbotRuntimeEvent[] */
     public function findErrorsForInstance(MusicbotInstance $instance, int $limit = 50): array
     {
         return $this->findBy(['musicbotInstance' => $instance, 'level' => 'error'], ['createdAt' => 'DESC'], $limit);

@@ -19,17 +19,6 @@ class MusicbotPlaylistItemRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotPlaylistItem[] */
-    public function findByCustomer(User $customer): array
-    {
-        return EntityQueryResult::all($this->createQueryBuilder('playlistItem')
-            ->innerJoin('playlistItem.playlist', 'playlist')
-            ->andWhere('playlist.customer = :customer')
-            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
-            ->orderBy('playlistItem.position', 'ASC')
-            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotPlaylistItem::class);
-    }
-
-    /** @return MusicbotPlaylistItem[] */
     public function findByPlaylistOrdered(MusicbotPlaylist $playlist): array
     {
         return $this->findBy(['playlist' => $playlist], ['position' => 'ASC', 'id' => 'ASC']);

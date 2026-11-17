@@ -46,7 +46,6 @@ use App\Repository\AgentRepository;
 use App\Repository\MusicbotConnectionRepository;
 use App\Repository\MusicbotInstanceRepository;
 use App\Repository\MusicbotPlaylistRepository;
-use App\Repository\MusicbotPluginRepository;
 use App\Repository\MusicbotQueueItemRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -68,7 +67,6 @@ final class CustomerMusicbotController
         private readonly MusicbotConnectionRepository $connectionRepository,
         private readonly MusicbotQueueItemRepository $queueItemRepository,
         private readonly MusicbotPlaylistRepository $playlistRepository,
-        private readonly MusicbotPluginRepository $pluginRepository,
         private readonly MusicbotTrackService $trackService,
         private readonly MusicbotPlaylistService $playlistService,
         private readonly MusicbotAutoDjService $autoDjService,
@@ -641,7 +639,7 @@ final class CustomerMusicbotController
                 $result = $this->youtubeService->importUrl($customer, $instance, $url, ['playlist' => $request->request->getBoolean('playlist'), 'queue' => true, 'shuffle' => $request->request->getBoolean('shuffle')]);
             }
             $this->queueStatusRefresh($customer, $instance);
-            $this->flash($request, 'success', sprintf('YouTube-Import abgeschlossen (%d Track(s)).', $result['tracks_imported'] ?? 1));
+            $this->flash($request, 'success', sprintf('YouTube-Import abgeschlossen (%d Track(s)).', \App\Infrastructure\Config\ScalarValue::text($result['tracks_imported'] ?? 1)));
         } catch (\Throwable $e) {
             $this->flash($request, 'error', $e->getMessage());
         }
@@ -1178,9 +1176,9 @@ final class CustomerMusicbotController
             'framesProcessed' => (int) ($ps['frames_processed'] ?? 0),
             'lastStateChangeAt' => (string) ($ps['last_state_change_at'] ?? ''),
             'audioBackendReady' => $audioReady,
-            'audioBackendStatus' => (string) $normal['audio_backend_status'],
-            'audioBackendMessage' => (string) $normal['audio_backend_message'],
-            'teamspeakConnected' => (bool) $normal['teamspeak_connected'],
+            'audioBackendStatus' => $normal['audio_backend_status'],
+            'audioBackendMessage' => $normal['audio_backend_message'],
+            'teamspeakConnected' => $normal['teamspeak_connected'],
         ];
     }
 
@@ -1287,7 +1285,7 @@ final class CustomerMusicbotController
     }
 
 
-    private function queueLiveReconnect(User $customer, MusicbotInstance $instance): \App\Module\AgentOrchestrator\Domain\Entity\AgentJob
+    private function queueLiveReconnect(User $customer, MusicbotInstance $instance): void
     {
         $job = $this->jobDispatcher->dispatch($instance->getNode(), 'musicbot.playback.action', [
             'instance_id' => (string) $instance->getId(),
@@ -1300,8 +1298,6 @@ final class CustomerMusicbotController
             'fallback_hint' => 'Diese Änderung wird nach einem Neustart des Bots übernommen, falls Live-Apply oder Reconnect von der Runtime nicht unterstützt wird.',
         ]);
         $this->auditLogger->log($customer, 'musicbot.live_reconnect_requested', ['instance_id' => $instance->getId(), 'job_id' => $job->getId()]);
-
-        return $job;
     }
 
     private function dispatchConfigApplyJob(MusicbotInstance $instance): \App\Module\AgentOrchestrator\Domain\Entity\AgentJob

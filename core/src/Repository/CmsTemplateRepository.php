@@ -18,8 +18,4 @@ final class CmsTemplateRepository extends ServiceEntityRepository
         parent::__construct($registry, CmsTemplate::class);
     }
 
-    public function findOneByTemplateKey(string $templateKey): ?CmsTemplate
-    {
-        return $this->findOneBy(['templateKey' => strtolower(trim($templateKey))]);
-    }
 }

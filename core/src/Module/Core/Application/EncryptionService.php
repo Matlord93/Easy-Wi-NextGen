@@ -44,6 +44,9 @@ class EncryptionService
             throw new RuntimeException('No active encryption key configured.');
         }
         $key = $this->requireKey($keyId);
+        if ($this->nonceBytes < 1) {
+            throw new RuntimeException('Invalid encryption nonce length.');
+        }
         $nonce = random_bytes($this->nonceBytes);
         $ciphertext = sodium_crypto_aead_aes256gcm_encrypt(
             $plaintext,
@@ -60,19 +63,19 @@ class EncryptionService
     }
 
     /**
-     * @param array{key_id?: string, nonce?: string, ciphertext?: string} $payload
+     * @param array<array-key, mixed> $payload
      */
     public function decrypt(array $payload): string
     {
         $this->assertAeadAvailable();
 
-        $keyId = ($payload['key_id'] ?? '');
+        $keyId = self::encryptedField($payload['key_id'] ?? null, 'key id');
         if ($keyId === '') {
             throw new RuntimeException('Missing encryption key id.');
         }
 
-        $nonce = $this->decodeBase64Field($payload['nonce'] ?? null, 'nonce');
-        $ciphertext = $this->decodeBase64Field($payload['ciphertext'] ?? null, 'ciphertext');
+        $nonce = $this->decodeBase64Field(self::encryptedField($payload['nonce'] ?? null, 'nonce'), 'nonce');
+        $ciphertext = $this->decodeBase64Field(self::encryptedField($payload['ciphertext'] ?? null, 'ciphertext'), 'ciphertext');
         $key = $this->requireKey($keyId);
 
         $plaintext = sodium_crypto_aead_aes256gcm_decrypt(
@@ -87,6 +90,15 @@ class EncryptionService
         }
 
         return $plaintext;
+    }
+
+    private static function encryptedField(mixed $value, string $field): string
+    {
+        if (!is_string($value)) {
+            throw new RuntimeException(sprintf('Invalid encryption %s.', $field));
+        }
+
+        return $value;
     }
 
     private function aadForKey(string $keyId): string

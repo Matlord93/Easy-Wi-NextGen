@@ -138,7 +138,7 @@ final class MusicbotRadioApiController
         $payload = JsonMap::fromValue((JsonMap::fromValue($request->toArray()) ?? [])) ?? [];
 
         try {
-            $station = $this->radioService->create($customer, $instance, $payload);
+            $station = $this->radioService->create($customer, $instance, $this->stationInput($payload));
         } catch (MusicbotQuotaExceededException $e) {
             return $this->error($e->getMessage(), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         } catch (\InvalidArgumentException $e) {
@@ -560,20 +560,60 @@ final class MusicbotRadioApiController
         return $station;
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{query?:string,genre?:string,country?:string,language?:string,format?:string,min_bitrate?:int,max_bitrate?:int,limit:int,offset:int} */
     private function extractFilters(Request $request): array
     {
-        return array_filter([
-            'query'       => $request->query->get('q') ?? $request->query->get('query'),
-            'genre'       => $request->query->get('genre'),
-            'country'     => $request->query->get('country'),
-            'language'    => $request->query->get('language'),
-            'format'      => $request->query->get('format'),
-            'min_bitrate' => $request->query->get('min_bitrate') ? (int) $request->query->get('min_bitrate') : null,
-            'max_bitrate' => $request->query->get('max_bitrate') ? (int) $request->query->get('max_bitrate') : null,
-            'limit'       => $request->query->get('limit') ? (int) $request->query->get('limit') : 50,
-            'offset'      => $request->query->get('offset') ? (int) $request->query->get('offset') : 0,
-        ], static fn ($v): bool => $v !== null && $v !== '');
+        $filters = [
+            'limit' => $this->queryInteger($request->query->get('limit'), 50),
+            'offset' => $this->queryInteger($request->query->get('offset'), 0),
+        ];
+        foreach (['query', 'genre', 'country', 'language', 'format'] as $field) {
+            $value = $field === 'query' ? ($request->query->get('q') ?? $request->query->get('query')) : $request->query->get($field);
+            if ($value !== null && $value !== '') {
+                $filters[$field] = $value;
+            }
+        }
+        foreach (['min_bitrate', 'max_bitrate'] as $field) {
+            $value = $request->query->get($field);
+            if ($value !== null && $value !== '' && $value !== '0') {
+                $filters[$field] = (int) $value;
+            }
+        }
+        return $filters;
+    }
+
+    private function queryInteger(?string $value, int $default): int
+    {
+        return $value === null || $value === '' || $value === '0' ? $default : (int) $value;
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     * @return array{name:string,stream_url:string,genre:?string,description:?string,homepage:?string,logo_url:?string,country:?string,language:?string,tags:list<string>,bitrate:?int,format:?string}
+     */
+    private function stationInput(array $payload): array
+    {
+        $tags = [];
+        foreach (\App\Infrastructure\Config\JsonArray::orEmpty($payload['tags'] ?? null) as $tag) {
+            if (!is_string($tag)) {
+                throw new \InvalidArgumentException('Radio tags must be strings.');
+            }
+            $tags[] = $tag;
+        }
+        $text = static fn (mixed $value): string => \App\Infrastructure\Config\ScalarValue::text($value);
+        return [
+            'name' => $text($payload['name'] ?? ''),
+            'stream_url' => $text($payload['stream_url'] ?? ''),
+            'genre' => isset($payload['genre']) ? $text($payload['genre']) : null,
+            'description' => isset($payload['description']) ? $text($payload['description']) : null,
+            'homepage' => isset($payload['homepage']) ? $text($payload['homepage']) : null,
+            'logo_url' => isset($payload['logo_url']) ? $text($payload['logo_url']) : null,
+            'country' => isset($payload['country']) ? $text($payload['country']) : null,
+            'language' => isset($payload['language']) ? $text($payload['language']) : null,
+            'tags' => $tags,
+            'bitrate' => isset($payload['bitrate']) ? (int) $text($payload['bitrate']) : null,
+            'format' => isset($payload['format']) ? $text($payload['format']) : null,
+        ];
     }
 
     private function error(string $message, int $status): JsonResponse

@@ -294,7 +294,7 @@ final class SftpFileService
         $metadata = $instance->getNode()->getMetadata();
         $port = self::fileAttribute($metadata['sftp_port'] ?? null);
         if ($port !== null) {
-            return max(1, (int) $port);
+            return max(1, $port);
         }
 
         return $this->settingsService->getSftpPort();

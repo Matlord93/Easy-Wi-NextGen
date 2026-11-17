@@ -21,18 +21,6 @@ final class PaymentRepository extends ServiceEntityRepository
         parent::__construct($registry, Payment::class);
     }
 
-    public function sumSucceededForInvoice(Invoice $invoice): int
-    {
-        return (int) $this->createQueryBuilder('payment')
-            ->select('COALESCE(SUM(payment.amountCents), 0)')
-            ->andWhere('payment.invoice = :invoice')
-            ->andWhere('payment.status = :status')
-            ->setParameter('invoice', QueryParameter::entityId($invoice->getId(), \App\Module\Core\Domain\Entity\Invoice::class))
-            ->setParameter('status', PaymentStatus::Succeeded)
-            ->getQuery()
-            ->getSingleScalarResult();
-    }
-
     /**
      * @return Payment[]
      */

@@ -45,6 +45,10 @@ class GameProfile
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
+    /**
+     * @param array<int, array<string, mixed>> $portRoles
+     * @param array<string, mixed> $slotRules
+     */
     public function __construct(
         string $gameKey,
         EnforceMode $enforceModePorts,

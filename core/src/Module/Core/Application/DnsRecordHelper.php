@@ -20,16 +20,6 @@ final class DnsRecordHelper
         return array_map(static fn (DnsRecordType $type): string => $type->value, DnsRecordType::cases());
     }
 
-    public function minTtl(): int
-    {
-        return self::TTL_MIN;
-    }
-
-    public function maxTtl(): int
-    {
-        return self::TTL_MAX;
-    }
-
     public function normalizeName(string $name): string
     {
         $name = trim($name);

@@ -27,11 +27,6 @@ final class MusicbotTrackPathResolver
         return $root;
     }
 
-    public function customerTrackDirectory(MusicbotInstance $instance, int $customerId): string
-    {
-        return $this->instanceTrackRoot($instance) . '/customer-' . $customerId;
-    }
-
     public function resolveTrackFile(MusicbotTrack $track, MusicbotInstance $instance, bool $mustExist = true): ?string
     {
         if ($track->getSourceType() !== MusicbotTrackSourceType::Upload || $track->getCustomer()->getId() !== $instance->getCustomer()->getId()) {
@@ -155,7 +150,7 @@ final class MusicbotTrackPathResolver
             return null;
         }
         $customerId = $track->getCustomer()->getId();
-        if (!$customerId) {
+        if ($customerId === null || $customerId === 0) {
             return null;
         }
         $instance = $track->getInstance();

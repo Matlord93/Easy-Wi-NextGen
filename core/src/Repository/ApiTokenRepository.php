@@ -19,19 +19,6 @@ final class ApiTokenRepository extends ServiceEntityRepository
         parent::__construct($registry, ApiToken::class);
     }
 
-    public function findActiveByHash(string $tokenHash): ?ApiToken
-    {
-        $qb = $this->createQueryBuilder('token');
-        $qb->andWhere('token.tokenHash = :hash')
-            ->andWhere('token.revokedAt IS NULL')
-            ->andWhere('token.expiresAt IS NULL OR token.expiresAt > :now')
-            ->setParameter('hash', $tokenHash)
-            ->setParameter('now', new \DateTimeImmutable(), \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
-            ->setMaxResults(1);
-
-        return EntityQueryResult::one($qb->getQuery(), \App\Module\Core\Domain\Entity\ApiToken::class);
-    }
-
     public function deleteByCustomer(User $customer): int
     {
         return EntityQueryResult::affected($this->createQueryBuilder('token')

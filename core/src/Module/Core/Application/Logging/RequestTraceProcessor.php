@@ -21,6 +21,7 @@ final class RequestTraceProcessor
      */
     public function __invoke(array $record): array
     {
+        $record['extra'] = \App\Infrastructure\Config\JsonMap::fromValue($record['extra'] ?? null) ?? [];
         $request = $this->requestStack->getCurrentRequest();
         if ($request === null) {
             $fallbackId = $this->traceContext->newId();

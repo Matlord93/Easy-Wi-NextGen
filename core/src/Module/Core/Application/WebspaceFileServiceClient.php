@@ -337,7 +337,7 @@ final class WebspaceFileServiceClient
             'agent_id' => $webspace->getNode()->getId(),
             'webspace_id' => $webspace->getId(),
             'customer_id' => $webspace->getCustomer()->getId(),
-            'resolved_path' => (string) ($options['options']['headers']['X-Server-Root'] ?? ''),
+            'resolved_path' => ($options['options']['headers']['X-Server-Root'] ?? ''),
             'configured_path' => $webspace->getPath(),
             'configured_docroot' => $webspace->getDocroot(),
             'method' => $method,

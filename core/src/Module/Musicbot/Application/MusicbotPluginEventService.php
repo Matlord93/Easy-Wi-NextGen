@@ -69,7 +69,7 @@ final class MusicbotPluginEventService
     {
         return match ($plugin->getIdentifier()) {
             'easywi.welcome_song' => $this->handleWelcomeSong($plugin, $event, $payload),
-            'easywi.idle_playlist' => $this->handleIdlePlaylist($plugin, $event, $payload),
+            'easywi.idle_playlist' => $this->handleIdlePlaylist($plugin, $event),
             default => ['status' => 'ignored'],
         };
     }
@@ -102,10 +102,9 @@ final class MusicbotPluginEventService
     }
 
     /**
-     * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
-    private function handleIdlePlaylist(MusicbotPlugin $plugin, string $event, array $payload): array
+    private function handleIdlePlaylist(MusicbotPlugin $plugin, string $event): array
     {
         if (!in_array($event, ['queue_empty', 'playback_stopped', 'scheduled_tick'], true)) { return ['status' => 'ignored']; }
         $instance = $plugin->getInstance();

@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Sinusbot;
 
-use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
+use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Application\AgentCredentialsResolver;
 use App\Module\Core\Application\AgentEndpointResolver;
 use App\Module\Core\Domain\Entity\SinusbotNode;
@@ -28,7 +29,7 @@ final class AgentClient
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $payload
      * @return array<string, mixed>
      */
     public function requestJson(SinusbotNode $node, string $method, string $path, array $payload): array
@@ -58,15 +59,15 @@ final class AgentClient
 
                 $statusCode = $response->getStatusCode();
                 $content = $response->getContent(false);
-                $data = $content !== '' ? json_decode($content, true) : [];
+                $data = $content !== '' ? (JsonMap::decode($content) ?? []) : [];
 
                 if ($statusCode >= 400) {
-                    $errorCode = is_array($data) ? ($data['error_code'] ?? 'agent_error') : 'agent_error';
-                    $message = is_array($data) ? ($data['error'] ?? 'Agent error') : 'Agent error';
-                    throw new AgentBadResponseException(sprintf('%s (%s)', $message, (string) $errorCode));
+                    $errorCode = ScalarValue::text($data['error_code'] ?? 'agent_error', 'agent_error');
+                    $message = ScalarValue::text($data['error'] ?? 'Agent error', 'Agent error');
+                    throw new AgentBadResponseException(sprintf('%s (%s)', $message, $errorCode));
                 }
 
-                return JsonArray::orEmpty($data);
+                return $data;
             } catch (TransportExceptionInterface $exception) {
                 $this->logger->warning('Sinusbot agent request failed.', [
                     'path' => $path,

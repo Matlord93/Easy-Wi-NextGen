@@ -112,7 +112,7 @@ final class CustomerConsentLogController
 
     /**
      * @param ConsentLog[] $logs
-     * @return array<int, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function normalizeLogs(array $logs): array
     {

@@ -302,6 +302,7 @@ final class AdminChangelogController
         return $data;
     }
 
+    /** @param array{published_at: \DateTimeImmutable, ...} $formData */
     private function renderFormWithErrors(array $formData, int $status, ?ChangelogEntry $entry = null): Response
     {
         $formContext = $this->buildFormContext($entry, [

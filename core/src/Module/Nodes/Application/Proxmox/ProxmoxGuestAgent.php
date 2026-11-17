@@ -25,7 +25,7 @@ final readonly class ProxmoxGuestAgent
      */
     public function filesystemUsage(ProxmoxConnection $connection, string $node, int $vmId, string $digest): array
     {
-        $key = 'vm_filesystem_v1.'.hash('sha256', json_encode([$connection->baseUrl, $connection->tokenId, hash('sha256', $connection->tokenSecret), $connection->verifyTls, $node, $vmId, $digest]));
+        $key = 'vm_filesystem_v1.'.hash('sha256', json_encode([$connection->baseUrl, $connection->tokenId, hash('sha256', $connection->tokenSecret), $connection->verifyTls, $node, $vmId, $digest], JSON_THROW_ON_ERROR));
 
         return $this->cache->get($key, function (ItemInterface $item) use ($connection, $node, $vmId): array {
             $item->expiresAfter(30);

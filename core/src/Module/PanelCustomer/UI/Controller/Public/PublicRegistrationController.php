@@ -266,6 +266,6 @@ final class PublicRegistrationController
     {
         $loader = $this->twig->getLoader();
 
-        return method_exists($loader, 'exists') && $loader->exists($template);
+        return $loader->exists($template);
     }
 }

@@ -38,10 +38,10 @@ class AgentEndpointResolver
 
         $heartbeatIp = trim((string) $agent->getLastHeartbeatIp());
         if ($heartbeatIp !== '') {
-            $metadataPort = $metadata['agent_service_port'] ?? null;
+            $metadataPort = \App\Infrastructure\Config\ScalarValue::text($metadata['agent_service_port'] ?? null);
             $port = is_numeric($metadataPort) ? (int) $metadataPort : $this->defaultPort();
-            $metadataScheme = $metadata['agent_service_scheme'] ?? null;
-            $scheme = is_string($metadataScheme) && trim($metadataScheme) !== ''
+            $metadataScheme = \App\Infrastructure\Config\ScalarValue::text($metadata['agent_service_scheme'] ?? null);
+            $scheme = trim($metadataScheme) !== ''
                 ? trim($metadataScheme)
                 : $this->defaultServiceScheme;
 

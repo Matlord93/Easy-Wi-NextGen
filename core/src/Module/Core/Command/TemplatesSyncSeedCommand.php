@@ -42,7 +42,6 @@ final class TemplatesSyncSeedCommand extends Command
             return self::FAILURE;
         }
 
-        $templates = [];
         if ($input->getOption('all')) {
             $templates = $this->templateRepository->findAll();
         } else {
@@ -63,8 +62,8 @@ final class TemplatesSyncSeedCommand extends Command
         foreach ($templates as $template) {
             $comparison = $this->seedSyncService->compareSharedPaths($template);
             $io->section(sprintf('Template %s (id=%s)', $template->getGameKey(), (string) $template->getId()));
-            $io->writeln('Old shared_paths: '.json_encode($comparison['current'], JSON_UNESCAPED_SLASHES));
-            $io->writeln('New shared_paths: '.json_encode($comparison['seed'], JSON_UNESCAPED_SLASHES));
+            $io->writeln('Old shared_paths: '.json_encode($comparison['current'], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $io->writeln('New shared_paths: '.json_encode($comparison['seed'], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
             $changed = $this->seedSyncService->syncSharedPaths($template);
             if ($changed) {
                 $this->entityManager->persist($template);

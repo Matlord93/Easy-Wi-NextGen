@@ -40,9 +40,6 @@ final class HttpQueryAdapter implements QueryAdapterInterface
         }
 
         $payload = $response->toArray(false);
-        if (!is_array($payload)) {
-            return QueryResult::unavailable('Invalid query response.');
-        }
 
         $players = isset($payload['players']) && is_numeric($payload['players']) ? (int) $payload['players'] : null;
         $maxPlayers = isset($payload['max_players']) && is_numeric($payload['max_players']) ? (int) $payload['max_players'] : null;

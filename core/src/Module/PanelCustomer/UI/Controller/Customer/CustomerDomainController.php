@@ -76,7 +76,7 @@ final class CustomerDomainController
             $errors[] = 'Domain already exists.';
         }
 
-        if ($errors !== []) {
+        if ($errors !== [] || $webspace === null) {
             return $this->renderPage(
                 $this->domainRepository->findByCustomer($customer),
                 $this->webspaceRepository->findByCustomer($customer),

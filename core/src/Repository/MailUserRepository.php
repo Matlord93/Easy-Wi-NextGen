@@ -19,8 +19,4 @@ final class MailUserRepository extends ServiceEntityRepository
         parent::__construct($registry, MailUser::class);
     }
 
-    public function findOneByMailbox(Mailbox $mailbox): ?MailUser
-    {
-        return $this->findOneBy(['mailbox' => $mailbox]);
-    }
 }

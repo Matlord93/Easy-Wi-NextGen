@@ -35,18 +35,4 @@ final class TeamMemberRepository extends ServiceEntityRepository
         return $rows;
     }
 
-    /** @return list<string> */
-    public function findTeamNamesBySite(Site $site): array
-    {
-        $rows = $this->createQueryBuilder('m')
-            ->select('DISTINCT m.teamName AS teamName')
-            ->andWhere('m.site = :site')
-            ->andWhere('m.teamName IS NOT NULL')
-            ->setParameter('site', QueryParameter::entityId($site->getId(), \App\Module\Core\Domain\Entity\Site::class))
-            ->orderBy('m.teamName', 'ASC')
-            ->getQuery()
-            ->getArrayResult();
-
-        return array_values(array_filter(array_map(static fn (array $row): string => (string) ($row['teamName'] ?? ''), $rows), static fn (string $name): bool => $name !== ''));
-    }
 }

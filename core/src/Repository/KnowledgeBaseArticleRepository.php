@@ -33,18 +33,4 @@ final class KnowledgeBaseArticleRepository extends ServiceEntityRepository
             ->getQuery(), \App\Module\Core\Domain\Entity\KnowledgeBaseArticle::class);
     }
 
-    /**
-     * @return KnowledgeBaseArticle[]
-     */
-    public function findVisiblePublicBySiteAndCategory(int $siteId, TicketCategory $category): array
-    {
-        return EntityQueryResult::all($this->createQueryBuilder('article')
-            ->andWhere('article.siteId = :siteId')
-            ->andWhere('article.visiblePublic = true')
-            ->andWhere('article.category = :category')
-            ->setParameter('siteId', $siteId)
-            ->setParameter('category', $category->value)
-            ->orderBy('article.title', 'ASC')
-            ->getQuery(), \App\Module\Core\Domain\Entity\KnowledgeBaseArticle::class);
-    }
 }

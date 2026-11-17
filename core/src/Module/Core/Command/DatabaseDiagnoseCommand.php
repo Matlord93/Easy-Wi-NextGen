@@ -81,7 +81,6 @@ final class DatabaseDiagnoseCommand extends Command
         if ($validationErrors !== []) {
             $io->error('Database configuration is invalid.');
             $io->listing($validationErrors);
-            $overallOk = false;
             $io->warning('Skipping connection test (invalid configuration).');
             return Command::FAILURE;
         } else {

@@ -55,13 +55,13 @@ final readonly class VmConsoleBroker
         if ($node && 1 !== ($node->getMetadata()['kvm_managed']['console_version'] ?? null)) {
             return 'console.agent_update';
         }
-        if ($node && $this->kvm->availability($node)) {
+        if ($node && !in_array($this->kvm->availability($node), [null, '', '0'], true)) {
             return 'console.node_unavailable';
         }
         if ($node && !$this->kvmTransportAvailable($node)) {
             return 'console.transport_required';
         }
-        if (!$guest || !empty($guest['template'])) {
+        if ($guest === null || $guest === [] || !empty($guest['template'])) {
             return 'console.vm_unavailable';
         }
         if ('running' !== ($guest['state'] ?? $guest['status'] ?? null)) {
@@ -90,11 +90,17 @@ final readonly class VmConsoleBroker
         $base = rtrim($this->endpoints->resolveForAgent($node)->getBaseUrl(), '/');
         $parts = parse_url($base);
         $scheme = strtolower($parts['scheme'] ?? '');
-        if (!is_array($parts) || empty($parts['host']) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment']) || ('https' !== $scheme && !('http' === $scheme && in_array($parts['host'], ['127.0.0.1', '[::1]', '::1'], true)))) {
+        $host = $parts['host'] ?? '';
+        if (!is_array($parts) || in_array($host, ['', '0'], true) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment']) || ('https' !== $scheme && !('http' === $scheme && in_array($host, ['127.0.0.1', '[::1]', '::1'], true)))) {
             throw new \RuntimeException('KVM console requires HTTPS or loopback HTTP.');
         }
 
-        return $scheme.substr($base, strpos($base, ':'));
+        $separator = strpos($base, ':');
+        if ($separator === false) {
+            throw new \RuntimeException('KVM console URL has no scheme separator.');
+        }
+
+        return $scheme.substr($base, $separator);
     }
 
     public function assertGateway(Request $request): void

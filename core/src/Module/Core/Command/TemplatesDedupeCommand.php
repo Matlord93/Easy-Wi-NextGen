@@ -53,8 +53,8 @@ final class TemplatesDedupeCommand extends Command
                 $io->writeln(sprintf('- %s (steam_app_id: %s)', $baseKey, $group['steam_app_id'] ?? 'null'));
                 foreach ($group['templates'] as $template) {
                     $requirements = $template->getRequirements();
-                    $current = $requirements['merged_group'] ?? null;
-                    $io->writeln(sprintf('  - #%d %s (merged_group=%s)', EntityIdentifier::require($template->getId()), $template->getGameKey(), $current ?? 'null'));
+                    $current = \App\Infrastructure\Config\ScalarValue::text($requirements['merged_group'] ?? null, 'null');
+                    $io->writeln(sprintf('  - #%d %s (merged_group=%s)', EntityIdentifier::require($template->getId()), $template->getGameKey(), $current));
                     if ($current !== $baseKey) {
                         $requirements['merged_group'] = $baseKey;
                         if ($apply) {

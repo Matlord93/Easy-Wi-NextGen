@@ -18,31 +18,4 @@ class MusicbotConnectionRepository extends ServiceEntityRepository
         parent::__construct($registry, MusicbotConnection::class);
     }
 
-    /** @return MusicbotConnection[] */
-    public function findByCustomer(User $customer): array
-    {
-        return EntityQueryResult::all($this->createQueryBuilder('connection')
-            ->innerJoin('connection.musicbotInstance', 'instance')
-            ->andWhere('instance.customer = :customer')
-            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
-            ->orderBy('connection.id', 'ASC')
-            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotConnection::class);
-    }
-
-    public function findOneForCustomer(int $id, User $customer): ?MusicbotConnection
-    {
-        return EntityQueryResult::one($this->createQueryBuilder('connection')
-            ->innerJoin('connection.musicbotInstance', 'instance')
-            ->andWhere('connection.id = :id')
-            ->andWhere('instance.customer = :customer')
-            ->setParameter('id', $id)
-            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
-            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotConnection::class);
-    }
-
-    /** @return MusicbotConnection[] */
-    public function findEnabledConnections(MusicbotInstance $instance): array
-    {
-        return $this->findBy(['musicbotInstance' => $instance, 'enabled' => true], ['id' => 'ASC']);
-    }
 }

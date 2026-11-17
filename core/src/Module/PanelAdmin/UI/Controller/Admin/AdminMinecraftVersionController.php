@@ -46,7 +46,7 @@ final readonly class AdminMinecraftVersionController
         $count = (int) (clone $qb)->select('COUNT(v.id)')->getQuery()->getSingleScalarResult();
         $pages = max(1, (int) ceil($count / 100));
         $page = min($page, $pages);
-        $versions = $qb->orderBy('v.channel', 'ASC')->addOrderBy('v.releasedAt', 'DESC')->addOrderBy('v.mcVersion', 'DESC')->addOrderBy('v.build', 'DESC')->setMaxResults(100)->setFirstResult(($page - 1) * 100)->getQuery()->getResult();
+        $versions = \App\Repository\EntityQueryResult::all($qb->orderBy('v.channel', 'ASC')->addOrderBy('v.releasedAt', 'DESC')->addOrderBy('v.mcVersion', 'DESC')->addOrderBy('v.build', 'DESC')->setMaxResults(100)->setFirstResult(($page - 1) * 100)->getQuery(), \App\Module\Core\Domain\Entity\MinecraftVersionCatalog::class);
 
         return new Response($this->twig->render('admin/minecraft_versions/index.html.twig', [
             'versions' => $versions, 'syncStatus' => $this->catalogSynchronizer->publicStatus(),

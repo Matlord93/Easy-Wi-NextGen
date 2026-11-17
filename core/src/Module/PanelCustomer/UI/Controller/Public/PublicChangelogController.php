@@ -37,10 +37,8 @@ final class PublicChangelogController
         if (!$limit->isAccepted()) {
             $response = new Response('Too Many Requests.', Response::HTTP_TOO_MANY_REQUESTS);
             $retryAfter = $limit->getRetryAfter();
-            if ($retryAfter !== null) {
-                $seconds = max(1, $retryAfter->getTimestamp() - time());
-                $response->headers->set('Retry-After', (string) $seconds);
-            }
+            $seconds = max(1, $retryAfter->getTimestamp() - time());
+            $response->headers->set('Retry-After', (string) $seconds);
 
             return $response;
         }
@@ -87,6 +85,7 @@ final class PublicChangelogController
 
     /**
      * @param ChangelogEntry[] $entries
+     * @return array<array-key,array{title:string,version:?string,content:string,published_at:?\DateTimeImmutable,source:string}>
      */
     private function normalizeManualEntries(array $entries): array
     {
@@ -103,6 +102,7 @@ final class PublicChangelogController
 
     /**
      * @param array<int, array{title: string, version: string|null, content: string, published_at: \DateTimeImmutable|null}> $entries
+     * @return array<array-key,array{title:string,version:?string,content:string,published_at:?\DateTimeImmutable,source:string}>
      */
     private function normalizeReleaseEntries(array $entries): array
     {

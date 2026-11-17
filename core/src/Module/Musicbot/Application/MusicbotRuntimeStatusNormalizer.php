@@ -207,7 +207,7 @@ final class MusicbotRuntimeStatusNormalizer
             'runtime_ready' => $runtimeReady,
             'backend' => (string) ($read('backend') ?? ''),
             'active_backend' => (string) ($read('active_backend') ?? ''),
-            'output_backend' => $outputBackend === null || $outputBackend === '' ? 'null' : (string) $outputBackend,
+            'output_backend' => $outputBackend === null || $outputBackend === '' ? 'null' : $outputBackend,
             'output_status' => (string) ($status['output_status'] ?? $pipeline['output_status'] ?? 'idle'),
             'decoder_status' => (string) ($status['decoder_status'] ?? $pipeline['decoder_status'] ?? ''),
             'audio_backend_ready' => $audioReady,
@@ -550,7 +550,7 @@ final class MusicbotRuntimeStatusNormalizer
 
         $playbackState = $this->stringValue($playback['state'] ?? $runtime['playback_state'] ?? $status['playback_state'] ?? $status['state'] ?? null);
         if ($playbackState !== null) {
-            $partial['playback_state'] = (string) $playbackState;
+            $partial['playback_state'] = $playbackState;
         }
 
         foreach (['queue_count', 'volume', 'repeat', 'shuffle', 'updated_at'] as $key) {

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\UI\Controller\Api;
 
 use App\Module\Core\Domain\Entity\Instance;
+use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Gameserver\Application\Status\HmacRequestValidator;
 use App\Module\Gameserver\Application\Status\StatusBatchUpdater;
 use App\Repository\InstanceRepository;
@@ -33,12 +35,21 @@ final class ServerStatusApiController
             return new JsonResponse(['ok' => false, 'error' => 'invalid_signature'], 401);
         }
 
-        $payload = json_decode($body, true);
-        if (!is_array($payload) || !is_array($payload['items'] ?? null)) {
+        $payload = JsonMap::decode($body);
+        $items = JsonArray::fromValue($payload['items'] ?? null);
+        if ($items === null) {
             return new JsonResponse(['ok' => false, 'error' => 'invalid_payload'], 400);
         }
+        $rows = [];
+        foreach (array_keys($items) as $key) {
+            $row = JsonMap::fromValue($items[$key]);
+            if ($row === null) {
+                return new JsonResponse(['ok' => false, 'error' => 'invalid_payload'], 400);
+            }
+            $rows[] = $row;
+        }
 
-        $updated = $this->statusBatchUpdater->apply($payload['items']);
+        $updated = $this->statusBatchUpdater->apply($rows);
         $this->cache->delete('servers_status_all');
 
         return new JsonResponse(['ok' => true, 'updated' => $updated]);
@@ -84,9 +95,11 @@ final class ServerStatusApiController
             $status = 'offline_stale';
         }
 
+        $serverName = $instance->getServerName();
+
         return [
             'server_id' => $instance->getId(),
-            'name' => $instance->getServerName() ?: $instance->getTemplate()->getDisplayName(),
+            'name' => in_array($serverName, [null, '', '0'], true) ? $instance->getTemplate()->getDisplayName() : $serverName,
             'status' => $status,
             'reachable' => (bool) ($cache['reachable'] ?? false),
             'players_online' => is_numeric($cache['players'] ?? null) ? (int) $cache['players'] : null,

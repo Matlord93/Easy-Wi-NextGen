@@ -17,6 +17,12 @@ final class CentralSchedulerRunner
     ) {
     }
 
+    private static function moduleFor(string $type): string
+    {
+        $module = strtok($type, '.');
+        return $module === false || $module === '0' ? 'core' : $module;
+    }
+
     public function runDue(?\DateTimeImmutable $now = null): int
     {
         $now ??= new \DateTimeImmutable();
@@ -24,7 +30,7 @@ final class CentralSchedulerRunner
 
         foreach ($this->registry->all() as $handler) {
             $startedAt = new \DateTimeImmutable();
-            $run = new ScheduledTaskRun('handler', $handler->type(), $handler->type(), $handler->type(), strtok($handler->type(), '.') ?: 'core', $startedAt);
+            $run = new ScheduledTaskRun('handler', $handler->type(), $handler->type(), $handler->type(), self::moduleFor($handler->type()), $startedAt);
             $this->entityManager->persist($run);
 
             try {
@@ -53,7 +59,7 @@ final class CentralSchedulerRunner
 
         $now ??= new \DateTimeImmutable();
         $startedAt = new \DateTimeImmutable();
-        $run = new ScheduledTaskRun($source, $id, $type, $type, strtok($type, '.') ?: 'core', $startedAt);
+        $run = new ScheduledTaskRun($source, $id, $type, $type, self::moduleFor($type), $startedAt);
         $this->entityManager->persist($run);
 
         try {

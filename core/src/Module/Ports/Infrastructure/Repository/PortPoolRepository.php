@@ -19,11 +19,6 @@ class PortPoolRepository extends ServiceEntityRepository
         parent::__construct($registry, PortPool::class);
     }
 
-    public function findOneByNodeAndTag(Agent $node, string $tag): ?PortPool
-    {
-        return $this->findOneBy(['node' => $node, 'tag' => $tag, 'enabled' => true]);
-    }
-
     /**
      * @return PortPool[]
      */

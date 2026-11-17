@@ -47,33 +47,6 @@ class AgentGameServerClient
     }
 
     /**
-     * @param array<int, array{proto: string, port: int}> $checks
-     * @return array<int, array{proto: string, port: int, free: bool}>
-     */
-    public function checkFreePorts(Instance $instance, array $checks): array
-    {
-        return $this->checkFreePortsForNode($instance->getNode(), $checks);
-    }
-
-    /**
-     * @param array<string, mixed> $payload
-     * @return array{content: string, content_type: string|null}
-     */
-    public function downloadInstanceBackup(Instance $instance, array $payload): array
-    {
-        $download = $this->openInstanceBackupDownload($instance, $payload);
-        $content = '';
-        foreach ($this->streamResponseContent($download['response']) as $chunk) {
-            $content .= $chunk;
-        }
-
-        return [
-            'content' => $content,
-            'content_type' => $download['content_type'],
-        ];
-    }
-
-    /**
      * @param array<string, mixed> $payload
      * @return array{response: ResponseInterface, content_type: string|null}
      */
@@ -145,35 +118,11 @@ class AgentGameServerClient
 
     /**
      * @param array<string, mixed> $payload
-     */
-    public function renderConfig(Instance $instance, array $payload): array
-    {
-        return $this->requestJson($instance, 'POST', '/instance/render-config', $payload);
-    }
-
-    /**
-     * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
     public function createFromMasterTemplate(Instance $instance, array $payload): array
     {
         return $this->requestJson($instance, 'POST', '/api/server/create', $payload);
-    }
-
-    /**
-     * @param array<string, mixed> $payload
-     */
-    public function startInstance(Instance $instance, array $payload): array
-    {
-        return $this->requestJson($instance, 'POST', '/instance/start', $payload);
-    }
-
-    /**
-     * @param array<string, mixed> $payload
-     */
-    public function stopInstance(Instance $instance, array $payload): array
-    {
-        return $this->requestJson($instance, 'POST', '/instance/stop', $payload);
     }
 
     /**
@@ -247,15 +196,6 @@ class AgentGameServerClient
         }
 
         return $payload;
-    }
-
-    /**
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
-     */
-    public function applyInstanceConfig(Instance $instance, array $payload): array
-    {
-        return $this->requestJson($instance, 'POST', sprintf('/v1/instances/%d/configs/apply', (int) $instance->getId()), $payload);
     }
 
     /**

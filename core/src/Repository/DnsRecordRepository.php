@@ -23,14 +23,6 @@ final class DnsRecordRepository extends ServiceEntityRepository
     /**
      * @return DnsRecord[]
      */
-    public function findByDomain(Domain $domain): array
-    {
-        return $this->findBy(['domain' => $domain], ['updatedAt' => 'DESC']);
-    }
-
-    /**
-     * @return DnsRecord[]
-     */
     public function findByCustomer(User $customer): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('record')

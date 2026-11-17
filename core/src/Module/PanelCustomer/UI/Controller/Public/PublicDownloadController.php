@@ -35,10 +35,8 @@ final class PublicDownloadController
         if (!$limit->isAccepted()) {
             $response = new Response('Too Many Requests.', Response::HTTP_TOO_MANY_REQUESTS);
             $retryAfter = $limit->getRetryAfter();
-            if ($retryAfter !== null) {
-                $seconds = max(1, $retryAfter->getTimestamp() - time());
-                $response->headers->set('Retry-After', (string) $seconds);
-            }
+            $seconds = max(1, $retryAfter->getTimestamp() - time());
+            $response->headers->set('Retry-After', (string) $seconds);
 
             return $response;
         }

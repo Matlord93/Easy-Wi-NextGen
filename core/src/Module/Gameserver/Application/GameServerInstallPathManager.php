@@ -16,11 +16,11 @@ final class GameServerInstallPathManager
     ) {
     }
 
-    public function ensureInstallPath(Instance $instance): string
+    public function ensureInstallPath(Instance $instance): void
     {
         $path = trim((string) $instance->getInstallPath());
         if ($path !== '') {
-            return $path;
+            return;
         }
 
         $path = $this->legacyFilesystemResolver->resolveInstanceDir($instance);
@@ -32,6 +32,5 @@ final class GameServerInstallPathManager
             'legacy' => true,
         ]);
 
-        return $path;
     }
 }

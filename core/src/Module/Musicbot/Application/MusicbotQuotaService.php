@@ -26,7 +26,6 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         private readonly MusicbotPluginRepository $pluginRepository,
         private readonly MusicbotQueueItemRepository $queueItemRepository,
         private readonly MusicbotConnectionRepository $connectionRepository,
-        private readonly string $projectDir,
     ) {
     }
 

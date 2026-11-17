@@ -29,7 +29,7 @@ final class MusicbotScheduleHandler implements ScheduleHandlerInterface
     #[\Override]
     public function schedules(): array
     {
-        return array_values(array_map(function (MusicbotSchedule $schedule): InternalSchedule {
+        return array_map(function (MusicbotSchedule $schedule): InternalSchedule {
             return new InternalSchedule(
                 'musicbot_schedule',
                 (string) ($schedule->getId() ?? ''),
@@ -49,7 +49,7 @@ final class MusicbotScheduleHandler implements ScheduleHandlerInterface
                 $schedule->getCreatedAt(),
                 $schedule->getUpdatedAt(),
             );
-        }, $this->repository->findBy(['enabled' => true], ['nextRunAt' => 'ASC'])));
+        }, $this->repository->findBy(['enabled' => true], ['nextRunAt' => 'ASC']));
     }
 
     #[\Override]

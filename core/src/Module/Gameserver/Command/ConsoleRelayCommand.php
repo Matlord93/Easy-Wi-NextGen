@@ -49,7 +49,7 @@ final class ConsoleRelayCommand extends Command
             $output->writeln('time-limit must be positive and memory-limit at least 16 MiB.');
             return Command::INVALID;
         }
-        $this->deadline = microtime(true) + $seconds;
+        $this->deadline = microtime(true) + (float) $seconds;
         $this->memoryLimit = $mib * 1024 * 1024;
         while (!$this->shouldRecycle()) {
             $this->touchHeartbeat();

@@ -9,6 +9,15 @@ final class NativeDnsResolver implements DnsResolverInterface
     public function query(string $host, int $type): array
     {
         $records = @dns_get_record($host, $type);
-        return JsonArray::orEmpty($records);
+        $result = [];
+        $records = JsonArray::orEmpty($records);
+        foreach (array_keys($records) as $key) {
+            $map = \App\Infrastructure\Config\JsonMap::fromValue($records[$key]);
+            if ($map !== null) {
+                $result[] = $map;
+            }
+        }
+
+        return $result;
     }
 }

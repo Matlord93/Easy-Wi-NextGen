@@ -26,7 +26,7 @@ final readonly class InvoiceDocumentService
     {
         $archive = $this->archives->findOneBy(['invoice' => $invoice]);
         $content = $archive !== null && $archive->getContentType() === 'application/pdf' ? $archive->getPdfContents() : $this->generate($invoice, $request);
-        $name = preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()).'.pdf';
+        $name = (preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()) ?? 'invoice').'.pdf';
 
         return new Response($content, Response::HTTP_OK, [
             'Content-Type' => 'application/pdf',

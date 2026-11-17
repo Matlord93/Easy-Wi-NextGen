@@ -323,6 +323,7 @@ final class AdminStatusComponentController
         return $data;
     }
 
+    /** @param array{last_checked_at: \DateTimeImmutable|null, ...} $formData */
     private function renderFormWithErrors(array $formData, int $status, ?StatusComponent $component = null): Response
     {
         $formContext = $this->buildFormContext($component, [

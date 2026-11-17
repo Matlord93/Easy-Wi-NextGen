@@ -18,17 +18,6 @@ class MusicbotQueueItemRepository extends ServiceEntityRepository implements Mus
         parent::__construct($registry, MusicbotQueueItem::class);
     }
 
-    /** @return MusicbotQueueItem[] */
-    public function findByCustomer(User $customer): array
-    {
-        return EntityQueryResult::all($this->createQueryBuilder('queueItem')
-            ->innerJoin('queueItem.instance', 'musicbotInstance')
-            ->andWhere('musicbotInstance.customer = :customer')
-            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
-            ->orderBy('queueItem.createdAt', 'DESC')
-            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotQueueItem::class);
-    }
-
     public function findOneForCustomer(int $id, User $customer): ?MusicbotQueueItem
     {
         return EntityQueryResult::one($this->createQueryBuilder('queueItem')

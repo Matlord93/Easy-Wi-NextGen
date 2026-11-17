@@ -212,7 +212,10 @@ final class GameserverBackupScheduleRunner
             return null;
         }
 
-        $scheduleTz = $schedule->getTimeZone() !== '' ? $schedule->getTimeZone() : 'UTC';
+        $scheduleTz = $schedule->getTimeZone();
+        if ($scheduleTz === '') {
+            $scheduleTz = 'UTC';
+        }
         try {
             $timeZone = new \DateTimeZone($scheduleTz);
         } catch (\Throwable) {
@@ -319,12 +322,14 @@ final class GameserverBackupScheduleRunner
 
     private function resolveBackupTargetId(BackupDefinition $definition, BackupSchedule $schedule): ?string
     {
-        if ($schedule->getBackupTarget() instanceof BackupTarget) {
-            return (string) $schedule->getBackupTarget()->getId();
+        $scheduleTarget = $schedule->getBackupTarget();
+        if ($scheduleTarget instanceof BackupTarget) {
+            return (string) $scheduleTarget->getId();
         }
 
-        if ($definition->getBackupTarget() instanceof BackupTarget) {
-            return (string) $definition->getBackupTarget()->getId();
+        $definitionTarget = $definition->getBackupTarget();
+        if ($definitionTarget instanceof BackupTarget) {
+            return (string) $definitionTarget->getId();
         }
 
         $settings = $this->appSettingsService->getSettings();

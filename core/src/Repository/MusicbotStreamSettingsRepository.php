@@ -23,20 +23,4 @@ class MusicbotStreamSettingsRepository extends ServiceEntityRepository
         return $this->findOneBy(['instance' => $instance]);
     }
 
-    public function findBySlug(string $slug): ?MusicbotStreamSettings
-    {
-        return $this->findOneBy(['publicSlug' => $slug]);
-    }
-
-    /** @return MusicbotStreamSettings[] */
-    public function findEnabledByCustomer(User $customer): array
-    {
-        return $this->findBy(['customer' => $customer, 'enabled' => true]);
-    }
-
-    /** @return MusicbotStreamSettings[] */
-    public function findAllEnabled(): array
-    {
-        return $this->findBy(['enabled' => true]);
-    }
 }

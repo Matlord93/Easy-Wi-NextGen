@@ -152,7 +152,7 @@ final class GdprExportService
             ];
         }
 
-        return $this->redactSensitiveData([
+        return \App\Infrastructure\Config\JsonMap::fromValue($this->redactSensitiveData([
             'generated_at' => $now->format(DATE_RFC3339),
             'customer' => [
                 'id' => $customer->getId(),
@@ -332,7 +332,7 @@ final class GdprExportService
                     ];
                 }, $this->portBlockRepository->findByCustomer($customer)),
             ],
-        ]);
+        ])) ?? [];
     }
 
     private function redactSensitiveData(mixed $value): mixed
@@ -342,16 +342,26 @@ final class GdprExportService
         }
 
         $redacted = [];
-        foreach ($value as $key => $item) {
+        foreach (array_keys($value) as $key) {
             if (is_string($key) && $this->isSensitiveKey($key)) {
                 $redacted[$key] = '[REDACTED]';
                 continue;
             }
 
-            $redacted[$key] = $this->redactSensitiveData($item);
+            self::redactedField($redacted, $key, $this->redactSensitiveData($value[$key]));
         }
 
         return $redacted;
+    }
+
+    /**
+     * @template T
+     * @param array<array-key, T> $values
+     * @param T $value
+     */
+    private static function redactedField(array &$values, int|string $key, mixed $value): void
+    {
+        $values[$key] = $value;
     }
 
     private function isSensitiveKey(string $key): bool

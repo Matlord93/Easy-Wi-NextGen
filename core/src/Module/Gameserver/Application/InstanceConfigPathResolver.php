@@ -96,29 +96,6 @@ final class InstanceConfigPathResolver
         return ['exists' => $exists, 'size' => false === $size ? null : $size];
     }
 
-    public function read(Instance $instance, string $relative): ?string
-    {
-        $resolved = $this->resolve($instance, $relative);
-        $path = ConfinedLocalPath::resolve($resolved['root'], $resolved['relative'], true);
-        if (null === $path || !is_file($path)) {
-            return null;
-        }
-        $stream = @fopen($path, 'rb');
-        if (false === $stream) {
-            throw new \RuntimeException('CONFIG_NOT_READABLE');
-        }
-        try {
-            $content = stream_get_contents($stream, 256 * 1024 + 1);
-            if (false === $content || strlen($content) > 256 * 1024) {
-                throw new \RuntimeException('CONFIG_TOO_LARGE');
-            }
-
-            return $content;
-        } finally {
-            fclose($stream);
-        }
-    }
-
     private function resolveOs(Instance $instance): string
     {
         $metadata = $instance->getNode()->getMetadata() ?? [];

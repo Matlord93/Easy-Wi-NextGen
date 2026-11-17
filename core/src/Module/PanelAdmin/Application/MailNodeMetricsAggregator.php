@@ -33,8 +33,8 @@ class MailNodeMetricsAggregator
     private function buildNodeMetrics(MailNode $mailNode, ?Agent $agent): array
     {
         $stats = $agent?->getLastHeartbeatStats();
-        $mail = is_array($stats) && is_array($stats['mail'] ?? null) ? $stats['mail'] : [];
-        $warnings = is_array($stats) && is_array($stats['mail_warnings'] ?? null) ? array_values(array_filter($stats['mail_warnings'], 'is_string')) : [];
+        $mail = JsonArray::orEmpty($stats['mail'] ?? null);
+        $warnings = array_values(array_filter(JsonArray::orEmpty($stats['mail_warnings'] ?? null), 'is_string'));
 
         return [
             'id' => $mailNode->getId(),
@@ -72,12 +72,13 @@ class MailNodeMetricsAggregator
     {
         $normalized = [];
         ksort($usage);
-        foreach ($usage as $address => $values) {
+        foreach (array_keys($usage) as $address) {
+            $values = JsonArray::orEmpty($usage[$address]);
             if (!is_string($address) || !str_contains($address, '@')) {
                 continue;
             }
             $usedBytes = 0;
-            if (is_array($values) && array_key_exists('used_bytes', $values)) {
+            if (array_key_exists('used_bytes', $values)) {
                 $usedBytes = max(0, $this->toInt($values['used_bytes']));
             }
             $normalized[strtolower($address)] = ['used_bytes' => $usedBytes];

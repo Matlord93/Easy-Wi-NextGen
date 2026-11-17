@@ -23,7 +23,6 @@ final class MusicbotMigrationService
         MusicbotBackupManifest $manifest,
         string $targetNodeId,
         ?string $newServiceName = null,
-        ?string $newInstallPath = null,
     ): MusicbotBackupManifest {
         $data = $manifest->data;
 

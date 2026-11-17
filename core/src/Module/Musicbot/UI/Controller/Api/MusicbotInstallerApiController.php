@@ -6,7 +6,6 @@ namespace App\Module\Musicbot\UI\Controller\Api;
 
 use App\Infrastructure\Config\JsonMap;
 
-use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Musicbot\Application\MusicbotInstallerService;
@@ -30,7 +29,6 @@ final class MusicbotInstallerApiController
     public function __construct(
         private readonly MusicbotInstallerService $installerService,
         private readonly MusicbotInstanceRepository $instanceRepository,
-        private readonly AuditLogger $auditLogger,
     ) {
     }
 

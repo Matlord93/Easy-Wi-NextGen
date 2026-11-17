@@ -20,12 +20,6 @@ final class MusicbotWorkflowRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotWorkflow[] */
-    public function findByCustomer(User $customer): array
-    {
-        return $this->findBy(['customer' => $customer], ['createdAt' => 'DESC']);
-    }
-
-    /** @return MusicbotWorkflow[] */
     public function findByInstance(MusicbotInstance $instance): array
     {
         return $this->findBy(['instance' => $instance], ['createdAt' => 'DESC']);
@@ -38,20 +32,9 @@ final class MusicbotWorkflowRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotWorkflow[] */
-    public function findEnabledByTriggerType(MusicbotWorkflowTriggerType $triggerType): array
-    {
-        return $this->findBy(['enabled' => true, 'triggerType' => $triggerType]);
-    }
-
-    /** @return MusicbotWorkflow[] */
     public function findEnabledByTriggerTypeAndInstance(MusicbotWorkflowTriggerType $triggerType, MusicbotInstance $instance): array
     {
         return $this->findBy(['enabled' => true, 'triggerType' => $triggerType, 'instance' => $instance]);
-    }
-
-    public function countByCustomer(User $customer): int
-    {
-        return $this->count(['customer' => $customer]);
     }
 
     /**

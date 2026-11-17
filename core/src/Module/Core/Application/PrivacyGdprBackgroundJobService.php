@@ -227,11 +227,18 @@ final class PrivacyGdprBackgroundJobService implements PrivacyGdprBackgroundJobR
         return $this->settingsService->getDatabaseLoggingRoutineRetentionDays();
     }
 
+    /** @return list<non-empty-string> */
+    private static function temporaryFiles(): array
+    {
+        $files = glob(sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'gdpr_export_*.zip');
+        return $files === false ? [] : $files;
+    }
+
     private function deleteTemporaryPrivacyFiles(\DateTimeImmutable $now): int
     {
         $deleted = 0;
         $cutoff = $now->modify('-1 day')->getTimestamp();
-        foreach (glob(sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'gdpr_export_*.zip') ?: [] as $path) {
+        foreach (self::temporaryFiles() as $path) {
             if (!is_file($path)) {
                 continue;
             }

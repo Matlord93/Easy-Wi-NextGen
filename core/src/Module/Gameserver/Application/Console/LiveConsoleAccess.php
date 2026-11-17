@@ -24,7 +24,7 @@ final readonly class LiveConsoleAccess
     {
         $base = rtrim($this->endpoints->resolveForAgent($instance->getNode())->getBaseUrl(), '/');
         $url = parse_url($base);
-        if (!$url || !in_array($url['scheme'] ?? '', ['http', 'https'], true) || empty($url['host']) || isset($url['user']) || isset($url['query']) || isset($url['fragment']) || !in_array($url['path'] ?? '', ['', '/'], true) || preg_match('/[\s\x00-\x1f\x7f]/', $base)) {
+        if ($url === false || $url === [] || !in_array($url['scheme'] ?? '', ['http', 'https'], true) || in_array($url['host'] ?? null, [null, '', '0'], true) || isset($url['user']) || isset($url['query']) || isset($url['fragment']) || !in_array($url['path'] ?? '', ['', '/'], true) || preg_match('/[\s\x00-\x1f\x7f]/', $base)) {
             throw new \RuntimeException('Invalid agent console endpoint.');
         }
         $credentials = $this->credentials->resolveForAgent($instance->getNode());

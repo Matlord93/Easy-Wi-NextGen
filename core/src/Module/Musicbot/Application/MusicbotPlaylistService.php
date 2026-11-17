@@ -98,28 +98,15 @@ final class MusicbotPlaylistService
         $this->normalizePositions($playlist);
     }
 
-    /** @return \App\Module\Musicbot\Domain\Entity\MusicbotQueueItem[] */
-    public function loadPlaylistToQueue(User $customer, MusicbotPlaylist $playlist, MusicbotInstance $instance): array
-    {
-        $this->assertCustomerOwnsPlaylist($customer, $playlist);
-        $this->assertCustomerOwnsInstance($customer, $instance);
-        $queueItems = [];
-        foreach ($this->playlistItemRepository->findByPlaylistOrdered($playlist) as $playlistItem) {
-            $queueItems[] = $this->queueService->addTrackToQueue($customer, $instance, $playlistItem->getTrack(), $customer);
-        }
-
-        return $queueItems;
-    }
-
-
     /** @param list<int> $playlistItemIds */
     public function reorderItems(User $customer, MusicbotPlaylist $playlist, array $playlistItemIds): void
     {
         $this->assertCustomerOwnsPlaylist($customer, $playlist);
         $itemsById = [];
         foreach ($this->playlistItemRepository->findByPlaylistOrdered($playlist) as $item) {
-            if ($item->getId() !== null) {
-                $itemsById[$item->getId()] = $item;
+            $itemId = $item->getId();
+            if ($itemId !== null) {
+                $itemsById[$itemId] = $item;
             }
         }
         $position = 0;
@@ -195,7 +182,9 @@ final class MusicbotPlaylistService
 
     private function assertTrackMatchesPlaylistInstance(MusicbotPlaylist $playlist, MusicbotTrack $track): void
     {
-        if ($playlist->getInstance() instanceof MusicbotInstance && $track->getInstance() instanceof MusicbotInstance && $playlist->getInstance()->getId() !== $track->getInstance()->getId()) {
+        $playlistInstance = $playlist->getInstance();
+        $trackInstance = $track->getInstance();
+        if ($playlistInstance !== null && $trackInstance !== null && $playlistInstance->getId() !== $trackInstance->getId()) {
             throw new \InvalidArgumentException('Track belongs to another musicbot instance.');
         }
     }

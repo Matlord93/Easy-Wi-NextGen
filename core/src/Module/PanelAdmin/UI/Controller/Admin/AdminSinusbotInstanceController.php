@@ -173,7 +173,7 @@ final class AdminSinusbotInstanceController
         $this->validateCsrf($request, 'sinusbot_instance_delete_' . $id);
 
         $mode = (string) $request->request->get('mode', 'delete');
-        $nodeId = $instance->getNode()->getId();
+        $nodeId = EntityIdentifier::require($instance->getNode()->getId());
 
         if ($mode === 'detach') {
             $instance->setArchivedAt(new \DateTimeImmutable());
@@ -191,14 +191,13 @@ final class AdminSinusbotInstanceController
         return $this->redirectToNode($nodeId);
     }
 
-    private function requireAdmin(Request $request): User
+    private function requireAdmin(Request $request): void
     {
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
         }
 
-        return $actor;
     }
 
     private function findInstance(int $id): SinusbotInstance

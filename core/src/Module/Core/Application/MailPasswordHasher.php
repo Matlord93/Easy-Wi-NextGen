@@ -26,7 +26,7 @@ final class MailPasswordHasher
     {
         $algorithm = defined('PASSWORD_ARGON2ID') ? constant('PASSWORD_ARGON2ID') : PASSWORD_BCRYPT;
         $hash = password_hash($plainPassword, $algorithm);
-        if (!is_string($hash) || $hash === '') {
+        if ($hash === '') {
             throw new \RuntimeException('Failed to hash mailbox password with argon2id.');
         }
 
@@ -36,7 +36,7 @@ final class MailPasswordHasher
     private function hashBcrypt(string $plainPassword): string
     {
         $hash = password_hash($plainPassword, PASSWORD_BCRYPT, ['cost' => self::BCRYPT_COST]);
-        if (!is_string($hash) || $hash === '') {
+        if ($hash === '') {
             throw new \RuntimeException('Failed to hash mailbox password with bcrypt.');
         }
 

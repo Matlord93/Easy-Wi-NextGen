@@ -55,8 +55,4 @@ final class DiskEnforcementService
         return null;
     }
 
-    public function getUsagePercent(Instance $instance): float
-    {
-        return $this->diskStateResolver->resolvePercent($instance);
-    }
 }

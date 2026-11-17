@@ -150,8 +150,17 @@ class MusicbotAutoDjSettings
     public function setAllowUploads(bool $allowUploads): void { $this->allowUploads = $allowUploads; $this->touch(); }
     public function setRepeatProtectionWindow(int $window): void { $this->repeatProtectionWindow = max(0, min(100, $window)); $this->touch(); }
     public function setAvoidSameArtist(bool $avoidSameArtist): void { $this->avoidSameArtist = $avoidSameArtist; $this->touch(); }
-    /** @param list<int> $ids */ public function setPlaylistIds(array $ids): void { $this->playlistIds = array_values(array_unique(array_filter($ids, 'is_int'))); $this->touch(); }
-    /** @param list<int> $ids */ public function setLastPlayedTrackIds(array $ids): void { $this->lastPlayedTrackIds = array_values(array_filter($ids, 'is_int')); $this->touch(); }
+    /** @param list<int> $ids */ public function setPlaylistIds(array $ids): void { $this->playlistIds = array_values(array_unique(self::integerIds($ids))); $this->touch(); }
+    /** @param list<int> $ids */ public function setLastPlayedTrackIds(array $ids): void { $this->lastPlayedTrackIds = self::integerIds($ids); $this->touch(); }
+
+    /**
+     * @param array<array-key,mixed> $ids
+     * @return list<int>
+     */
+    private static function integerIds(array $ids): array
+    {
+        return array_values(array_filter($ids, 'is_int'));
+    }
 
     private static function normalizeTime(?string $value): ?string
     {

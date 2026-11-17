@@ -28,14 +28,14 @@ final class BackupAgent
         $this->archivePath($snapshot->sourcePath(), $tempArchive);
 
         $finalArchivePath = $tempArchive;
-        $compression = strtolower((string) ($plan->options()['compression'] ?? 'none'));
+        $compression = strtolower(self::configText($plan->options()['compression'] ?? 'none'));
         if ($compression === 'gzip') {
             $finalArchivePath = $tempArchive.'.gz';
             $this->gzipFile($tempArchive, $finalArchivePath);
         }
 
         if (($plan->options()['encrypt'] ?? false) === true) {
-            $key = (string) ($plan->options()['encryption_key'] ?? '');
+            $key = self::configText($plan->options()['encryption_key'] ?? '');
             if ($key === '') {
                 throw new \InvalidArgumentException('Encryption was enabled but encryption_key is empty.');
             }
@@ -45,12 +45,13 @@ final class BackupAgent
         }
 
         $checksum = hash_file('sha256', $finalArchivePath);
-        if (!is_string($checksum) || $checksum === '') {
+        if ($checksum === false) {
             throw new \RuntimeException('Failed to generate backup checksum.');
         }
 
         $destination = $this->targetWriterRegistry->write($plan->target(), basename($finalArchivePath), $finalArchivePath);
-        $size = filesize($finalArchivePath) ?: 0;
+        $size = filesize($finalArchivePath);
+        $size = $size === false ? 0 : $size;
 
         return new BackupRun($runId, $plan->id(), 'succeeded', $destination, $size, $checksum);
     }
@@ -108,5 +109,14 @@ final class BackupAgent
         }
 
         file_put_contents($outputPath, $iv.$ciphertext);
+    }
+
+    private static function configText(mixed $value): string
+    {
+        if ($value === null || is_scalar($value)) {
+            return (string) $value;
+        }
+
+        throw new \InvalidArgumentException('Backup configuration fields must contain scalar values.');
     }
 }

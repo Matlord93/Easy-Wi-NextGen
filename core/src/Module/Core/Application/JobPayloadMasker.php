@@ -40,7 +40,7 @@ final class JobPayloadMasker
     ];
 
     /**
-     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $payload
      * @return array<string, mixed>
      */
     public function maskPayload(array $payload): array

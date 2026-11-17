@@ -42,10 +42,8 @@ final class PublicServerController
         if (!$limit->isAccepted()) {
             $response = new Response('Too Many Requests.', Response::HTTP_TOO_MANY_REQUESTS);
             $retryAfter = $limit->getRetryAfter();
-            if ($retryAfter !== null) {
-                $seconds = max(1, $retryAfter->getTimestamp() - time());
-                $response->headers->set('Retry-After', (string) $seconds);
-            }
+            $seconds = max(1, $retryAfter->getTimestamp() - time());
+            $response->headers->set('Retry-After', (string) $seconds);
 
             return $response;
         }
@@ -137,8 +135,7 @@ final class PublicServerController
     {
         return array_map(function (PublicServer $server): array {
             $statusCache = $server->getStatusCache();
-            $statusValue = $statusCache['status'] ?? ($statusCache['online'] ?? null);
-            $status = $this->normalizeStatus($statusValue);
+            $status = $this->normalizeStatus($statusCache['status'] ?? ($statusCache['online'] ?? null));
 
             return [
                 'id' => $server->getId(),
