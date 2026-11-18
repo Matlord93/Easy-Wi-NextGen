@@ -328,7 +328,7 @@ final class MusicbotConfigPersistenceTest extends TestCase
         $discordConn->setEnabled(true);
 
         $builder = $this->buildRuntimeConfigBuilder([$discordConn], null, []);
-        $sanitized = $builder->buildSanitized($this->instance);
+        $sanitized = $this->secretService->sanitizePayload($builder->build($this->instance));
 
         self::assertArrayNotHasKey('bot_token', $sanitized['discord'], 'bot_token must be stripped from sanitized config.');
         $flattened = json_encode($sanitized);

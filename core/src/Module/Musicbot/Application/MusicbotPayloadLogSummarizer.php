@@ -78,26 +78,6 @@ final class MusicbotPayloadLogSummarizer
         ];
     }
 
-    /**
-     * @param array<array-key, mixed> $status
-     * @return array{teamspeak_connected: bool|null|string, audio_backend_ready: bool|null|string,
-     * audio_backend_status: null|string, audio_backend_message: null|string, output_backend: null|string,
-     * queue_count: int|null, playback_state: null|string, updated_at: null|string}
-     */
-    public static function summarizePlaybackStatus(array $status): array
-    {
-        return [
-            'teamspeak_connected' => self::nullableBoolValue($status['teamspeak_connected'] ?? null),
-            'audio_backend_ready' => self::nullableBoolValue($status['audio_backend_ready'] ?? null),
-            'audio_backend_status' => self::shortString($status['audio_backend_status'] ?? null),
-            'audio_backend_message' => self::shortString($status['audio_backend_message'] ?? null),
-            'output_backend' => self::shortString($status['output_backend'] ?? null),
-            'queue_count' => isset($status['queue_count']) ? (int) $status['queue_count'] : null,
-            'playback_state' => self::shortString($status['playback_state'] ?? $status['state'] ?? null),
-            'updated_at' => self::shortString($status['updated_at'] ?? null),
-        ];
-    }
-
     /** @param array<array-key, mixed> $payload */
     private static function classifyPayload(array $payload): string
     {

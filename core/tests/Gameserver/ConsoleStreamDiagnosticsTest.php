@@ -6,7 +6,7 @@ namespace App\Tests\Gameserver;
 
 use App\Module\Gameserver\Application\Console\AgentEndpointProbeInterface;
 use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
-use App\Module\Gameserver\Infrastructure\Mercure\NullConsoleAgentGrpcClient;
+use App\Tests\Support\NullConsoleAgentGrpcClient;
 use PHPUnit\Framework\TestCase;
 
 final class ConsoleStreamDiagnosticsTest extends TestCase

@@ -192,17 +192,4 @@ final class MusicbotRoleService
         }
     }
 
-    /**
-     * Auto-assign all default roles of an instance to a new subject.
-     */
-    public function applyDefaultRoles(
-        MusicbotInstance $instance,
-        MusicbotRoleSubjectType $subjectType,
-        string $subjectId,
-        ?User $grantedBy = null,
-    ): void {
-        foreach ($this->roleRepository->findDefaultsForInstance($instance) as $role) {
-            $this->assign($role, $subjectType, $subjectId, $grantedBy);
-        }
-    }
 }

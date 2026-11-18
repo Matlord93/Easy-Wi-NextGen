@@ -292,7 +292,7 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     {
         $source = file_get_contents(__DIR__ . '/../../src/Repository/MusicbotRadioStationRepository.php');
         self::assertIsString($source);
-        foreach (['findByCustomer', 'findFavoritesByCustomer', 'findRecentlyPlayed', 'findOneForCustomer', 'countByCustomer'] as $method) {
+        foreach (['findByCustomer', 'findOneForCustomer', 'countByCustomer'] as $method) {
             self::assertStringContainsString($method, $source);
         }
     }

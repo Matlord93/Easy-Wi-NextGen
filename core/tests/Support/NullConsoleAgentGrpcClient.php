@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Module\Gameserver\Infrastructure\Mercure;
+namespace App\Tests\Support;
 
 use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
 use App\Module\Gameserver\Application\Console\ConsoleCommandRequest;

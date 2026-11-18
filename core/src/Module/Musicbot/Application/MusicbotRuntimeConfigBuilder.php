@@ -66,16 +66,6 @@ final class MusicbotRuntimeConfigBuilder
     }
 
     /**
-     * Returns only non-secret fields safe for logging or API responses.
-     *
-     * @return array<string, mixed>
-     */
-    public function buildSanitized(MusicbotInstance $instance): array
-    {
-        return $this->secretConfigService->sanitizePayload($this->build($instance));
-    }
-
-    /**
      * @param MusicbotConnection[] $connections
      * @return array{enabled: bool, application_id?: string, guild_id?: string, voice_channel_id?: string,
      * text_channel_id?: string, command_mode?: string, slash_commands_enabled?: bool, reconnect_policy?:

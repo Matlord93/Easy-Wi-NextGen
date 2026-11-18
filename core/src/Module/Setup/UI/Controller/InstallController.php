@@ -86,7 +86,9 @@ final class InstallController
             $databaseState['initialized'] = false;
         }
 
-        $this->installerService->ensureProjectDirectory('var/easywi');
+        if (!$this->installerService->ensureProjectDirectory('var/easywi')) {
+            $errors[] = ['key' => 'errors.instance_directory_not_writable'];
+        }
 
         $storedPassword = ScalarValue::text($databaseState['password'] ?? '');
         $databaseState['password'] = '';

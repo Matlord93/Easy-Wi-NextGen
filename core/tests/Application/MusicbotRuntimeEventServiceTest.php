@@ -9,6 +9,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventService;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
+use App\Module\Musicbot\Domain\Entity\MusicbotRuntimeEvent;
 use App\Repository\MusicbotRuntimeEventRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -56,15 +57,21 @@ final class MusicbotRuntimeEventServiceTest extends TestCase
         $agent = new Agent('agent-1', ['token' => 'hash'], 'Agent 1');
         $instance = new MusicbotInstance($customer, $agent, 'Musicbot', 'musicbot-demo', '/srv/musicbot/demo');
 
+        $manager = $this->createMock(EntityManagerInterface::class);
+        $manager->expects($this->once())->method('persist')->with($this->callback(static function (MusicbotRuntimeEvent $event) use ($instance, $customer): bool {
+            self::assertSame($instance, $event->getMusicbotInstance());
+            self::assertSame($customer, $event->getCustomer());
+            self::assertSame(['token' => '********'], $event->getContext());
+            self::assertSame('Queue changed. bot_token=********', $event->getMessage());
+
+            return true;
+        }));
+        $manager->expects($this->never())->method('flush');
         $service = new MusicbotRuntimeEventService(
-            $this->createStub(EntityManagerInterface::class),
+            $manager,
             $this->makeEventRepo(),
         );
 
-        $event = $service->record($instance, 'queue.updated', 'info', 'Queue changed.', ['token' => 'must-mask']);
-
-        self::assertSame($instance, $event->getMusicbotInstance());
-        self::assertSame($customer, $event->getCustomer());
-        self::assertSame(['token' => '********'], $event->getContext());
+        $service->record($instance, 'queue.updated', 'info', 'Queue changed. bot_token=must-mask', ['token' => 'must-mask']);
     }
 }

@@ -75,6 +75,7 @@ messages:
   db_migrations_success: "Datenbankmigrationen wurden erfolgreich ausgeführt."
 
 errors:
+  instance_directory_not_writable: "Das Instanzverzeichnis var/easywi konnte nicht angelegt werden. Bitte die Verzeichnisrechte prüfen."
   requirements_not_met: "Bitte beheben Sie die fehlenden Anforderungen, bevor Sie fortfahren."
   missing_extension: "Die erforderliche PHP-Erweiterung %extension% ist nicht verfügbar."
   db_missing_fields: "Bitte Host, Datenbankname und Benutzername ausfüllen."

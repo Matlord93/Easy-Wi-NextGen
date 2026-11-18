@@ -6,7 +6,6 @@ namespace App\Module\Musicbot\Application;
 
 use App\Infrastructure\Config\ScalarValue;
 
-use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 
@@ -189,11 +188,19 @@ final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceIn
      * Mask known-secret patterns in free-form log or error text.
      * Handles common serialization formats: key=value, key: value, "key": "value".
      */
-    public function sanitizeLogText(string $text): string
+    public static function sanitizeLogText(string $text): string
     {
+        $patternTemplate = <<<'REGEX'
+/(%s["\s]*[:=]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,"'}\]\r\n]+)/i
+REGEX;
         foreach (self::SECRET_KEYS as $key) {
-            $pattern = '/(' . preg_quote($key, '/') . '["\s]*[:=]["\s]*)([^\s,"\'}\]\r\n]+)/i';
-            $text = (string) preg_replace($pattern, '$1' . self::MASK, $text);
+            $pattern = sprintf($patternTemplate, preg_quote($key, '/'));
+            $text = (string) preg_replace_callback($pattern, static function (array $matches): string {
+                $value = $matches[2] ?? '';
+                $quote = in_array($value[0] ?? '', ['"', "'"], true) ? $value[0] : '';
+
+                return ($matches[1] ?? '').$quote.self::MASK.$quote;
+            }, $text);
         }
 
         return $text;

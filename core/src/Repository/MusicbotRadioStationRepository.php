@@ -38,30 +38,6 @@ final class MusicbotRadioStationRepository extends ServiceEntityRepository imple
             ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 
-    /** @return MusicbotRadioStation[] */
-    public function findFavoritesByCustomer(User $customer): array
-    {
-        return EntityQueryResult::all($this->createQueryBuilder('r')
-            ->where('r.customer = :customer')
-            ->andWhere('r.isGlobal = false')
-            ->andWhere('r.isFavorite = true')
-            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
-            ->orderBy('r.name', 'ASC')
-            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
-    }
-
-    /** @return MusicbotRadioStation[] */
-    public function findRecentlyPlayed(User $customer, int $limit = 10): array
-    {
-        return EntityQueryResult::all($this->createQueryBuilder('r')
-            ->where('r.customer = :customer')
-            ->andWhere('r.lastPlayedAt IS NOT NULL')
-            ->setParameter('customer', QueryParameter::entityId($customer->getId(), \App\Module\Core\Domain\Entity\User::class))
-            ->orderBy('r.lastPlayedAt', 'DESC')
-            ->setMaxResults($limit)
-            ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
-    }
-
     #[\Override]
     public function findOneForCustomer(int $id, User $customer): ?MusicbotRadioStation
     {

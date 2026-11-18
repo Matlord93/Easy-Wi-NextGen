@@ -75,6 +75,7 @@ messages:
   db_migrations_success: "Database migrations completed successfully."
 
 errors:
+  instance_directory_not_writable: "The instance directory var/easywi could not be created. Please check directory permissions."
   requirements_not_met: "Please fix the missing requirements before continuing."
   missing_extension: "The required PHP extension %extension% is not available."
   db_missing_fields: "Please fill in host, database name, and username."

@@ -10,7 +10,7 @@ final readonly class InfrastructureTarget
 {
     public string $key;
 
-    public function __construct(public string $provider, public string $connection, public string $kind, public string $reference, public string $epoch, public string $label, public string $adminUrl, public ?User $customer = null, public ?string $customerUrl = null, public ?int $visibleSince = null)
+    public function __construct(public string $provider, string $connection, public string $kind, string $reference, string $epoch, public string $label, public string $adminUrl, public ?User $customer = null, public ?string $customerUrl = null, public ?int $visibleSince = null)
     {
         $this->key = hash('sha256', json_encode([$provider, $connection, $kind, $reference, $epoch], JSON_THROW_ON_ERROR));
     }

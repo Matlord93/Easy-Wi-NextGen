@@ -47,11 +47,6 @@ final class MusicbotPlaybackCommandService
         ], $extraPayload));
     }
 
-    public function prepareSkip(User $customer, MusicbotInstance $instance): AgentJob
-    {
-        return $this->dispatchPlaybackAction($customer, $instance, 'skip');
-    }
-
     public function storeRepeatMode(User $customer, MusicbotInstance $instance, MusicbotRepeatMode $repeatMode): void
     {
         $this->assertCustomerOwnsInstance($customer, $instance);

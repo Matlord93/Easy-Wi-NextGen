@@ -415,14 +415,6 @@ final class InstallerService
     }
 
 
-    /**
-     * @return array{ok: bool, error_code?: string, env_path: string, written_keys?: list<string>}
-     */
-    public function ensureInstallerEnvironmentBootstrap(): array
-    {
-        return $this->ensureEnvSecretsPresent();
-    }
-
     public function ensureDirectory(string $path): bool
     {
         $normalized = trim($path);
@@ -494,39 +486,6 @@ final class InstallerService
     public function getDatabaseConfigPath(): string
     {
         return $this->configProvider->getConfigPath();
-    }
-
-    public function clearCache(): void
-    {
-        $cacheDir = $this->projectDir . '/var/cache';
-        $realCacheDir = realpath($cacheDir);
-
-        if ($realCacheDir === false) {
-            return;
-        }
-
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($realCacheDir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        for ($iterator->rewind(); $iterator->valid(); $iterator->next()) {
-            if (!$iterator->current() instanceof \SplFileInfo) {
-                continue;
-            }
-            $item = self::fileInfo($iterator->current());
-            $path = $item->getRealPath();
-            if ($path === false || !str_starts_with($path, $realCacheDir . DIRECTORY_SEPARATOR)) {
-                continue;
-            }
-
-            if ($item->isDir()) {
-                @rmdir($path);
-                continue;
-            }
-
-            @unlink($path);
-        }
     }
 
     public function runMigrations(EntityManagerInterface $entityManager): void
@@ -1163,15 +1122,6 @@ final class InstallerService
         }
 
         return $connection;
-    }
-
-    private static function fileInfo(mixed $value): \SplFileInfo
-    {
-        if (!$value instanceof \SplFileInfo) {
-            throw new \UnexpectedValueException('Cache iterator did not return a filesystem entry.');
-        }
-
-        return $value;
     }
 
     private function storeAppSetting(EntityManagerInterface $entityManager, string $key, mixed $value): void

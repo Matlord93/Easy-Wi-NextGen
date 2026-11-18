@@ -6,6 +6,12 @@ namespace App\Message;
 
 use App\Module\Core\Domain\Enum\MailJobType;
 
+/**
+ * Messenger wire contract retained for external producers and already queued messages.
+ * Public fields, constructor arguments and defaults are part of that contract.
+ *
+ * @api
+ */
 final readonly class MailControlPlaneJobMessage
 {
     /**

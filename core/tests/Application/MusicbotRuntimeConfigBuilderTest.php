@@ -362,7 +362,7 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
         $conn->setEnabled(true);
 
         $builder = $this->buildService([$conn], null, []);
-        $sanitized = $builder->buildSanitized($this->instance);
+        $sanitized = $this->secretService->sanitizePayload($builder->build($this->instance));
 
         self::assertArrayNotHasKey('bot_token', $sanitized['discord'], 'Sanitized config must not expose bot_token.');
 

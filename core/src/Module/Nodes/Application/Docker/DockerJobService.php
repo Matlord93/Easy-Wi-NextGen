@@ -8,6 +8,12 @@ use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\Core\Domain\Entity\Agent;
 
+/**
+ * Public dispatch API for integrations using the documented docker.* agent jobs.
+ * There is no built-in Docker controller consuming this integration API.
+ *
+ * @api
+ */
 final readonly class DockerJobService
 {
     public function __construct(private AgentJobDispatcherInterface $dispatcher) {}

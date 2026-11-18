@@ -160,7 +160,10 @@ final class AdminProxmoxController extends AbstractController
         $cluster = $this->findCluster($id);
         $this->csrf($request, 'proxmox-action-'.$id.'-'.$kind.'-'.$vmId);
         try {
-            $this->manager->perform($cluster, $kind, $vmId, (string) $request->request->get('action'), $request->request->all(), (string) $request->request->get('request_key'), $actor);
+            $task = $this->manager->perform($cluster, $kind, $vmId, (string) $request->request->get('action'), $request->request->all(), (string) $request->request->get('request_key'), $actor);
+            if (in_array($task->getState(), ['failed', 'uncertain'], true)) {
+                throw new \InvalidArgumentException('permission_denied' === $task->getResult() ? 'pve.error.permissions' : 'pve.error.unavailable');
+            }
         } catch (\Throwable $exception) {
             $this->addFlash('proxmox_error', $this->error($exception));
         }
@@ -218,7 +221,10 @@ final class AdminProxmoxController extends AbstractController
         if ($request->isMethod('POST')) {
             $this->csrf($request, 'proxmox-new-'.$id.'-'.$node);
             try {
-                $this->manager->perform($cluster, 'qemu', 0, 'create-vm', array_replace($request->request->all(), ['node' => $node]), (string) $request->request->get('request_key'), $actor);
+                $task = $this->manager->perform($cluster, 'qemu', 0, 'create-vm', array_replace($request->request->all(), ['node' => $node]), (string) $request->request->get('request_key'), $actor);
+                if (in_array($task->getState(), ['failed', 'uncertain'], true)) {
+                    throw new \InvalidArgumentException('permission_denied' === $task->getResult() ? 'pve.error.permissions' : 'pve.error.unavailable');
+                }
 
                 return $this->redirectToRoute('admin_proxmox_cluster', ['id' => $id], 303);
             } catch (\Throwable $exception) {

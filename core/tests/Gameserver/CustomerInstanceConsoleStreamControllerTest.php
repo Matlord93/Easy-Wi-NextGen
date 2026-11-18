@@ -10,7 +10,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\Console\AgentEndpointProbeInterface;
 use App\Module\Gameserver\Application\Console\ConsoleEventBusInterface;
 use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
-use App\Module\Gameserver\Infrastructure\Mercure\NullConsoleAgentGrpcClient;
+use App\Tests\Support\NullConsoleAgentGrpcClient;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceConsoleStreamController;
 use App\Repository\InstanceRepositoryInterface;
 use PHPUnit\Framework\TestCase;

@@ -28,25 +28,4 @@ final class MetricAggregateRepository extends ServiceEntityRepository
         ]);
     }
 
-    /** @return array<int, array{bucketStart:\DateTimeImmutable,cpuAvg:?float,memoryAvg:?float,diskAvg:?float}> */
-    public function findSeries(Agent $agent, string $bucket, \DateTimeImmutable $since, int $limit = 500): array
-    {
-        return MetricSampleRow::map($this->createQueryBuilder('a')
-            ->select('a.bucketStart as bucketStart', 'a.cpuAvg as cpuAvg', 'a.memoryAvg as memoryAvg', 'a.diskAvg as diskAvg')
-            ->andWhere('a.agent = :agent')
-            ->andWhere('a.bucket = :bucket')
-            ->andWhere('a.bucketStart >= :since')
-            ->setParameter('agent', QueryParameter::entityId($agent->getId(), \App\Module\Core\Domain\Entity\Agent::class))
-            ->setParameter('bucket', $bucket)
-            ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
-            ->orderBy('a.bucketStart', 'ASC')
-            ->setMaxResults(max(10, min($limit, 2000)))
-            ->getQuery()
-            ->getArrayResult(), static fn (array $row): array => [
-                'bucketStart' => MetricSampleRow::date($row['bucketStart'] ?? null),
-                'cpuAvg' => MetricSampleRow::number($row['cpuAvg'] ?? null),
-                'memoryAvg' => MetricSampleRow::number($row['memoryAvg'] ?? null),
-                'diskAvg' => MetricSampleRow::number($row['diskAvg'] ?? null),
-            ]);
-    }
 }

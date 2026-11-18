@@ -50,15 +50,6 @@ final readonly class ProxmoxApiClient
         return $this->list($connection, '/cluster/resources', null === $type ? [] : ['type' => $type]);
     }
 
-    /** @return list<array<array-key, mixed>> */
-    public function virtualMachines(ProxmoxConnection $connection, string $node): array
-    {
-        return array_merge(
-            $this->list($connection, sprintf('/nodes/%s/qemu', rawurlencode($node))),
-            $this->list($connection, sprintf('/nodes/%s/lxc', rawurlencode($node))),
-        );
-    }
-
     /** @return array<array-key, mixed> */
     public function status(ProxmoxConnection $connection, string $node, int $vmId, string $kind = 'qemu'): array
     {
@@ -340,8 +331,7 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, '/nodes/'.rawurlencode($node).'/qemu', 'POST', $configuration);
     }
 
-    /** @return array<array-key, mixed> */
-    public function setGuestTags(ProxmoxConnection $connection, string $node, int $vmId, string $kind, string $tags, ?string $digest): array
+    public function setGuestTags(ProxmoxConnection $connection, string $node, int $vmId, string $kind, string $tags, ?string $digest): void
     {
         $this->assertGuestKind($kind);
         $body = ['tags' => $tags];
@@ -349,7 +339,7 @@ final readonly class ProxmoxApiClient
             $body['digest'] = $digest;
         }
 
-        return $this->item($connection, sprintf('/nodes/%s/%s/%d/config', rawurlencode($node), $kind, $vmId), 'PUT', $body);
+        $this->item($connection, sprintf('/nodes/%s/%s/%d/config', rawurlencode($node), $kind, $vmId), 'PUT', $body);
     }
 
     /** @return array<array-key, mixed> */

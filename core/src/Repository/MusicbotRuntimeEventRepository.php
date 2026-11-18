@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotRuntimeEvent;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -22,12 +21,6 @@ final class MusicbotRuntimeEventRepository extends ServiceEntityRepository
     public function findLatestForInstance(MusicbotInstance $instance, int $limit = 50): array
     {
         return $this->findBy(['musicbotInstance' => $instance], ['createdAt' => 'DESC'], $limit);
-    }
-
-    /** @return MusicbotRuntimeEvent[] */
-    public function findByCustomer(User $customer, int $limit = 100): array
-    {
-        return $this->findBy(['customer' => $customer], ['createdAt' => 'DESC'], $limit);
     }
 
     /** @return MusicbotRuntimeEvent[] */

@@ -14,12 +14,11 @@ final class MusicbotPluginLogService
     public function __construct(private readonly EntityManagerInterface $entityManager, private readonly MusicbotPluginLogRepository $repository) {}
 
     /** @param array<string, mixed> $context */
-    public function log(MusicbotInstance $instance, string $pluginId, string $event, ?string $action, string $status, string $message, array $context = []): MusicbotPluginLog
+    public function log(MusicbotInstance $instance, string $pluginId, string $event, ?string $action, string $status, string $message, array $context = []): void
     {
-        $log = new MusicbotPluginLog($instance, $pluginId, $event, $action, $status, $message, $context);
+        $log = new MusicbotPluginLog($instance, $pluginId, $event, $action, $status, MusicbotSecretConfigService::sanitizeLogText($message), $context);
         $this->entityManager->persist($log);
         $this->entityManager->flush();
-        return $log;
     }
 
     /** @return MusicbotPluginLog[] */

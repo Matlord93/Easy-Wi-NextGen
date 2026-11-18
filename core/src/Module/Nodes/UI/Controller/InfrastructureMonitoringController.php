@@ -143,7 +143,21 @@ final class InfrastructureMonitoringController extends AbstractController
             return $this->csv($target, $history);
         }
 
-        return $this->render('monitoring/history.html.twig', ['target' => $target, 'admin' => $admin, 'options' => $this->settings->get(), 'policy' => $this->alerts->policy($target), 'error' => $error, 'activeNav' => 'monitoring'], new Response(status: $error !== null ? 422 : 200, headers: ['Cache-Control' => 'private, no-store']));
+        return $this->render('monitoring/history.html.twig', [
+            'target' => [
+                'provider' => $target->provider,
+                'kind' => $target->kind,
+                'label' => $target->label,
+                'adminUrl' => $target->adminUrl,
+                'customerUrl' => $target->customerUrl,
+                'key' => $target->key,
+            ],
+            'admin' => $admin,
+            'options' => $this->settings->get(),
+            'policy' => $this->alerts->policy($target),
+            'error' => $error,
+            'activeNav' => 'monitoring',
+        ], new Response(status: $error !== null ? 422 : 200, headers: ['Cache-Control' => 'private, no-store']));
     }
 
     /** @return array{0: int, 1: int} */

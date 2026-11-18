@@ -31,12 +31,6 @@ final class MusicbotWorkflowRepository extends ServiceEntityRepository
         return $this->findBy(['instance' => $instance, 'customer' => $customer], ['createdAt' => 'DESC']);
     }
 
-    /** @return MusicbotWorkflow[] */
-    public function findEnabledByTriggerTypeAndInstance(MusicbotWorkflowTriggerType $triggerType, MusicbotInstance $instance): array
-    {
-        return $this->findBy(['enabled' => true, 'triggerType' => $triggerType, 'instance' => $instance]);
-    }
-
     /**
      * @param array<string, mixed> $filters  Supports: customer_id, instance_id, trigger_type, enabled
      * @return MusicbotWorkflow[]

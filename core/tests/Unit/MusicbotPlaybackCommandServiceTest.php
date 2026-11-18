@@ -249,9 +249,9 @@ final class MusicbotPlaybackCommandServiceTest extends TestCase
         $this->assertSame('radio', $capturedPayload['source']['type']);
     }
 
-    // ──────────────────────────── prepareSkip ────────────────────────────
+    // ──────────────────────────── skip via dispatchPlaybackAction ────────────────────────────
 
-    public function testPrepareSkip_DispatchesSkipAction(): void
+    public function testSkip_DispatchesSkipAction(): void
     {
         $customer = $this->makeUser();
         $instance = $this->makeInstance($customer);
@@ -265,7 +265,7 @@ final class MusicbotPlaybackCommandServiceTest extends TestCase
                 return $this->makeJob();
             });
 
-        $this->makeService()->prepareSkip($customer, $instance);
+        $this->makeService()->dispatchPlaybackAction($customer, $instance, 'skip');
 
         $this->assertSame('skip', $capturedAction);
     }

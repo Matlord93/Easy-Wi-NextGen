@@ -102,7 +102,10 @@ final class CustomerProxmoxController extends AbstractController
             throw new AccessDeniedHttpException();
         }
         try {
-            $this->manager->perform($assignment->getCluster(), $assignment->getKind(), $assignment->getVmId(), (string) $request->request->get('action'), $request->request->all(), (string) $request->request->get('request_key'), $actor);
+            $task = $this->manager->perform($assignment->getCluster(), $assignment->getKind(), $assignment->getVmId(), (string) $request->request->get('action'), $request->request->all(), (string) $request->request->get('request_key'), $actor);
+            if (in_array($task->getState(), ['failed', 'uncertain'], true)) {
+                throw new \InvalidArgumentException('permission_denied' === $task->getResult() ? 'pve.error.permissions' : 'pve.error.unavailable');
+            }
         } catch (\Throwable $exception) {
             $key = $exception instanceof \InvalidArgumentException && (str_starts_with($exception->getMessage(), 'pve.error.') || str_starts_with($exception->getMessage(), 'vm_config.')) ? $exception->getMessage() : 'pve.error.unavailable';
             $this->addFlash('proxmox_error', $key);

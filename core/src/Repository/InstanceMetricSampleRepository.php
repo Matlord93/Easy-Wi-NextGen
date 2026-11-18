@@ -309,12 +309,10 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
      * more frequently than expected. Deletes run in small batches so cleanup
      * itself cannot create a large PHP result set.
      */
-    public function deleteExcessForInstance(Instance $instance, int $maximumSamples, int $batchSize = 500): int
+    public function deleteExcessForInstance(Instance $instance, int $maximumSamples, int $batchSize = 500): void
     {
         $maximumSamples = max(1, $maximumSamples);
         $batchSize = max(1, min(1000, $batchSize));
-        $deleted = 0;
-
         do {
             $ids = MetricSampleRow::map($this->createQueryBuilder('sample')
                 ->select('sample.id AS id')
@@ -331,14 +329,12 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
                 break;
             }
 
-            $deleted += EntityQueryResult::affected($this->createQueryBuilder('sample')
+            EntityQueryResult::affected($this->createQueryBuilder('sample')
                 ->delete()
                 ->andWhere('sample.id IN (:ids)')
                 ->setParameter('ids', $ids)
                 ->getQuery());
         } while (count($ids) === $batchSize);
-
-        return $deleted;
     }
 
     private function applyAdminBrowseFilters(QueryBuilder $qb, ?string $nodeId, ?string $customer, ?int $instanceId): void

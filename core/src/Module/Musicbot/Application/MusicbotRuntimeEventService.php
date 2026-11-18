@@ -26,12 +26,10 @@ final class MusicbotRuntimeEventService implements MusicbotRuntimeEventServiceIn
 
     /** @param array<string, mixed> $context */
     #[\Override]
-    public function record(MusicbotInstance $instance, string $type, string $level = 'info', string $message = '', array $context = []): MusicbotRuntimeEvent
+    public function record(MusicbotInstance $instance, string $type, string $level = 'info', string $message = '', array $context = []): void
     {
-        $event = new MusicbotRuntimeEvent($instance, $type, $level, $message, $this->sanitize($context));
+        $event = new MusicbotRuntimeEvent($instance, $type, $level, MusicbotSecretConfigService::sanitizeLogText($message), $this->sanitize($context));
         $this->entityManager->persist($event);
-
-        return $event;
     }
 
     /** @return MusicbotRuntimeEvent[] */

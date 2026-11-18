@@ -53,21 +53,19 @@ final class ProxmoxApiClientTest extends TestCase
         catch (ProxmoxApiException $error) { self::assertStringContainsString('TLS verification failed', $error->getMessage()); self::assertStringNotContainsString('secret-token-value', $error->getMessage()); }
     }
 
-    public function testListsQemuAndLxcGuestsWithTokenAuthentication(): void
+    public function testListsClusterGuestsWithTokenAuthentication(): void
     {
         $requests = [];
         $http = new MockHttpClient(function (string $method, string $url, array $options) use (&$requests): MockResponse {
             $requests[] = [$method, $url, $options];
 
-            return str_contains($url, '/qemu')
-                ? new MockResponse('{"data":[{"vmid":100,"name":"web"}]}')
-                : new MockResponse('{"data":[{"vmid":101,"name":"cache"}]}');
+            return new MockResponse('{"data":[{"vmid":100,"name":"web","type":"qemu"},{"vmid":101,"name":"cache","type":"lxc"}]}');
         });
 
-        $guests = $this->client($http)->virtualMachines($this->connection(), 'pve node/1');
+        $guests = $this->client($http)->clusterResources($this->connection(), 'vm');
 
         self::assertSame([100, 101], array_column($guests, 'vmid'));
-        self::assertStringContainsString('/nodes/pve%20node%2F1/qemu', $requests[0][1]);
+        self::assertStringContainsString('/cluster/resources?type=vm', $requests[0][1]);
         self::assertSame('Authorization: PVEAPIToken=panel@pve!easywi=secret', $requests[0][2]['normalized_headers']['authorization'][0]);
     }
 

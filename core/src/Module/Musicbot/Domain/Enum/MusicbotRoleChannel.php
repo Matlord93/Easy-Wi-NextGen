@@ -11,13 +11,4 @@ enum MusicbotRoleChannel: string
     case Teamspeak = 'teamspeak';
     case Discord   = 'discord';
 
-    public function label(): string
-    {
-        return match ($this) {
-            self::Panel     => 'Web-Panel',
-            self::Api       => 'API',
-            self::Teamspeak => 'TeamSpeak',
-            self::Discord   => 'Discord',
-        };
-    }
 }

@@ -90,9 +90,10 @@ final class InstanceMetricSampleRepositoryTest extends KernelTestCase
                 ]);
             }
 
-            self::assertSame(4, $repository->deleteExcessForInstance($instance, 3, 2));
+            $repository->deleteExcessForInstance($instance, 3, 2);
             self::assertSame([5, 6, 7], $connection->fetchFirstColumn('SELECT id FROM instance_metric_samples ORDER BY id'));
-            self::assertSame(0, $repository->deleteExcessForInstance($instance, 3, 2));
+            $repository->deleteExcessForInstance($instance, 3, 2);
+            self::assertSame([5, 6, 7], $connection->fetchFirstColumn('SELECT id FROM instance_metric_samples ORDER BY id'));
             self::assertSame(1, $repository->deleteOlderThan(new \DateTimeImmutable('2026-01-06')));
             self::assertSame([6, 7], $connection->fetchFirstColumn('SELECT id FROM instance_metric_samples ORDER BY id'));
             $recent = $repository->findRecentForInstanceSince($instance, new \DateTimeImmutable('2026-01-01'), 1, 10);

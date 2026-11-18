@@ -43,11 +43,6 @@ interface AgentGameServerClientInterface
      */
     public function provisionInstanceAccess(Instance $instance, array $payload): array;
     /**
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
-     */
-    public function resetInstanceAccess(Instance $instance, array $payload): array;
-    /**
      * @return array<string, mixed>
      */
     public function getAccessCapabilities(Instance $instance): array;

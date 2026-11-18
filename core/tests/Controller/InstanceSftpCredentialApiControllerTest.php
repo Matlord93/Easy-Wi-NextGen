@@ -114,15 +114,6 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         $auditLogger->expects($this->once())->method('log');
 
         $agentClient = $this->createStub(AgentGameServerClientInterface::class);
-        $agentClient->method('resetInstanceAccess')->willReturn([
-            'ok' => true,
-            'data' => [
-                'backend' => 'SFTPGO',
-                'host' => 'sftp.example.test',
-                'port' => 22,
-                'root_path' => '/srv/instances/42',
-            ],
-        ]);
 
         $controller = new InstanceSftpCredentialApiController(
             $instanceRepository,

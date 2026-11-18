@@ -9,7 +9,6 @@ use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventServiceInterface;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
-use App\Module\Musicbot\Domain\Entity\MusicbotRuntimeEvent;
 use App\Module\Musicbot\Domain\Enum\MusicbotInstanceStatus;
 use App\Repository\MusicbotInstanceRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -94,11 +93,10 @@ final class MusicbotPlaybackStateFeedbackTest extends TestCase
             {
             }
 
-            public function record(MusicbotInstance $instance, string $type, string $level = 'info', string $message = '', array $context = []): MusicbotRuntimeEvent
+            public function record(MusicbotInstance $instance, string $type, string $level = 'info', string $message = '', array $context = []): void
             {
                 $this->log[] = compact('type', 'level', 'message', 'context');
 
-                return (new \ReflectionClass(MusicbotRuntimeEvent::class))->newInstanceWithoutConstructor();
             }
         };
     }

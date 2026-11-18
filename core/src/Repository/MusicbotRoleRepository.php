@@ -23,12 +23,6 @@ final class MusicbotRoleRepository extends ServiceEntityRepository
         return $this->findBy(['instance' => $instance], ['position' => 'ASC', 'name' => 'ASC']);
     }
 
-    /** @return MusicbotRole[] */
-    public function findDefaultsForInstance(MusicbotInstance $instance): array
-    {
-        return $this->findBy(['instance' => $instance, 'isDefault' => true]);
-    }
-
     public function findOneForInstance(int $id, MusicbotInstance $instance): ?MusicbotRole
     {
         return $this->findOneBy(['id' => $id, 'instance' => $instance]);

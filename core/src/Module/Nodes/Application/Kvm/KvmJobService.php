@@ -8,6 +8,12 @@ use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\Core\Domain\Entity\Agent;
 
+/**
+ * Legacy dispatch API for integrations using the documented kvm.* agent jobs.
+ * The managed panel uses KvmPanelService; external integrations may still call this API.
+ *
+ * @api
+ */
 final readonly class KvmJobService
 {
     public function __construct(private AgentJobDispatcherInterface $dispatcher)

@@ -163,16 +163,6 @@ final class AgentGameServerClient implements AgentGameServerClientInterface
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
-     */
-    #[\Override]
-    public function resetInstanceAccess(Instance $instance, array $payload): array
-    {
-        return $this->requestJson($instance, 'POST', sprintf('/v1/instances/%d/access/reset', (int) $instance->getId()), $payload);
-    }
-
-    /**
      * @return array<string, mixed>
      */
     #[\Override]

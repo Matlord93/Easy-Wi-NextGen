@@ -52,7 +52,7 @@ final class MusicbotPlaylistService
         return $playlist;
     }
 
-    public function updatePlaylist(User $customer, MusicbotPlaylist $playlist, string $name, MusicbotPlaylistVisibility $visibility, ?string $description = null): MusicbotPlaylist
+    public function updatePlaylist(User $customer, MusicbotPlaylist $playlist, string $name, MusicbotPlaylistVisibility $visibility, ?string $description = null): void
     {
         $this->assertCustomerOwnsPlaylist($customer, $playlist);
         $name = trim($name);
@@ -63,8 +63,6 @@ final class MusicbotPlaylistService
         $playlist->setVisibility($visibility);
         $playlist->setDescription($description);
         $this->entityManager->flush();
-
-        return $playlist;
     }
 
     public function deletePlaylist(User $customer, MusicbotPlaylist $playlist): void

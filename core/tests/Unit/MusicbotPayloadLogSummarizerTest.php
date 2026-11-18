@@ -45,13 +45,13 @@ final class MusicbotPayloadLogSummarizerTest extends TestCase
 
     public function testPlaybackStatusSummaryKeepsOnlyCompactMetadata(): void
     {
-        $summary = MusicbotPayloadLogSummarizer::summarizePlaybackStatus([
+        $summary = MusicbotPayloadLogSummarizer::summarizeRuntimePayload([
             'playback_state' => 'paused',
             'current_track' => ['title' => str_repeat('x', 1000)],
             'audio_backend_ready' => true,
             'audio_backend_status' => 'ready',
             'audio_backend_message' => str_repeat('diagnostic ', 100),
-            'output_backend' => 'teamspeak_voice',
+            'output_backend' => str_repeat('diagnostic ', 100),
             'queue_count' => 2,
         ]);
 
@@ -59,7 +59,7 @@ final class MusicbotPayloadLogSummarizerTest extends TestCase
         self::assertSame('paused', $summary['playback_state']);
         self::assertSame(2, $summary['queue_count']);
         self::assertStringNotContainsString(str_repeat('x', 100), $encoded);
-        self::assertLessThanOrEqual(160, strlen((string) $summary['audio_backend_message']));
+        self::assertLessThanOrEqual(160, strlen((string) $summary['output_backend']));
     }
     public function testFormattedRuntimeLogHasValidJsonAndNeverContainsSecrets(): void
     {

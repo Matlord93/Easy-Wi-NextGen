@@ -16,14 +16,12 @@ use App\Module\Musicbot\Domain\Entity\MusicbotWorkflowExecution;
 use App\Module\Musicbot\Domain\Enum\MusicbotWorkflowActionType;
 use App\Module\Musicbot\Domain\Enum\MusicbotWorkflowConditionType;
 use App\Module\Musicbot\Domain\Enum\MusicbotWorkflowTriggerType;
-use App\Repository\MusicbotWorkflowRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class MusicbotWorkflowService
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly MusicbotWorkflowRepository $workflowRepository,
         private readonly MusicbotWorkflowExecutor $executor,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
         private readonly AuditLoggerInterface $auditLogger,
@@ -147,25 +145,6 @@ final class MusicbotWorkflowService
         $this->auditLogger->log($customer, 'musicbot.workflow_test_run', ['workflow_id' => $workflow->getId(), 'status' => $execution->getStatus()->value]);
 
         return $execution;
-    }
-
-    /**
-     * Dispatch workflows for a given trigger on a specific instance.
-     * Used internally when an event fires.
-     *
-     * @param array<string, mixed> $context
-     * @return MusicbotWorkflowExecution[]
-     */
-    public function dispatchForTrigger(MusicbotInstance $instance, MusicbotWorkflowTriggerType $triggerType, array $context = []): array
-    {
-        $workflows = $this->workflowRepository->findEnabledByTriggerTypeAndInstance($triggerType, $instance);
-        $executions = [];
-
-        foreach ($workflows as $workflow) {
-            $executions[] = $this->executor->execute($workflow, $context);
-        }
-
-        return $executions;
     }
 
     /** @return array<string, mixed> */

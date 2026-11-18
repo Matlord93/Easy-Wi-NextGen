@@ -356,7 +356,7 @@ final readonly class ProxmoxManager
                 // A lost response or server error does not prove that a write was rejected.
                 $task->uncertain();
             }
-            $this->audit->log($actor, 'proxmox.action_failed', ['cluster_id' => $cluster->getId(), 'vm_id' => $vmId, 'action' => $action]);
+            $this->audit->log($actor, 'proxmox.action_failed', ['cluster_id' => $cluster->getId(), 'vm_id' => $vmId, 'action' => $action, 'request_path' => $error instanceof \App\Module\Nodes\Domain\Proxmox\ProxmoxApiException ? $error->requestPath : null]);
         }
         $this->em->flush();
 

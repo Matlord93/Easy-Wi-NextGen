@@ -85,9 +85,7 @@ parameters:
     - agent.job_completed
     - agent.job.completed
     - public_server.status_checked
-  app.hosting_panel_secret_key_default: ''
   app.identifier_hash_pepper_default: 'change_this_identifier_pepper'
-  app.hosting_panel_secret_key: '%env(default:app.hosting_panel_secret_key_default:APP_HOSTING_PANEL_SECRET_KEY)%'
   app.identifier_hash_pepper: '%env(default:app.identifier_hash_pepper_default:AUTH_IDENTIFIER_HASH_PEPPER)%'
   app.mail_password_hash_algorithm_default: 'argon2id'
   app.mail_password_hash_algorithm: '%env(default:app.mail_password_hash_algorithm_default:APP_MAIL_PASSWORD_HASH_ALGORITHM)%'
@@ -158,6 +156,8 @@ services:
     exclude:
       - '../src/DependencyInjection/'
       - '../src/Kernel.php'
+      # Voice owns TS3/TS6. Ignore obsolete classes left by an overlay update.
+      - '../src/Module/Teamspeak/'
 
   App\Module\Core\Application\Scheduler\ScheduleHandlerRegistry:
     arguments:
@@ -319,10 +319,6 @@ services:
   App\Module\Cms\Application\Security\CaptchaVerifierInterface: '@App\Module\Cms\Application\Security\NoneCaptchaVerifier'
   App\Module\Cms\Application\CmsMaintenanceWindowProviderInterface: '@App\Module\Cms\Application\CmsMaintenanceWindowProvider'
 
-  App\Module\Cms\Application\CmsTemplateDeploymentManager:
-    arguments:
-      $deployRoot: '%kernel.project_dir%/var/cms-template-deployments'
-
   app.limiter_factory.agent_bootstrap:
     class: App\Module\Core\Application\SymfonyLimiterFactoryAdapter
     arguments:
@@ -400,10 +396,6 @@ services:
   App\Module\Voice\Application\TeamspeakServerOperationsInterface: '@App\Module\Voice\Application\TeamspeakServerOperations'
 
   App\Module\Gameserver\Application\Query\QuerySmokeRunnerInterface: '@App\Module\Gameserver\Application\Query\QuerySmokeService'
-
-  App\Module\HostingPanel\Application\Security\SecretVault:
-    arguments:
-      $encryptionKey: '%app.hosting_panel_secret_key%'
 
   App\Module\Core\Application\Backup\BackupPlanStoreInterface: '@App\Module\Core\Application\Backup\DbalBackupPlanStore'
   App\Module\Core\Application\Backup\WritableBackupPlanStoreInterface: '@App\Module\Core\Application\Backup\DbalBackupPlanStore'

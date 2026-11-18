@@ -62,6 +62,14 @@ final class MusicbotSecretConfigServiceTest extends TestCase
         self::assertStringNotContainsString('channel-pw', $sanitized);
     }
 
+    public function testSanitizeLogTextMasksCompleteQuotedValuesAndPreservesJson(): void
+    {
+        $json = json_encode(['server_password' => 'a password with "quotes" and spaces', 'bot_token' => 'another secret', 'port' => 9987], JSON_THROW_ON_ERROR);
+
+        self::assertSame(['server_password' => '********', 'bot_token' => '********', 'port' => 9987], json_decode(MusicbotSecretConfigService::sanitizeLogText($json), true, 512, JSON_THROW_ON_ERROR));
+        self::assertSame("channel_password='********' server_password=********", MusicbotSecretConfigService::sanitizeLogText("channel_password='two words' server_password=other"));
+    }
+
     public function testSanitizePayloadStripsSecretKeysForRuntimeStatus(): void
     {
         $payload = [

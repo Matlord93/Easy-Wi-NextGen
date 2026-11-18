@@ -37,7 +37,8 @@ if (is_file(dirname(__DIR__).'/.env')) {
 $input = new ArgvInput();
 
 $env = RuntimeEnvironment::name($input->getParameterOption(['--env', '-e'], $_SERVER['APP_ENV'] ?? $_ENV['APP_ENV'] ?? 'dev', true));
-$debug = (bool)($_SERVER['APP_DEBUG'] ?? $_ENV['APP_DEBUG'] ?? ($env !== 'prod'));
+$debug = !$input->hasParameterOption('--no-debug', true)
+    && (bool)($_SERVER['APP_DEBUG'] ?? $_ENV['APP_DEBUG'] ?? ($env !== 'prod'));
 
 if ($debug) {
     umask(0000);

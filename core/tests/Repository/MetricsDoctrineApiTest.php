@@ -18,7 +18,7 @@ use PHPUnit\Framework\TestCase;
 
 final class MetricsDoctrineApiTest extends TestCase
 {
-    public function testAggregateSeriesBindsParametersWithDoctrineOrmThree(): void
+    public function testAggregateLookupBindsParametersWithDoctrineOrmThree(): void
     {
         $em = $this->entityManager();
         (new SchemaTool($em))->createSchema([
@@ -35,12 +35,14 @@ final class MetricsDoctrineApiTest extends TestCase
         $registry = $this->createStub(ManagerRegistry::class);
         $registry->method('getManagerForClass')->willReturn($em);
 
-        $series = (new MetricAggregateRepository($registry))->findSeries($agent, 'hour', $start);
+        $repository = new MetricAggregateRepository($registry);
+        $found = $repository->findOneByBucket($agent, 'hour', $start);
 
-        self::assertCount(1, $series);
-        self::assertEquals($start, $series[0]['bucketStart']);
-        self::assertSame(10.0, $series[0]['cpuAvg']);
-        self::assertSame([], (new MetricAggregateRepository($registry))->findSeries($agent, 'day', $start));
+        self::assertSame($aggregate, $found);
+        self::assertEquals($start, $found->getBucketStart());
+        self::assertSame(1, $found->getSampleCount());
+        self::assertEquals(10.0, $em->getConnection()->fetchOne('SELECT cpu_avg FROM metric_aggregates'));
+        self::assertNull($repository->findOneByBucket($agent, 'day', $start));
     }
 
     public function testMailDimensionsBindsLimitWithDoctrineDbalFour(): void

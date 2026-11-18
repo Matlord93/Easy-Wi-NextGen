@@ -433,7 +433,7 @@ final class AdminMusicbotController
             'lastError' => $this->resolveLastError($runtimePayload),
             'logs' => $this->runtimeEventService->latestForInstance($instance, 50),
             'errors' => $this->runtimeEventService->errorsForInstance($instance, 10),
-            'teamspeakProfiles' => MusicbotTeamspeakProfile::cases(),
+            'teamspeakProfiles' => array_map(static fn (MusicbotTeamspeakProfile $profile): array => ['value' => $profile->value, 'label' => $profile->label()], MusicbotTeamspeakProfile::cases()),
             'actions' => self::ACTIONS,
         ]));
     }
@@ -1030,7 +1030,7 @@ final class AdminMusicbotController
             'teamspeak_channel_id' => '',
             'teamspeak_server_password' => '',
             'teamspeak_channel_password' => '',
-            'teamspeak_profiles' => MusicbotTeamspeakProfile::cases(),
+            'teamspeak_profiles' => array_map(static fn (MusicbotTeamspeakProfile $profile): array => ['value' => $profile->value, 'label' => $profile->label()], MusicbotTeamspeakProfile::cases()),
             'discord_enabled' => false,
             'discord_text_channel_id' => '',
             'errors' => [],
