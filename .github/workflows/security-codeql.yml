@@ -92,6 +92,9 @@ jobs:
       - name: Verify SARIF normalization preserves findings
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest scripts/tests/test_normalize_psalm_sarif.py -v
 
+      - name: Verify Doctrine mapping with cold and cached Psalm workers
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/psalm/tests -p 'test_*.py' -v
+
       - name: Run Psalm security scan (PHP)
         id: psalm
         working-directory: core
@@ -99,7 +102,7 @@ jobs:
           set -euo pipefail
           rm -f ../results.sarif
           set +e
-          php -d memory_limit=-1 ../tools/psalm/vendor/bin/psalm --config=psalm.xml --no-diff --output-format=github --taint-analysis --report=../results.sarif
+          php -d memory_limit=-1 ../tools/psalm/vendor/bin/psalm --config=psalm.xml --no-cache --no-diff --output-format=github --taint-analysis --report=../results.sarif
           psalm_exit_code=$?
           set -e
           echo "exit_code=$psalm_exit_code" >> "$GITHUB_OUTPUT"

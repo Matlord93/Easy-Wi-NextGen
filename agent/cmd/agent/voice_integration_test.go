@@ -24,7 +24,7 @@ func TestVoiceActionsUseRealTeamspeakCommands(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer listener.Close()
+				defer func() { _ = listener.Close() }()
 				commands := make(chan []string, 1)
 				go func() {
 					conn, err := listener.Accept()
@@ -32,7 +32,7 @@ func TestVoiceActionsUseRealTeamspeakCommands(t *testing.T) {
 						commands <- nil
 						return
 					}
-					defer conn.Close()
+					defer func() { _ = conn.Close() }()
 					_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 					_, _ = fmt.Fprintln(conn, "error id=0 msg=ok")
 					scanner := bufio.NewScanner(conn)
