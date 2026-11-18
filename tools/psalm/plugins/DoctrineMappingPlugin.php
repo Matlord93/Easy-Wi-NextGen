@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 use Psalm\Context;
 use Psalm\Plugin\EventHandler\AfterClassLikeAnalysisInterface;
+use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
+use Psalm\Plugin\EventHandler\AfterCodebasePopulatedInterface;
 use Psalm\Plugin\EventHandler\Event\AfterClassLikeAnalysisEvent;
+use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
+use Psalm\Plugin\EventHandler\Event\AfterCodebasePopulatedEvent;
 use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\RegistrationInterface;
+use Psalm\Storage\ClassLikeStorage;
 
 /** Models the reflective reads performed by Doctrine's attribute mapping driver. */
-final class EasyWiDoctrineMappingPlugin implements PluginEntryPointInterface, AfterClassLikeAnalysisInterface
+final class EasyWiDoctrineMappingPlugin implements PluginEntryPointInterface, AfterClassLikeVisitInterface, AfterCodebasePopulatedInterface, AfterClassLikeAnalysisInterface
 {
     private const MAPPED_CLASSES = [
         'Doctrine\\ORM\\Mapping\\Entity',
@@ -33,6 +38,36 @@ final class EasyWiDoctrineMappingPlugin implements PluginEntryPointInterface, Af
     }
 
     #[\Override]
+    public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event): void
+    {
+        // This metadata must be set before Psalm caches and distributes class
+        // storage to analysis workers. An analysis-only mutation can disappear
+        // on subsequent cached scans or when the parent checks unused classes.
+        self::markMappedApi($event->getStorage());
+    }
+
+    #[\Override]
+    public static function afterCodebasePopulated(AfterCodebasePopulatedEvent $event): void
+    {
+        // Also reconcile storage loaded from a previous cache before workers
+        // are forked. Unreferenced mapped classes may never reach analysis.
+        foreach ($event->getCodebase()->classlike_storage_provider->getAll() as $storage) {
+            self::markMappedApi($storage);
+        }
+    }
+
+    private static function markMappedApi(ClassLikeStorage $storage): void
+    {
+        foreach ($storage->attributes as $attribute) {
+            if (in_array($attribute->fq_class_name, self::MAPPED_CLASSES, true)) {
+                $storage->public_api = true;
+
+                return;
+            }
+        }
+    }
+
+    #[\Override]
     public static function afterStatementAnalysis(AfterClassLikeAnalysisEvent $event): ?bool
     {
         $storage = $event->getClasslikeStorage();
@@ -47,9 +82,6 @@ final class EasyWiDoctrineMappingPlugin implements PluginEntryPointInterface, Af
             return null;
         }
 
-        // Mapped classes are discovered from metadata and may be extended by
-        // Doctrine proxies. Ordinary application classes retain unused/final checks.
-        $storage->public_api = true;
         $context = new Context();
         $context->calling_method_id = 'doctrine\\orm\\unitofwork::computechangesets';
         // Psalm stores attributes of promoted properties on constructor
