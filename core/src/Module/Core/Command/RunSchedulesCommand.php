@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Core\Command;
 
 use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Application\Scheduler\CentralSchedulerRunner;
@@ -21,9 +22,9 @@ use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Repository\BackupScheduleRepository;
 use App\Repository\BackupTargetRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\InstanceScheduleRepository;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -46,15 +47,15 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
     public function __construct(
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly BackupScheduleRepository $backupScheduleRepository,
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly JobLogger $jobLogger,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
-        private readonly JobRepository $jobRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly BackupTargetRepository $backupTargetRepository,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly CentralSchedulerRunner $centralSchedulerRunner,
         private readonly ?\App\Module\Gameserver\Application\MinecraftCatalogSynchronizer $minecraftCatalogSynchronizer = null,
     ) {
@@ -107,6 +108,7 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
 
         try {
             do {
+                $this->appSettingsService->reset();
                 $this->writeSchedulerHeartbeat('running');
                 $this->runSchedulePass($output);
                 $this->writeSchedulerHeartbeat('success');

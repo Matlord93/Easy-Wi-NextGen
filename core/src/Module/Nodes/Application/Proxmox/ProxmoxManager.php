@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Application\Proxmox;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Doctrine\EntityIdentifier;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Nodes\Application\VmGuestAgentReport;
 use App\Module\Nodes\Application\VmProvisioningSettings;
@@ -19,7 +19,7 @@ use Doctrine\ORM\EntityManagerInterface;
 
 final readonly class ProxmoxManager
 {
-    public function __construct(private ProxmoxApiClient $api, private SecretsCrypto $crypto, private EntityManagerInterface $em, private AuditLogger $audit, private ProxmoxGuestAgent $guestAgent, private ProxmoxRrdUsage $rrd)
+    public function __construct(private ProxmoxApiClient $api, private SecretsCryptoInterface $crypto, private EntityManagerInterface $em, private AuditLoggerInterface $audit, private ProxmoxGuestAgent $guestAgent, private ProxmoxRrdUsage $rrd)
     {
     }
 

@@ -6,8 +6,8 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\GdprExportService;
 use App\Module\Core\Domain\Entity\GdprExport;
 use App\Module\Core\Domain\Entity\User;
@@ -29,9 +29,9 @@ final class CustomerGdprExportController
     public function __construct(
         private readonly GdprExportRepository $exportRepository,
         private readonly GdprExportService $exportService,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {

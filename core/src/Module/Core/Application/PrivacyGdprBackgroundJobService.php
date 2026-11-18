@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\LogIndex;
-use App\Repository\AuditLogRepository;
+use App\Repository\AuditLogRepositoryInterface;
 use App\Repository\GdprExportRepository;
 use App\Repository\LogIndexRepository;
 use App\Repository\RetentionPolicyRepository;
@@ -26,10 +26,10 @@ final class PrivacyGdprBackgroundJobService implements PrivacyGdprBackgroundJobR
         private readonly TicketMessageRepository $ticketMessageRepository,
         private readonly LogIndexRepository $logIndexRepository,
         private readonly UserSessionRepository $userSessionRepository,
-        private readonly AuditLogRepository $auditLogRepository,
-        private readonly AppSettingsService $settingsService,
+        private readonly AuditLogRepositoryInterface $auditLogRepository,
+        private readonly AppSettingsServiceInterface $settingsService,
         private readonly ScheduledTaskRunRepository $scheduledTaskRunRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly LoggerInterface $logger,
     ) {

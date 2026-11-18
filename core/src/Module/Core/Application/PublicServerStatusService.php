@@ -6,7 +6,7 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\PublicServer;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class PublicServerStatusService
@@ -15,7 +15,7 @@ final class PublicServerStatusService
     public const MIN_REFRESH_INTERVAL_SECONDS = 15;
 
     public function __construct(
-        private readonly JobRepository $jobRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -85,25 +85,6 @@ final class PublicServerStatusService
         return !$next instanceof \DateTimeImmutable || $next <= $now;
     }
 
-    public function applyResult(PublicServer $server, array $output, bool $succeeded, \DateTimeImmutable $checkedAt): void
-    {
-        $online = $succeeded && $this->normalizeOnline($output['online'] ?? $output['status'] ?? true);
-        $cache = $server->getStatusCache();
-        $cache['online'] = $online;
-        $cache['status'] = $online ? 'online' : 'offline';
-        $cache['players'] = is_numeric($output['players'] ?? null) ? (int) $output['players'] : null;
-        $cache['max_players'] = is_numeric($output['max_players'] ?? null) ? (int) $output['max_players'] : null;
-        $cache['map'] = self::optionalText($output['map'] ?? null);
-        $cache['name'] = self::optionalText($output['name'] ?? null);
-        $cache['last_error'] = $online ? null : $this->normalizeError($output);
-        $cache['query_duration_ms'] = is_numeric($output['query_duration_ms'] ?? $output['duration_ms'] ?? null) ? (int) ($output['query_duration_ms'] ?? $output['duration_ms']) : null;
-        $cache['last_checked_at'] = $checkedAt->format(DATE_RFC3339);
-        $cache['checked_at'] = $cache['last_checked_at'];
-
-        $server->setStatusCache($cache);
-        $server->setLastCheckedAt($checkedAt);
-    }
-
     public function toStatusPayload(PublicServer $server): array
     {
         $cache = $server->getStatusCache();
@@ -149,24 +130,6 @@ final class PublicServerStatusService
         if ($value === true) { return true; }
         if (is_string($value)) { return in_array(strtolower($value), ['running', 'up', 'alive', 'ok', 'online', 'success', 'reachable'], true); }
         return false;
-    }
-
-
-
-    private static function optionalText(mixed $value): ?string
-    {
-        return is_string($value) && $value !== '' ? $value : null;
-    }
-
-    private function normalizeError(array $output): string
-    {
-        foreach (['last_error', 'error', 'message', 'reason'] as $key) {
-            $message = self::optionalText($output[$key] ?? null);
-            if ($message !== null && trim($message) !== '') {
-                return mb_substr(trim($message), 0, 240);
-            }
-        }
-        return 'Query fehlgeschlagen oder Server nicht erreichbar.';
     }
 
 }

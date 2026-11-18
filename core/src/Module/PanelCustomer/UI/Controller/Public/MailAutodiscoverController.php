@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
-use App\Repository\MailDomainRepository;
+use App\Repository\MailDomainRepositoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -15,7 +15,7 @@ use Symfony\Component\Routing\Attribute\Route;
 final class MailAutodiscoverController
 {
     public function __construct(
-        private readonly MailDomainRepository $mailDomainRepository,
+        private readonly MailDomainRepositoryInterface $mailDomainRepository,
     ) {
     }
 

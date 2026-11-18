@@ -11,6 +11,7 @@ use App\Module\Core\Application\Backup\BackupOperationHeartbeat;
 use App\Module\Core\Application\Backup\BackupTemporaryDirectory;
 use App\Module\Core\Application\Backup\HttpModuleArchiveGateway;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Gameserver\Infrastructure\Client\AgentHmacHeaderFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -25,7 +26,7 @@ final class HttpModuleArchiveGatewayTest extends TestCase
     private const array DESCRIPTOR = ['module' => 'game', 'resource_id' => '42', 'path' => '/home/easywi/42', 'service' => 'game42.service'];
     private string $directory;
     private Agent $agent;
-    private EncryptionService $encryption;
+    private EncryptionServiceInterface $encryption;
     private BackupOperationHeartbeat $heartbeat;
 
     protected function setUp(): void

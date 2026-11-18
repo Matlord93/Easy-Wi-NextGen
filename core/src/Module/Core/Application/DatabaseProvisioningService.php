@@ -9,10 +9,10 @@ use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\ConnectionPolicy;
 
-class DatabaseProvisioningService
+final class DatabaseProvisioningService implements DatabaseProvisioningServiceInterface
 {
     public function __construct(
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
     ) {
     }
     private const int DEFAULT_MAX_ATTEMPTS = 5;
@@ -20,16 +20,19 @@ class DatabaseProvisioningService
     private const ConnectionPolicy DEFAULT_CONNECTION_POLICY = ConnectionPolicy::Private;
 
     /** @return Job[] */
+    #[\Override]
     public function buildCreateJobs(Database $database, string $agentId): array
     {
         return [$this->createJob('database.create', $this->buildPayload($database, $agentId))];
     }
 
+    #[\Override]
     public function buildPasswordRotateJob(Database $database, string $agentId): Job
     {
         return $this->createJob('database.rotate_password', $this->buildPayload($database, $agentId));
     }
 
+    #[\Override]
     public function buildDeleteJob(Database $database, string $agentId): Job
     {
         return $this->createJob('database.delete', $this->buildPayload($database, $agentId));

@@ -8,7 +8,7 @@ use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\JsonMap;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\Ts3Node;
 use App\Module\Core\Domain\Entity\Ts3Token;
@@ -28,18 +28,18 @@ use App\Module\Musicbot\Domain\Entity\MusicbotTeamspeakBackendConfig;
 use App\Module\Musicbot\Domain\Enum\MusicbotConnectionStatus;
 use App\Module\Musicbot\Domain\Enum\MusicbotInstanceStatus;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
-use App\Repository\MusicbotConnectionRepository;
+use App\Repository\MusicbotConnectionRepositoryInterface;
 use App\Repository\MusicbotInstanceRepository;
 use App\Repository\MusicbotInstanceRepositoryInterface;
-use App\Repository\MusicbotTeamspeakBackendConfigRepository;
-use App\Repository\SinusbotNodeRepository;
+use App\Repository\MusicbotTeamspeakBackendConfigRepositoryInterface;
+use App\Repository\SinusbotNodeRepositoryInterface;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts3NodeRepository;
 use App\Repository\Ts3VirtualServerRepository;
 use App\Repository\Ts6InstanceRepository;
 use App\Repository\Ts6NodeRepository;
 use App\Repository\Ts6VirtualServerRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class AgentJobResultApplier
@@ -47,16 +47,16 @@ final class AgentJobResultApplier
     public function __construct(
         private readonly Ts3NodeRepository $ts3NodeRepository,
         private readonly Ts6NodeRepository $ts6NodeRepository,
-        private readonly SinusbotNodeRepository $sinusbotNodeRepository,
+        private readonly SinusbotNodeRepositoryInterface $sinusbotNodeRepository,
         private readonly MusicbotInstanceRepositoryInterface $musicbotInstanceRepository,
-        private readonly MusicbotConnectionRepository $musicbotConnectionRepository,
-        private readonly MusicbotTeamspeakBackendConfigRepository $musicbotTeamspeakBackendConfigRepository,
+        private readonly MusicbotConnectionRepositoryInterface $musicbotConnectionRepository,
+        private readonly MusicbotTeamspeakBackendConfigRepositoryInterface $musicbotTeamspeakBackendConfigRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly Ts6InstanceRepository $ts6InstanceRepository,
         private readonly Ts3VirtualServerRepository $ts3VirtualServerRepository,
         private readonly Ts6VirtualServerRepository $ts6VirtualServerRepository,
-        private readonly SecretsCrypto $crypto,
-        private readonly UserRepository $userRepository,
+        private readonly SecretsCryptoInterface $crypto,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly MusicbotRuntimeEventServiceInterface $musicbotRuntimeEventService,
         private readonly MusicbotSecretConfigService $musicbotSecretConfigService,

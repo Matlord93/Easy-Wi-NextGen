@@ -23,7 +23,7 @@ use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\ConfigSchemaRepository;
 use App\Repository\GameDefinitionRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\InstanceScheduleRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -46,7 +46,7 @@ final class CustomerInstanceSettingsApiController
     private const string DEFAULT_AUTO_UPDATE_TIME = '05:00';
 
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly GameDefinitionRepository $gameDefinitionRepository,
         private readonly ConfigSchemaRepository $configSchemaRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,

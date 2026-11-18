@@ -14,6 +14,7 @@ use Doctrine\ORM\Mapping as ORM;
  */
 #[ORM\Entity(repositoryClass: InstanceMetricSampleRepository::class)]
 #[ORM\Table(name: 'instance_metric_samples')]
+#[ORM\Index(name: 'idx_instance_metric_retention', columns: ['collected_at'])]
 #[ORM\Index(columns: ['instance_id', 'collected_at'], name: 'idx_instance_metric_samples_instance_collected')]
 class InstanceMetricSample
 {

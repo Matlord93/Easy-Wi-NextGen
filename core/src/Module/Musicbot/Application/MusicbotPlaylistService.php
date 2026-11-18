@@ -11,18 +11,18 @@ use App\Module\Musicbot\Domain\Entity\MusicbotPlaylistItem;
 use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlaylistVisibility;
 use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
-use App\Repository\MusicbotPlaylistItemRepository;
-use App\Repository\MusicbotPlaylistRepository;
+use App\Repository\MusicbotPlaylistItemRepositoryInterface;
+use App\Repository\MusicbotPlaylistRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class MusicbotPlaylistService
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly MusicbotPlaylistRepository $playlistRepository,
-        private readonly MusicbotPlaylistItemRepository $playlistItemRepository,
+        private readonly MusicbotPlaylistRepositoryInterface $playlistRepository,
+        private readonly MusicbotPlaylistItemRepositoryInterface $playlistItemRepository,
         private readonly MusicbotQueueService $queueService,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
     ) {
     }
 

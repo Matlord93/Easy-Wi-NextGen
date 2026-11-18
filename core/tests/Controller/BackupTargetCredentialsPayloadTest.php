@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Backup;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\BackupTarget;
@@ -83,7 +84,7 @@ final class BackupTargetCredentialsPayloadTest extends TestCase
     }
 
     /** @param class-string $class */
-    private function uninitializedController(string $class, EncryptionService $encryption): object
+    private function uninitializedController(string $class, EncryptionServiceInterface $encryption): object
     {
         $controller = (new \ReflectionClass($class))->newInstanceWithoutConstructor();
         (new \ReflectionProperty($class, 'encryptionService'))->setValue($controller, $encryption);

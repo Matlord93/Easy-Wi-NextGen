@@ -7,7 +7,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\PublicServerValidator;
 use App\Module\Core\Application\PublicServerStatusService;
 use App\Module\Core\Application\SiteResolver;
@@ -30,7 +30,7 @@ final class AdminPublicServerController
         private readonly PublicServerValidator $serverValidator,
         private readonly PublicServerStatusService $statusService,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {

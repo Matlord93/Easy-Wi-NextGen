@@ -6,7 +6,7 @@ namespace App\Module\Core\Application\Mail\Queue;
 
 use App\Message\MailControlPlaneJobMessage;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -14,7 +14,7 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 final readonly class MailControlPlaneJobMessageHandler
 {
     public function __construct(
-        private AgentRepository $agentRepository,
+        private AgentRepositoryInterface $agentRepository,
         private AgentJobDispatcher $agentJobDispatcher,
         private LoggerInterface $logger,
     ) {

@@ -7,23 +7,24 @@ namespace App\Module\Core\Application\Sinusbot;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\AgentConfigurationException;
 use App\Module\Core\Application\AgentEndpointResolverInterface;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\SinusbotInstance;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 
-class SinusbotInstanceProvisioner
+final class SinusbotInstanceProvisioner implements SinusbotInstanceProvisionerInterface
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly SecretsCrypto $crypto,
+        private readonly SecretsCryptoInterface $crypto,
         private readonly AgentClient $agentClient,
         private readonly AgentEndpointResolverInterface $endpointResolver,
         private readonly SinusbotQuotaValidator $quotaValidator,
     ) {
     }
 
+    #[\Override]
     public function createInstanceForCustomer(User $customer, SinusbotNode $node, int $quota, ?string $username = null): SinusbotInstance
     {
         $this->quotaValidator->validate($quota);
@@ -64,24 +65,28 @@ class SinusbotInstanceProvisioner
         return $instance;
     }
 
+    #[\Override]
     public function startInstance(SinusbotInstance $instance): void
     {
         $payload = $this->requestJson($instance->getNode(), 'POST', sprintf('/internal/sinusbot/instances/%s/start', $instance->getInstanceId()), []);
         $this->applyInstancePayload($instance, $payload);
     }
 
+    #[\Override]
     public function stopInstance(SinusbotInstance $instance): void
     {
         $payload = $this->requestJson($instance->getNode(), 'POST', sprintf('/internal/sinusbot/instances/%s/stop', $instance->getInstanceId()), []);
         $this->applyInstancePayload($instance, $payload);
     }
 
+    #[\Override]
     public function restartInstance(SinusbotInstance $instance): void
     {
         $payload = $this->requestJson($instance->getNode(), 'POST', sprintf('/internal/sinusbot/instances/%s/restart', $instance->getInstanceId()), []);
         $this->applyInstancePayload($instance, $payload);
     }
 
+    #[\Override]
     public function deleteInstance(SinusbotInstance $instance): void
     {
         $this->requestJson($instance->getNode(), 'DELETE', sprintf('/internal/sinusbot/instances/%s', $instance->getInstanceId()), []);
@@ -89,6 +94,7 @@ class SinusbotInstanceProvisioner
         $this->entityManager->flush();
     }
 
+    #[\Override]
     public function resetPassword(SinusbotInstance $instance): string
     {
         $payload = $this->requestJson($instance->getNode(), 'POST', sprintf('/internal/sinusbot/instances/%s/reset-password', $instance->getInstanceId()), []);
@@ -102,12 +108,14 @@ class SinusbotInstanceProvisioner
         return $password ?? '';
     }
 
+    #[\Override]
     public function syncStatus(SinusbotInstance $instance): void
     {
         $payload = $this->requestJson($instance->getNode(), 'GET', sprintf('/internal/sinusbot/instances/%s', $instance->getInstanceId()), []);
         $this->applyInstancePayload($instance, $payload);
     }
 
+    #[\Override]
     public function updateQuota(SinusbotInstance $instance, int $quota): void
     {
         $this->quotaValidator->validate($quota);

@@ -120,6 +120,12 @@ class VoiceInstance
         return $this->checkedAt;
     }
 
+    public function invalidateStatus(): void
+    {
+        $this->checkedAt = null;
+        $this->touch();
+    }
+
     public function updateStatus(string $status, ?int $playersOnline, ?int $playersMax, ?string $reason, ?string $errorCode, ?\DateTimeImmutable $checkedAt = null): void
     {
         $this->status = $status;

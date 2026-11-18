@@ -6,12 +6,12 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\PanelCustomer\Application\SftpFilesystemService;
+use App\Module\PanelCustomer\Application\SftpFilesystemServiceInterface;
 use App\Module\PanelCustomer\Form\EditFileType;
 use App\Module\PanelCustomer\Form\RenameFileType;
 use App\Module\PanelCustomer\Form\UploadFileType;
@@ -47,8 +47,8 @@ final class CustomerFileManagerController extends AbstractController
     public function __construct(
         private readonly WebspaceRepository $webspaceRepository,
         private readonly LoggerInterface $logger,
-        private readonly AppSettingsService $settingsService,
-        private readonly SftpFilesystemService $sftpService,
+        private readonly AppSettingsServiceInterface $settingsService,
+        private readonly SftpFilesystemServiceInterface $sftpService,
         private readonly TranslatorInterface $translator,
     ) {
     }

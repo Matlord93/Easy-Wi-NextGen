@@ -56,9 +56,9 @@ final class AdminModuleController
         }
 
         $enabled = filter_var($request->request->get('enabled', 'false'), FILTER_VALIDATE_BOOL);
-        $this->moduleRegistry->setEnabled($key, $enabled, $actor);
+        $setting = $this->moduleRegistry->setEnabled($key, $enabled, $actor);
         $this->entityManager->flush();
 
-        return new RedirectResponse('/admin/modules');
+        return new RedirectResponse('/admin/modules', Response::HTTP_FOUND, ['X-Module-Enabled' => $setting->isEnabled() ? '1' : '0']);
     }
 }

@@ -8,7 +8,7 @@ use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\ConfigSchema\ConfigSchemaService;
 use App\Module\Core\Domain\Entity\ConfigSchema;
 use App\Module\Core\Domain\Entity\Instance;
@@ -26,9 +26,9 @@ use App\Module\Gameserver\Application\InstanceSlotService;
 use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use App\Repository\ConfigSchemaRepository;
 use App\Repository\GameDefinitionRepository;
-use App\Repository\InstanceRepository;
-use App\Repository\JobRepository;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -45,18 +45,18 @@ final class CustomerInstanceConfigApiController
     private const CARRIAGE_RETURN = "\r";
 
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly GameDefinitionRepository $gameDefinitionRepository,
         private readonly ConfigSchemaRepository $configSchemaRepository,
         private readonly GameProfileRepository $gameProfileRepository,
         private readonly ConfigSchemaService $configSchemaService,
-        private readonly JobRepository $jobRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly JobRepositoryInterface $jobRepository,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly InstanceSlotService $instanceSlotService,
         private readonly InstanceAddonResolver $instanceAddonResolver,
         private readonly ConfigTemplateRegistry $configTemplateRegistry,
         private readonly InstanceConfigPathResolver $instanceConfigPathResolver,
-        private readonly PortBlockRepository $portBlockRepository,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
     ) {

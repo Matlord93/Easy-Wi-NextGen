@@ -8,7 +8,7 @@ use App\Infrastructure\Config\ScalarValue;
 
 use App\Infrastructure\Config\JsonArray;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
@@ -24,7 +24,7 @@ final class MusicbotInstanceService
         private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly MusicbotSecretConfigServiceInterface $secretConfigService,
         private readonly AgentJobDispatcherInterface $jobDispatcher,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

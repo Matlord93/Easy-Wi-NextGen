@@ -6,10 +6,10 @@ namespace App\Module\Core\Command;
 
 use App\Module\Core\Application\DatabaseNamingPolicyInterface;
 use App\Module\Core\Application\DatabaseNodeInspectorInterface;
-use App\Module\Core\Application\DatabaseProvisioningService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Database;
-use App\Repository\DatabaseRepository;
+use App\Repository\DatabaseRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -22,11 +22,11 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class DatabaseSyncUsersCommand extends Command
 {
     public function __construct(
-        private readonly DatabaseRepository $databaseRepository,
-        private readonly DatabaseProvisioningService $provisioningService,
+        private readonly DatabaseRepositoryInterface $databaseRepository,
+        private readonly DatabaseProvisioningServiceInterface $provisioningService,
         private readonly DatabaseNamingPolicyInterface $namingPolicy,
         private readonly DatabaseNodeInspectorInterface $nodeInspector,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
     ) {

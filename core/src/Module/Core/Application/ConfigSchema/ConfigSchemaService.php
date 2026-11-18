@@ -89,12 +89,17 @@ final class ConfigSchemaService
 
     private function getParser(string $format): ConfigSchemaParserInterface
     {
-        return match (strtolower($format)) {
-            'ini' => $this->iniParser,
-            'key_value', 'keyvalue' => $this->keyValueParser,
-            'convar', 'convar_lines' => $this->conVarParser,
-            default => $this->keyValueParser,
+        $format = match (strtolower($format)) {
+            'keyvalue' => 'key_value',
+            'convar_lines' => 'convar',
+            default => strtolower($format),
         };
+        foreach ([$this->iniParser, $this->keyValueParser, $this->conVarParser] as $parser) {
+            if ($parser->format() === $format) {
+                return $parser;
+            }
+        }
+        return $this->keyValueParser;
     }
     /**
      * @template T

@@ -1,0 +1,475 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Module\Voice\UI\Controller\Admin;
+
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Http\RequestActor;
+
+use App\Infrastructure\Http\FlashMessages;
+
+use App\Module\Core\Application\SecretsCryptoInterface;
+use App\Module\Voice\Application\Ts6\Ts6NodeService;
+use App\Module\Core\Domain\Entity\Ts6Node;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Dto\Ts6\InstallDto;
+use App\Module\Core\Dto\Ts6\Ts6NodeDto;
+use App\Module\Core\Form\Ts6NodeType;
+use App\Module\Voice\Application\Update\Teamspeak6GithubUpdateProvider;
+use App\Module\Voice\Application\Update\UpdateResult;
+use App\Repository\AgentJobRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\Ts6NodeRepository;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormFactoryInterface;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
+use Twig\Environment;
+
+#[Route(path: '/admin/ts6/nodes')]
+final class AdminTs6NodeController
+{
+    public function __construct(
+        private readonly Ts6NodeRepository $nodeRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly AgentJobRepository $agentJobRepository,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly SecretsCryptoInterface $crypto,
+        private readonly Ts6NodeService $nodeService,
+        private readonly FormFactoryInterface $formFactory,
+        private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
+        private readonly ?Teamspeak6GithubUpdateProvider $githubUpdateProvider = null,
+    ) {
+    }
+
+    #[Route(path: '', name: 'admin_ts6_nodes_index', methods: ['GET'])]
+    public function index(Request $request): Response
+    {
+        $this->requireAdmin($request);
+
+        $nodes = $this->nodeRepository->findBy([], ['updatedAt' => 'DESC']);
+
+        return new Response($this->twig->render('admin/ts6/nodes/index.html.twig', [
+            'activeNav' => 'ts-nodes',
+            'nodes' => $nodes,
+        ]));
+    }
+
+    #[Route(path: '/new', name: 'admin_ts6_nodes_new', methods: ['GET', 'POST'])]
+    public function new(Request $request): Response
+    {
+        $this->requireAdmin($request);
+
+        $dto = new Ts6NodeDto();
+        $form = $this->formFactory->create(Ts6NodeType::class, $dto, [
+            'agent_choices' => $this->buildAgentChoices(),
+        ]);
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted()) {
+            $this->applyAgentDefaults($dto, $form);
+        }
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            $this->refreshDtoDownloadUrl($dto);
+            $agent = $this->agentRepository->find($dto->agentNodeId);
+            if ($agent === null) {
+                $form->addError(new FormError($this->translator->trans('form_error_agent_not_found')));
+                return new Response($this->twig->render('admin/ts6/nodes/new.html.twig', [
+                    'activeNav' => 'ts-nodes',
+                    'form' => $form->createView(),
+                ]), Response::HTTP_BAD_REQUEST);
+            }
+
+            $node = new Ts6Node(
+                $dto->name,
+                $agent,
+                rtrim($dto->agentBaseUrl, '/'),
+                $this->crypto->encrypt($dto->agentApiToken),
+                $dto->downloadUrl,
+                $dto->installPath,
+                $dto->instanceName,
+                $dto->serviceName,
+            );
+            $node->setOsType($dto->osType);
+            $node->setQueryBindIp($dto->queryBindIp);
+            $node->setQueryHttpsPort($dto->queryHttpsPort);
+            $node->setVoicePort($dto->voicePort);
+            $this->entityManager->persist($node);
+            $this->entityManager->flush();
+
+            $this->nodeService->install($node, $this->buildInstallDto($node));
+            FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_created'));
+
+            return new Response('', Response::HTTP_FOUND, [
+                'Location' => sprintf('/admin/ts6/nodes/%d', EntityIdentifier::require($node->getId())),
+            ]);
+        }
+
+        return new Response($this->twig->render('admin/ts6/nodes/new.html.twig', [
+            'activeNav' => 'ts-nodes',
+            'form' => $form->createView(),
+        ]));
+    }
+
+    #[Route(path: '/{id}', name: 'admin_ts6_nodes_show', methods: ['GET'])]
+    public function show(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+
+        $node = $this->findNode($id);
+
+        return new Response($this->twig->render('admin/ts6/nodes/show.html.twig', [
+            'activeNav' => 'ts-nodes',
+            'node' => $node,
+            'admin_password' => null,
+            'agent_jobs' => $this->loadAgentJobs($node),
+            'csrf' => $this->csrfTokens($node),
+            'latest_release' => $this->checkLatestRelease($node),
+        ]));
+    }
+
+    #[Route(path: '/{id}/refresh-status', name: 'admin_ts6_nodes_refresh_status', methods: ['POST'])]
+    public function refreshStatus(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts6_status_' . $id);
+        $this->nodeService->refreshStatus($node);
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_voice_node_status_queued'));
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/install', name: 'admin_ts6_nodes_install', methods: ['POST'])]
+    public function install(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts6_install_' . $id);
+
+        $this->nodeService->install($node, $this->buildInstallDto($node));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_install_queued'));
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/show-admin-credentials', name: 'admin_ts6_nodes_show_admin_credentials', methods: ['POST'])]
+    public function showAdminCredentials(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts6_show_admin_' . $id);
+
+        $adminPassword = $node->getAdminPassword($this->crypto);
+        if ($adminPassword !== null) {
+            $node->markAdminPasswordShown();
+            $this->entityManager->flush();
+        }
+
+        return new Response($this->twig->render('admin/ts6/nodes/show.html.twig', [
+            'activeNav' => 'ts-nodes',
+            'node' => $node,
+            'admin_password' => $adminPassword,
+            'agent_jobs' => $this->loadAgentJobs($node),
+            'csrf' => $this->csrfTokens($node),
+            'latest_release' => $this->checkLatestRelease($node),
+        ]));
+    }
+
+    #[Route(path: '/{id}/start', name: 'admin_ts6_nodes_start', methods: ['POST'])]
+    public function start(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts6_start_' . $id);
+
+        $this->nodeService->start($node);
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_service_started'));
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/stop', name: 'admin_ts6_nodes_stop', methods: ['POST'])]
+    public function stop(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts6_stop_' . $id);
+
+        $this->nodeService->stop($node);
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_service_stopped'));
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/restart', name: 'admin_ts6_nodes_restart', methods: ['POST'])]
+    public function restart(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts6_restart_' . $id);
+
+        $this->nodeService->restart($node);
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_service_restarted'));
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/update', name: 'admin_ts6_nodes_update', methods: ['POST'])]
+    public function update(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts6_update_' . $id);
+
+        $this->refreshNodeDownloadUrl($node);
+
+        $this->nodeService->install($node, $this->buildInstallDto($node));
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_update_queued'));
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/delete', name: 'admin_ts6_nodes_delete', methods: ['POST'])]
+    public function delete(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts6_delete_' . $id);
+
+        $this->entityManager->remove($node);
+        $this->entityManager->flush();
+
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_node_deleted'));
+
+        return new Response('', Response::HTTP_FOUND, [
+            'Location' => '/admin/ts6/nodes',
+        ]);
+    }
+
+    private function requireAdmin(Request $request): void
+    {
+        $actor = RequestActor::user($request);
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
+        }
+
+    }
+
+    private function findNode(int $id): Ts6Node
+    {
+        $node = $this->nodeRepository->find($id);
+        if ($node === null) {
+            throw new NotFoundHttpException($this->translator->trans('error_not_found'));
+        }
+
+        return $node;
+    }
+
+    private function redirectToNode(Ts6Node $node): Response
+    {
+        return new Response('', Response::HTTP_FOUND, [
+            'Location' => sprintf('/admin/ts6/nodes/%d', EntityIdentifier::require($node->getId())),
+        ]);
+    }
+
+    /**
+     * @return array<\App\Module\AgentOrchestrator\Domain\Entity\AgentJob>
+     */
+    private function loadAgentJobs(Ts6Node $node): array
+    {
+        return $this->agentJobRepository->findLatestForNodeAndTypes($node->getAgent()->getId(), [
+            'ts6.install',
+            'ts6.status',
+            'ts6.service.action',
+        ], 5);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function csrfTokens(Ts6Node $node): array
+    {
+        $id = (int) $node->getId();
+
+        return [
+            'status' => $this->csrfTokenManager->getToken('ts6_status_' . $id)->getValue(),
+            'install' => $this->csrfTokenManager->getToken('ts6_install_' . $id)->getValue(),
+            'update' => $this->csrfTokenManager->getToken('ts6_update_' . $id)->getValue(),
+            'show_admin' => $this->csrfTokenManager->getToken('ts6_show_admin_' . $id)->getValue(),
+            'start' => $this->csrfTokenManager->getToken('ts6_start_' . $id)->getValue(),
+            'stop' => $this->csrfTokenManager->getToken('ts6_stop_' . $id)->getValue(),
+            'restart' => $this->csrfTokenManager->getToken('ts6_restart_' . $id)->getValue(),
+            'delete' => $this->csrfTokenManager->getToken('ts6_delete_' . $id)->getValue(),
+        ];
+    }
+
+    private function validateCsrf(Request $request, string $tokenId): void
+    {
+        $token = (string) $request->request->get('_token', '');
+        if (!$this->csrfTokenManager->isTokenValid(new CsrfToken($tokenId, $token))) {
+            throw new UnauthorizedHttpException('csrf', $this->translator->trans('error_invalid_csrf'));
+        }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function buildAgentChoices(): array
+    {
+        $choices = [];
+        $agents = $this->agentRepository->findBy([], ['name' => 'ASC']);
+
+        foreach ($agents as $agent) {
+            $agentName = $agent->getName();
+            $label = $agentName !== null && $agentName !== ''
+                ? sprintf('%s (%s)', $agentName, $agent->getId())
+                : $agent->getId();
+            $choices[$label] = $agent->getId();
+        }
+
+        return $choices;
+    }
+
+    private function applyAgentDefaults(Ts6NodeDto $dto, \Symfony\Component\Form\FormInterface $form): void
+    {
+        $agentId = trim($dto->agentNodeId);
+        if ($agentId === '') {
+            $form->addError(new FormError($this->translator->trans('form_error_agent_required')));
+            return;
+        }
+
+        $agent = $this->agentRepository->find($agentId);
+        if ($agent === null) {
+            $form->addError(new FormError($this->translator->trans('form_error_agent_not_found')));
+
+            return;
+        }
+
+        $dto->agentBaseUrl = $agent->getAgentBaseUrl();
+        $dto->agentApiToken = $agent->getAgentApiToken($this->crypto);
+
+        if (trim($dto->downloadUrl) === '') {
+            $dto->downloadUrl = Ts6NodeDto::DEFAULT_DOWNLOAD_URL;
+        }
+
+        $this->refreshDtoDownloadUrl($dto);
+
+        if (trim($dto->installPath) === '' && $dto->osType !== 'windows') {
+            $dto->installPath = Ts6NodeDto::DEFAULT_INSTALL_PATH;
+        }
+
+        if (trim($dto->instanceName) === '') {
+            $dto->instanceName = Ts6NodeDto::DEFAULT_INSTANCE_NAME;
+        }
+
+        if (trim($dto->serviceName) === '') {
+            $dto->serviceName = Ts6NodeDto::DEFAULT_SERVICE_NAME;
+        }
+
+        if (trim($dto->installPath) === '') {
+            $form->addError(new FormError($this->translator->trans('form_error_install_path_required')));
+        }
+
+        if (trim($dto->downloadUrl) === '') {
+            $form->addError(new FormError($this->translator->trans('form_error_download_url_required')));
+        }
+
+        if (trim($dto->instanceName) === '') {
+            $form->addError(new FormError($this->translator->trans('form_error_instance_name_required')));
+        }
+
+        if (trim($dto->serviceName) === '') {
+            $form->addError(new FormError($this->translator->trans('form_error_service_name_required')));
+        }
+    }
+
+
+    private function refreshDtoDownloadUrl(Ts6NodeDto $dto): void
+    {
+        if ($this->githubUpdateProvider === null) {
+            return;
+        }
+
+        $currentUrl = trim($dto->downloadUrl);
+        if ($currentUrl !== '' && $currentUrl !== Ts6NodeDto::DEFAULT_DOWNLOAD_URL && !str_starts_with($currentUrl, 'https://github.com/teamspeak/teamspeak6-server/')) {
+            return;
+        }
+
+        $os = $dto->osType ?? 'linux';
+        $arch = str_contains(strtolower($currentUrl), 'arm64') ? 'arm64' : 'amd64';
+        $latestUrl = $this->githubUpdateProvider->resolveLatestAssetUrl($os, $arch, 'beta');
+        if ($latestUrl !== null) {
+            $dto->downloadUrl = $latestUrl;
+        }
+    }
+
+    private function checkLatestRelease(Ts6Node $node): ?UpdateResult
+    {
+        if ($this->githubUpdateProvider === null) {
+            return null;
+        }
+        try {
+            $installed = $node->getInstalledVersion() ?? '0.0.0';
+            if (in_array(strtolower($installed), ['unknown', ''], true)) {
+                $installed = '0.0.0';
+            }
+            $os = $node->getOsType() ?? 'linux';
+            $arch = str_contains(strtolower($node->getDownloadUrl()), 'arm64') ? 'arm64' : 'amd64';
+            return $this->githubUpdateProvider->checkForUpdates($installed, $os, $arch, 'beta');
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function refreshNodeDownloadUrl(Ts6Node $node): void
+    {
+        if ($this->githubUpdateProvider === null) {
+            return;
+        }
+        $os = $node->getOsType() ?? 'linux';
+        $arch = str_contains(strtolower($node->getDownloadUrl()), 'arm64') ? 'arm64' : 'amd64';
+        $latestUrl = $this->githubUpdateProvider->resolveLatestAssetUrl($os, $arch, 'beta');
+        if ($latestUrl !== null && $latestUrl !== $node->getDownloadUrl()) {
+            $node->setDownloadUrl($latestUrl);
+            $this->entityManager->flush();
+        }
+    }
+
+    private function buildInstallDto(Ts6Node $node): InstallDto
+    {
+        $adminPassword = $node->getAdminPassword($this->crypto);
+        if ($adminPassword === null) {
+            $adminPassword = bin2hex(random_bytes(12));
+            $node->setAdminPassword($adminPassword, $this->crypto);
+            $this->entityManager->flush();
+        }
+
+        return new InstallDto(
+            $node->getDownloadUrl(),
+            $node->getInstallPath(),
+            $node->getInstanceName(),
+            $node->getServiceName(),
+            true,
+            ['0.0.0.0', '::'],
+            $node->getVoicePort(),
+            30033,
+            ['0.0.0.0', '::'],
+            true,
+            $node->getQueryBindIp(),
+            $node->getQueryHttpsPort(),
+            $adminPassword,
+        );
+    }
+}

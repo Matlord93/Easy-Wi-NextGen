@@ -10,13 +10,14 @@ use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<MusicbotTeamspeakBackendConfig> */
-class MusicbotTeamspeakBackendConfigRepository extends ServiceEntityRepository
+final class MusicbotTeamspeakBackendConfigRepository extends ServiceEntityRepository implements MusicbotTeamspeakBackendConfigRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, MusicbotTeamspeakBackendConfig::class);
     }
 
+    #[\Override]
     public function findOneByNode(Agent $node): ?MusicbotTeamspeakBackendConfig
     {
         return $this->findOneBy(['node' => $node]);

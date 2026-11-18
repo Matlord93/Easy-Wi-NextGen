@@ -7,6 +7,7 @@ namespace App\Module\Musicbot\Application;
 use App\Infrastructure\Config\ScalarValue;
 
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 
 /**
@@ -38,7 +39,7 @@ final class MusicbotSecretConfigService implements MusicbotSecretConfigServiceIn
     private const ENCRYPTED_PREFIX = 'v1:';
 
     public function __construct(
-        private readonly SecretsCrypto $secretsCrypto,
+        private readonly SecretsCryptoInterface $secretsCrypto,
     ) {
     }
 

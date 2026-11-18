@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Module\Core\Application;
 
 use App\Module\Core\Application\DatabaseTableService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
@@ -17,7 +17,7 @@ final class DatabaseImportServiceTest extends TestCase
 {
     public function testImportBlocksDangerousStatementsAndAllowsCreateInsert(): void
     {
-        $enc = $this->createStub(EncryptionService::class);
+        $enc = $this->createStub(EncryptionServiceInterface::class);
         $enc->method('decrypt')->willReturn('pw');
 
         $pdo = new class extends \PDO { public function __construct() {}
@@ -39,7 +39,7 @@ final class DatabaseImportServiceTest extends TestCase
 
     public function testImportBlocksInvalidExtensionAndCrossDbUse(): void
     {
-        $enc = $this->createStub(EncryptionService::class);
+        $enc = $this->createStub(EncryptionServiceInterface::class);
         $enc->method('decrypt')->willReturn('pw');
         $pdo = new class extends \PDO { public function __construct() {} public function exec(string $sql): int|false { return 0; } public function prepare(string $sql, array $options = []): \PDOStatement|false { return new class extends \PDOStatement { public function __construct() {} public function execute(?array $p = null): bool { $p ??= [];  return true; } public function fetchAll(int $mode = \PDO::FETCH_DEFAULT, mixed ...$args): array { return []; } }; } };
         $service = new DatabaseTableService($enc, static fn() => $pdo);
@@ -51,7 +51,7 @@ final class DatabaseImportServiceTest extends TestCase
 
     public function testImportBlocksBacktickQualifierDelimiterAndProgrammableObjects(): void
     {
-        $enc = $this->createStub(EncryptionService::class);
+        $enc = $this->createStub(EncryptionServiceInterface::class);
         $enc->method('decrypt')->willReturn('pw');
         $pdo = new class extends \PDO { public function __construct() {} public function exec(string $sql): int|false { return 0; } public function prepare(string $sql, array $options = []): \PDOStatement|false { return new class extends \PDOStatement { public function __construct() {} public function execute(?array $p = null): bool { $p ??= [];  return true; } public function fetchAll(int $mode = \PDO::FETCH_DEFAULT, mixed ...$args): array { return []; } }; } };
         $service = new DatabaseTableService($enc, static fn() => $pdo);

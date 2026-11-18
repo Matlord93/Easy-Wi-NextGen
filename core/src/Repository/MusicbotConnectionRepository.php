@@ -11,7 +11,7 @@ use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<MusicbotConnection> */
-class MusicbotConnectionRepository extends ServiceEntityRepository
+final class MusicbotConnectionRepository extends ServiceEntityRepository implements MusicbotConnectionRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {

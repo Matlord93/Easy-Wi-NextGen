@@ -148,7 +148,10 @@ func (g *voiceQueryGovernor) callServer(ctx context.Context, target voiceTarget,
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
+	if readErr != nil || len(body) > 1<<20 {
+		return nil, &voiceQueryError{Code: "voice_query_failed", Message: "invalid query response body"}
+	}
 	if resp.StatusCode == 401 || resp.StatusCode == 403 {
 		return nil, &voiceQueryError{Code: "voice_query_auth_failed", Message: "query authentication failed", HardCooldown: true}
 	}
@@ -157,6 +160,9 @@ func (g *voiceQueryGovernor) callServer(ctx context.Context, target voiceTarget,
 	}
 	if resp.StatusCode >= 500 {
 		return nil, &voiceQueryError{Code: "voice_query_failed", Message: fmt.Sprintf("query server status=%d", resp.StatusCode), Retryable: true}
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, &voiceQueryError{Code: "voice_query_failed", Message: fmt.Sprintf("query server status=%d", resp.StatusCode)}
 	}
 	if bytesContainsBan(body) {
 		return nil, &voiceQueryError{Code: "voice_query_banned", Message: "query server returned ban indicator", HardCooldown: true}
@@ -168,10 +174,22 @@ func (g *voiceQueryGovernor) callServer(ctx context.Context, target voiceTarget,
 		}
 	}
 	status := strings.TrimSpace(fmt.Sprintf("%v", payload["status"]))
-	if status == "" || status == "<nil>" {
-		status = "online"
+	switch strings.ToLower(status) {
+	case "online", "running", "started", "up", "offline", "stopped", "down":
+	default:
+		return nil, &voiceQueryError{Code: "voice_query_failed", Message: "missing or invalid query status"}
 	}
-	res := map[string]string{"status": status, "players_online": stringify(payload["players_online"], "0"), "players_max": stringify(payload["players_max"], "0"), "provider_type": target.provider, "host": target.host, "port": target.port}
+	players := stringify(payload["players_online"], "")
+	capacity := stringify(payload["players_max"], "")
+	for _, value := range []string{players, capacity} {
+		if value != "" {
+			count, err := strconv.Atoi(value)
+			if err != nil || count < 0 {
+				return nil, &voiceQueryError{Code: "voice_query_failed", Message: "invalid query player count"}
+			}
+		}
+	}
+	res := map[string]string{"status": status, "players_online": players, "players_max": capacity, "provider_type": target.provider, "host": target.host, "port": target.port}
 	if n := stringify(payload["instance_name"], ""); n != "" {
 		res["instance_name"] = n
 	}

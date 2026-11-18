@@ -136,8 +136,10 @@ final class AgentGameServerClientTest extends TestCase
 
     private function invokeResolveBaseUrl(AgentGameServerClientInterface $client, Agent $agent): string
     {
-        /** @var string $resolved */
-        $resolved = (fn (Agent $target): string => $this->resolveBaseUrl($target))->call($client, $agent);
+        $resolved = (new \ReflectionMethod(AgentGameServerClient::class, 'resolveBaseUrl'))->invoke($client, $agent);
+        if (!is_string($resolved)) {
+            throw new \UnexpectedValueException('Expected the agent base URL to be a string.');
+        }
 
         return $resolved;
     }

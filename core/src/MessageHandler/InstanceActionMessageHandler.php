@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\MessageHandler;
 
 use App\Message\InstanceActionMessage;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Domain\Entity\Backup;
 use App\Module\Core\Domain\Entity\BackupDefinition;
@@ -20,9 +20,9 @@ use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\InstanceScheduleRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -30,12 +30,12 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 final class InstanceActionMessageHandler
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly BackupRepository $backupRepository,
-        private readonly UserRepository $userRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly JobLogger $jobLogger,
         private readonly EntityManagerInterface $entityManager,
     ) {

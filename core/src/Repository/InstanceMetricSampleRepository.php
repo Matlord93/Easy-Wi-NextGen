@@ -299,13 +299,9 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
         return $qb;
     }
 
-    public function deleteOlderThan(\DateTimeImmutable $threshold): int
+    public function deleteOlderThan(\DateTimeImmutable $threshold, int $batch = 1000): int
     {
-        return EntityQueryResult::affected($this->createQueryBuilder('sample')
-            ->delete()
-            ->andWhere('sample.collectedAt < :threshold')
-            ->setParameter('threshold', $threshold, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
-            ->getQuery());
+        return (new \App\Module\Core\Application\RetentionBatchDelete($this->getEntityManager()->getConnection()))->olderThan('instance_metric_samples', 'collected_at', $threshold->format('Y-m-d H:i:s'), $batch);
     }
 
     /**

@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Module\Musicbot\Application\MusicbotWebradioUrlValidator;
+use App\Module\Musicbot\Application\MusicbotWebradioUrlValidatorInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class MusicbotWebradioUrlValidatorTest extends TestCase
 {
-    private MusicbotWebradioUrlValidator $validator;
+    private MusicbotWebradioUrlValidatorInterface $validator;
 
     protected function setUp(): void
     {

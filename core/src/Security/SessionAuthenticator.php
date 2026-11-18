@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Security;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\UserSessionRepository;
 use Doctrine\DBAL\Exception\TableNotFoundException;
@@ -19,9 +19,9 @@ final class SessionAuthenticator
 
     public function __construct(
         private readonly UserSessionRepository $sessionRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AppSettingsService $settingsService,
+        private readonly AppSettingsServiceInterface $settingsService,
     ) {
     }
 

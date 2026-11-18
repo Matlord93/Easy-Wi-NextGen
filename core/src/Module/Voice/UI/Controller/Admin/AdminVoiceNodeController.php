@@ -6,13 +6,13 @@ namespace App\Module\Voice\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\EncryptionService;
-use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\VoiceNode;
+use App\Module\Voice\Application\TeamspeakServerOperationsInterface;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use App\Repository\VoiceInstanceRepository;
 use App\Repository\VoiceNodeRepository;
 use App\Repository\VoiceRateLimitStateRepository;
@@ -29,11 +29,12 @@ final class AdminVoiceNodeController
 {
     public function __construct(
         private readonly VoiceNodeRepository $repository,
+        private readonly TeamspeakServerOperationsInterface $serverOperations,
         private readonly VoiceRateLimitStateRepository $rateLimitRepository,
         private readonly VoiceInstanceRepository $voiceInstanceRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
@@ -109,18 +110,16 @@ final class AdminVoiceNodeController
             return $this->responseEnvelopeFactory->error($request, 'No voice instance on this node.', 'voice_instance_not_found', 404);
         }
 
-        $job = new Job('voice.probe', [
-            'voice_instance_id' => (string) $instance->getId(),
-            'provider_type' => $node->getProviderType(),
-            'external_id' => $instance->getExternalId(),
-            'node_id' => (string) $node->getId(),
-            'query_host' => $node->getHost(),
-            'query_port' => (string) $node->getQueryPort(),
-        ]);
-        $this->entityManager->persist($job);
-        $this->entityManager->flush();
+        try {
+            $result = $this->serverOperations->probe($this->serverOperations->resolve($instance));
+        } catch (\RuntimeException) {
+            return $this->responseEnvelopeFactory->error($request, 'Server binding is missing or inaccessible.', 'voice_instance_not_found', 404);
+        }
+        if ($result->status === 'pending') {
+            return $this->responseEnvelopeFactory->success($request, $result->jobId, $result->jobId === null ? 'Node probe delayed.' : 'Node probe queued.', 202, ['status' => 'pending', 'retry_after' => $result->jobId === null ? 10 : 3]);
+        }
 
-        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Node probe queued.', 202);
+        return new JsonResponse(['status' => 'ok', 'probe' => $result->toArray()]);
     }
 
     #[Route('', name: 'admin_voice_nodes_create', methods: ['POST'])]

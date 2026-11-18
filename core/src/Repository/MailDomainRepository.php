@@ -13,18 +13,20 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<MailDomain>
  */
-class MailDomainRepository extends ServiceEntityRepository
+final class MailDomainRepository extends ServiceEntityRepository implements MailDomainRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, MailDomain::class);
     }
 
+    #[\Override]
     public function findOneByDomain(Domain $domain): ?MailDomain
     {
         return $this->findOneBy(['domain' => $domain]);
     }
 
+    #[\Override]
     public function findOneByDomainName(string $domainName): ?MailDomain
     {
         return $this->findOneBy(['domainName' => MailDomain::normalizeDomainName($domainName)]);

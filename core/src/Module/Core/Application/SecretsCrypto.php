@@ -6,7 +6,7 @@ namespace App\Module\Core\Application;
 
 use RuntimeException;
 
-class SecretsCrypto
+final class SecretsCrypto implements SecretsCryptoInterface
 {
     private const string PREFIX = 'v1';
     private const string OPENSSL_CIPHER = 'aes-256-gcm';
@@ -38,6 +38,7 @@ class SecretsCrypto
         return substr(hash('sha256', $secret, true), 0, 32);
     }
 
+    #[\Override]
     public function encrypt(string $plaintext): string
     {
         if ($plaintext === '') {
@@ -61,6 +62,7 @@ class SecretsCrypto
         return sprintf('%s:%s:%s', self::PREFIX, base64_encode($iv . $tag), base64_encode($ciphertext));
     }
 
+    #[\Override]
     public function decrypt(string $payload): string
     {
         if ($payload === '') {

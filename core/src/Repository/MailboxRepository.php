@@ -14,7 +14,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<Mailbox>
  */
-class MailboxRepository extends ServiceEntityRepository implements MailboxStatsProviderInterface
+final class MailboxRepository extends ServiceEntityRepository implements MailboxStatsProviderInterface, MailboxRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -24,11 +24,13 @@ class MailboxRepository extends ServiceEntityRepository implements MailboxStatsP
     /**
      * @return Mailbox[]
      */
+    #[\Override]
     public function findByCustomer(User $customer): array
     {
         return $this->findBy(['customer' => $customer], ['updatedAt' => 'DESC']);
     }
 
+    #[\Override]
     public function findOneByAddress(string $address): ?Mailbox
     {
         return $this->findOneBy(['address' => $address]);

@@ -8,12 +8,12 @@ use App\Infrastructure\Config\JsonMap;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Musicbot\Application\MusicbotPermissionService;
-use App\Module\Musicbot\Application\MusicbotQuotaService;
-use App\Module\Musicbot\Application\MusicbotRadioCatalogService;
+use App\Module\Musicbot\Application\MusicbotQuotaServiceInterface;
+use App\Module\Musicbot\Application\MusicbotRadioCatalogServiceInterface;
 use App\Module\Musicbot\Application\MusicbotRadioService;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventService;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
@@ -22,7 +22,7 @@ use App\Module\Musicbot\Domain\Enum\MusicbotPermission;
 use App\Module\Musicbot\Domain\Exception\MusicbotPermissionDeniedException;
 use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
 use App\Repository\MusicbotInstanceRepository;
-use App\Repository\MusicbotRadioStationRepository;
+use App\Repository\MusicbotRadioStationRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -35,13 +35,13 @@ final class MusicbotRadioApiController
 {
     public function __construct(
         private readonly MusicbotRadioService $radioService,
-        private readonly MusicbotRadioCatalogService $catalogService,
-        private readonly MusicbotRadioStationRepository $stationRepository,
+        private readonly MusicbotRadioCatalogServiceInterface $catalogService,
+        private readonly MusicbotRadioStationRepositoryInterface $stationRepository,
         private readonly MusicbotInstanceRepository $instanceRepository,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly MusicbotPermissionService $permissionService,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }

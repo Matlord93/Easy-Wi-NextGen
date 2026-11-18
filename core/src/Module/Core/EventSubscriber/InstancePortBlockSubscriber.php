@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\EventSubscriber;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Instance;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\PreRemoveEventArgs;
@@ -16,8 +16,8 @@ use Doctrine\ORM\Events;
 final class InstancePortBlockSubscriber
 {
     public function __construct(
-        private readonly PortBlockRepository $portBlockRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }

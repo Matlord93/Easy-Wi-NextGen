@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\Application;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\SshHostKeyVerifier;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Repository\WebspaceSftpCredentialRepository;
@@ -15,12 +15,12 @@ use League\Flysystem\PhpseclibV3\SftpAdapter;
 use League\Flysystem\PhpseclibV3\SftpConnectionProvider;
 use Psr\Log\LoggerInterface;
 
-class SftpFilesystemService
+final class SftpFilesystemService implements SftpFilesystemServiceInterface
 {
     public function __construct(
-        private readonly AppSettingsService $settingsService,
+        private readonly AppSettingsServiceInterface $settingsService,
         private readonly WebspaceSftpCredentialRepository $credentialRepository,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -28,6 +28,7 @@ class SftpFilesystemService
     /**
      * @return array<int, array{name: string, path: string, type: string, size: ?int, last_modified: ?int}>
      */
+    #[\Override]
     public function list(Webspace $webspace, string $path): array
     {
         $storage = $this->buildFilesystem($webspace);
@@ -55,6 +56,7 @@ class SftpFilesystemService
         return $entries;
     }
 
+    #[\Override]
     public function read(Webspace $webspace, string $path): string
     {
         return $this->buildFilesystem($webspace)->read($this->normalizePath($path));
@@ -63,16 +65,19 @@ class SftpFilesystemService
     /**
      * @param resource $stream
      */
+    #[\Override]
     public function writeStream(Webspace $webspace, string $path, $stream): void
     {
         $this->buildFilesystem($webspace)->writeStream($this->normalizePath($path), self::requireStream($stream));
     }
 
+    #[\Override]
     public function write(Webspace $webspace, string $path, string $content): void
     {
         $this->buildFilesystem($webspace)->write($this->normalizePath($path), $content);
     }
 
+    #[\Override]
     public function delete(Webspace $webspace, string $path): void
     {
         $path = $this->normalizePath($path);
@@ -91,6 +96,7 @@ class SftpFilesystemService
         throw new \RuntimeException('Entry not found.');
     }
 
+    #[\Override]
     public function move(Webspace $webspace, string $source, string $destination): void
     {
         $this->buildFilesystem($webspace)->move(
@@ -99,11 +105,13 @@ class SftpFilesystemService
         );
     }
 
+    #[\Override]
     public function fileSize(Webspace $webspace, string $path): int
     {
         return $this->buildFilesystem($webspace)->fileSize($this->normalizePath($path));
     }
 
+    #[\Override]
     public function normalizePath(string $path): string
     {
         $path = str_replace('\\', '/', trim($path));

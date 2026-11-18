@@ -9,15 +9,15 @@ use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\JobStatus;
-use App\Repository\AgentRepository;
-use App\Repository\JobRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class AgentUpdateQueueService
 {
     public function __construct(
-        private readonly AgentRepository $agentRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly AgentReleaseCheckerInterface $releaseChecker,
         private readonly EntityManagerInterface $entityManager,
     ) {

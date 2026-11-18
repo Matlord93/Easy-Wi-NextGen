@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\MessageHandler;
 
 use App\Message\RunBackupPlanMessage;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\Backup\BackupAgent;
 use App\Module\Core\Application\Backup\BackupLeaseStoreInterface;
 use App\Module\Core\Application\Backup\BackupOperationHeartbeat;
@@ -18,7 +18,7 @@ final class RunBackupPlanMessageHandler
     public function __construct(
         private readonly BackupPlanStoreInterface $planStore,
         private readonly BackupAgent $backupAgent,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly ?BackupOperationHeartbeat $heartbeat = null,
         private readonly ?BackupLeaseStoreInterface $leases = null,
     ) {

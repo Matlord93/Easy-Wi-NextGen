@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\ElectronicInvoiceArchive;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Entity\User;
@@ -15,7 +15,7 @@ use Symfony\Component\Lock\LockFactory;
 
 final readonly class ElectronicInvoiceService
 {
-    public function __construct(private EntityManagerInterface $em, private ElectronicInvoiceBuilder $builder, private ElectronicInvoiceValidator $validator, private InvoiceArchiveRepository $pdfs, private LockFactory $locks, private AuditLogger $audit)
+    public function __construct(private EntityManagerInterface $em, private ElectronicInvoiceBuilder $builder, private ElectronicInvoiceValidator $validator, private InvoiceArchiveRepository $pdfs, private LockFactory $locks, private AuditLoggerInterface $audit)
     {
     }
 

@@ -5,19 +5,19 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupTargetRepository;
 use App\Repository\ConsentLogRepository;
 use App\Repository\CustomerProfileRepository;
-use App\Repository\DatabaseRepository;
+use App\Repository\DatabaseRepositoryInterface;
 use App\Repository\DnsRecordRepository;
-use App\Repository\DomainRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\DomainRepositoryInterface;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\InvoiceArchiveRepository;
 use App\Repository\InvoiceRepository;
 use App\Repository\MailAliasRepositoryInterface;
-use App\Repository\MailboxRepository;
+use App\Repository\MailboxRepositoryInterface;
 use App\Repository\PaymentRepository;
 use App\Repository\TicketMessageRepository;
 use App\Repository\TicketRepository;
@@ -28,7 +28,7 @@ use ZipArchive;
 final class GdprExportService
 {
     public function __construct(
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly CustomerProfileRepository $profileRepository,
         private readonly ConsentLogRepository $consentLogRepository,
         private readonly InvoiceRepository $invoiceRepository,
@@ -36,17 +36,17 @@ final class GdprExportService
         private readonly PaymentRepository $paymentRepository,
         private readonly TicketRepository $ticketRepository,
         private readonly TicketMessageRepository $ticketMessageRepository,
-        private readonly InstanceRepository $instanceRepository,
-        private readonly DomainRepository $domainRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
         private readonly WebspaceRepository $webspaceRepository,
-        private readonly DatabaseRepository $databaseRepository,
-        private readonly MailboxRepository $mailboxRepository,
+        private readonly DatabaseRepositoryInterface $databaseRepository,
+        private readonly MailboxRepositoryInterface $mailboxRepository,
         private readonly MailAliasRepositoryInterface $mailAliasRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly BackupTargetRepository $backupTargetRepository,
         private readonly DnsRecordRepository $dnsRecordRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
-        private readonly PortBlockRepository $portBlockRepository,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
     ) {
     }
 

@@ -13,7 +13,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<MusicbotRadioFavorite>
  */
-class MusicbotRadioFavoriteRepository extends ServiceEntityRepository
+final class MusicbotRadioFavoriteRepository extends ServiceEntityRepository implements MusicbotRadioFavoriteRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -21,6 +21,7 @@ class MusicbotRadioFavoriteRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotRadioFavorite[] */
+    #[\Override]
     public function findByCustomer(User $customer): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('f')
@@ -31,12 +32,14 @@ class MusicbotRadioFavoriteRepository extends ServiceEntityRepository
             ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioFavorite::class);
     }
 
+    #[\Override]
     public function findOneByCustomerAndStation(User $customer, MusicbotRadioStation $station): ?MusicbotRadioFavorite
     {
         return $this->findOneBy(['customer' => $customer, 'station' => $station]);
     }
 
     /** @return int[] Station IDs that this customer has favorited. */
+    #[\Override]
     public function getFavoriteStationIds(User $customer): array
     {
         $rows = $this->createQueryBuilder('f')

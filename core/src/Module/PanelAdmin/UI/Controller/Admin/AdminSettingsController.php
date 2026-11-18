@@ -7,15 +7,18 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Symfony\Component\HttpFoundation\IpUtils;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -23,12 +26,14 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminSettingsController
 {
     public function __construct(
-        private readonly AppSettingsService $settingsService,
-        private readonly UserRepository $userRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly AppSettingsServiceInterface $settingsService,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly UrlGeneratorInterface $urlGenerator,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly CsrfTokenManagerInterface $csrfTokens,
+        private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
     ) {
     }
 
@@ -64,6 +69,9 @@ final class AdminSettingsController
         }
 
         $activeTab = $this->resolveTab((string) $request->request->get('tab', 'general'));
+        if ($activeTab === 'logging' && !$this->csrfTokens->isTokenValid(new CsrfToken('admin_settings_logging', (string) $request->request->get('_token', '')))) {
+            return new Response('Invalid CSRF token. Reload the settings page.', Response::HTTP_FORBIDDEN);
+        }
         $sftpPortRaw = trim((string) $request->request->get('sftp_port', ''));
         $supportEmail = trim((string) $request->request->get('support_email', ''));
         $mailFromAddress = trim((string) $request->request->get('mail_from_address', ''));
@@ -82,6 +90,10 @@ final class AdminSettingsController
         $maintenanceAllowlistRaw = trim((string) $request->request->get('cms_maintenance_allowlist', ''));
         $routineRetentionRaw = trim((string) $request->request->get('database_logging_routine_retention_days', '30'));
         $errorRetentionRaw = trim((string) $request->request->get('database_logging_error_retention_days', '180'));
+        $currentSettings = $this->settingsService->getSettings();
+        $historyMode = (string) $request->request->get('job_history_mode', \App\Infrastructure\Config\ScalarValue::text($currentSettings[AppSettingsService::KEY_JOB_HISTORY_MODE] ?? null, 'all'));
+        $metricsDaysRaw = (string) $request->request->get('metrics_retention_days', \App\Infrastructure\Config\ScalarValue::integer($currentSettings[AppSettingsService::KEY_METRICS_RETENTION_DAYS] ?? null, 30));
+        $instanceDaysRaw = (string) $request->request->get('metrics_instance_retention_days', \App\Infrastructure\Config\ScalarValue::integer($currentSettings[AppSettingsService::KEY_METRICS_INSTANCE_RETENTION_DAYS] ?? null, 1));
         $errors = [];
         if ($sftpPortRaw !== '' && !is_numeric($sftpPortRaw)) {
             $errors[] = 'SFTP port must be numeric.';
@@ -161,6 +173,16 @@ final class AdminSettingsController
         }
 
         if ($activeTab === 'logging') {
+            if (!in_array($historyMode, ['all', 'customers', 'errors'], true)) {
+                $errors[] = 'Unknown job history mode.';
+            }
+            foreach ([$metricsDaysRaw, $instanceDaysRaw, $routineRetentionRaw, $errorRetentionRaw] as $daysRaw) {
+                $days = filter_var($daysRaw, FILTER_VALIDATE_INT);
+                if (!is_int($days) || $days < 1) {
+                    $errors[] = 'Retention must be a positive whole number of days.';
+                }
+            }
+
             if (!is_numeric($routineRetentionRaw) || (int) $routineRetentionRaw < 1) {
                 $errors[] = 'Routine log retention must be at least 1 day.';
             }
@@ -233,6 +255,9 @@ final class AdminSettingsController
                 AppSettingsService::KEY_ANTI_ABUSE_DAILY_IP_LIMIT => $dailyIpLimitRaw,
             ],
             'logging' => [
+                AppSettingsService::KEY_JOB_HISTORY_MODE => $historyMode,
+                AppSettingsService::KEY_METRICS_RETENTION_DAYS => $metricsDaysRaw,
+                AppSettingsService::KEY_METRICS_INSTANCE_RETENTION_DAYS => $instanceDaysRaw,
                 AppSettingsService::KEY_DATABASE_LOGGING_STORE_ROUTINE => $request->request->get('database_logging_store_routine') === '1',
                 AppSettingsService::KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS => $routineRetentionRaw,
                 AppSettingsService::KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS => $errorRetentionRaw,
@@ -248,9 +273,22 @@ final class AdminSettingsController
             default => [],
         };
 
-        $this->settingsService->updateSettings($payload);
-
-        return new RedirectResponse(sprintf('/admin/settings?saved=1&tab=%s', $activeTab));
+        $saved = $this->settingsService->updateSettings($payload);
+        $response = new RedirectResponse(sprintf('/admin/settings?saved=1&tab=%s', $activeTab));
+        if ($activeTab === 'logging') {
+            $audit = $this->auditLogger->log(RequestActor::user($request), 'settings.logging.updated', [
+                'job_history_mode' => $saved[AppSettingsService::KEY_JOB_HISTORY_MODE] ?? 'all',
+                'metrics_retention_days' => $saved[AppSettingsService::KEY_METRICS_RETENTION_DAYS] ?? 30,
+                'metrics_instance_retention_days' => $saved[AppSettingsService::KEY_METRICS_INSTANCE_RETENTION_DAYS] ?? 1,
+                'routine_retention_days' => $saved[AppSettingsService::KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS] ?? 30,
+                'error_retention_days' => $saved[AppSettingsService::KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS] ?? 180,
+            ]);
+            $this->entityManager->flush();
+            if ($audit !== null) {
+                $response->headers->set('X-Audit-Hash', $audit->getHashCurrent());
+            }
+        }
+        return $response;
     }
 
     #[Route(path: '/mail-templates', name: 'admin_settings_mail_templates', methods: ['GET'])]

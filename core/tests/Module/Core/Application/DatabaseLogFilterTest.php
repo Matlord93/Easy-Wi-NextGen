@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Module\Core\Application;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\DatabaseLogFilter;
 use PHPUnit\Framework\TestCase;
 
@@ -46,7 +46,7 @@ final class DatabaseLogFilterTest extends TestCase
 
     private function filter(bool $storeRoutine): DatabaseLogFilter
     {
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('shouldStoreRoutineDatabaseLogs')->willReturn($storeRoutine);
 
         return new DatabaseLogFilter($settings);

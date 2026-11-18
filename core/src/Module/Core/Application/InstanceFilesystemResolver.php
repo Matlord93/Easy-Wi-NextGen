@@ -14,7 +14,7 @@ final class InstanceFilesystemResolver
      * Runtime access must resolve persisted install_path via GameServerPathResolver.
      */
     public function __construct(
-        private readonly AppSettingsService $settingsService,
+        private readonly AppSettingsServiceInterface $settingsService,
     ) {
     }
 

@@ -7,14 +7,14 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\UserSession;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\Application\AdminSshKeyService;
 use App\Repository\InvoicePreferencesRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use App\Security\SessionAuthenticator;
 use App\Security\SessionTokenGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -42,10 +42,10 @@ final class AdminUserManagementController
     ];
 
     public function __construct(
-        private readonly UserRepository $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly InvoicePreferencesRepository $invoicePreferencesRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly SessionTokenGenerator $tokenGenerator,
         private readonly AdminSshKeyService $sshKeyService,

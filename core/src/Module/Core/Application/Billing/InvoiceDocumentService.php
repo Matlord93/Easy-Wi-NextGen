@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Repository\InvoiceArchiveRepository;
 use Symfony\Component\HttpFoundation\Request;
@@ -13,7 +13,7 @@ use Symfony\Component\HttpFoundation\HeaderUtils;
 
 final readonly class InvoiceDocumentService
 {
-    public function __construct(private InvoiceLayoutRenderer $layouts, private InvoicePdfRenderer $pdf, private InvoiceArchiveRepository $archives, private AppSettingsService $settings)
+    public function __construct(private InvoiceLayoutRenderer $layouts, private InvoicePdfRenderer $pdf, private InvoiceArchiveRepository $archives, private AppSettingsServiceInterface $settings)
     {
     }
 

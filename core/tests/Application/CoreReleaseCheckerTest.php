@@ -156,6 +156,6 @@ final class CoreReleaseCheckerTest extends TestCase
     {
         $client = new MockHttpClient([new MockResponse((string) json_encode($releases, JSON_THROW_ON_ERROR))]);
 
-        return new CoreReleaseChecker(new ArrayAdapter(), 'Matlord93/webinterface', 300, 'stable', new GithubReleaseResolver($client));
+        return new CoreReleaseChecker('Matlord93/webinterface', 'stable', new GithubReleaseResolver($client));
     }
 }

@@ -7,14 +7,14 @@ namespace App\Extension\Twig;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\DatabaseRepository;
-use App\Repository\DomainRepository;
-use App\Repository\InstanceRepository;
-use App\Repository\MailboxRepository;
+use App\Repository\DatabaseRepositoryInterface;
+use App\Repository\DomainRepositoryInterface;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\MailboxRepositoryInterface;
 use App\Repository\MusicbotInstanceRepository;
 use App\Repository\ShopRentalRepository;
-use App\Repository\SinusbotInstanceRepository;
-use App\Repository\SinusbotNodeRepository;
+use App\Repository\SinusbotInstanceRepositoryInterface;
+use App\Repository\SinusbotNodeRepositoryInterface;
 use App\Repository\Ts3VirtualServerRepository;
 use App\Repository\Ts6VirtualServerRepository;
 use App\Repository\VoiceInstanceRepository;
@@ -27,16 +27,16 @@ final class CustomerModuleTwigExtension extends AbstractExtension
 {
     public function __construct(
         private readonly RequestStack $requestStack,
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly Ts3VirtualServerRepository $ts3VirtualServerRepository,
         private readonly Ts6VirtualServerRepository $ts6VirtualServerRepository,
         private readonly VoiceInstanceRepository $voiceInstanceRepository,
-        private readonly SinusbotInstanceRepository $sinusbotInstanceRepository,
-        private readonly SinusbotNodeRepository $sinusbotNodeRepository,
+        private readonly SinusbotInstanceRepositoryInterface $sinusbotInstanceRepository,
+        private readonly SinusbotNodeRepositoryInterface $sinusbotNodeRepository,
         private readonly WebspaceRepository $webspaceRepository,
-        private readonly DatabaseRepository $databaseRepository,
-        private readonly DomainRepository $domainRepository,
-        private readonly MailboxRepository $mailboxRepository,
+        private readonly DatabaseRepositoryInterface $databaseRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
+        private readonly MailboxRepositoryInterface $mailboxRepository,
         private readonly MusicbotInstanceRepository $musicbotInstanceRepository,
         private readonly ShopRentalRepository $shopRentalRepository,
         private readonly \Doctrine\ORM\EntityManagerInterface $em,

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Infrastructure\Grpc;
 
 use App\Module\Gameserver\Application\Console\AgentEndpointProbeInterface;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 
 final class DoctrineAgentEndpointProbe implements AgentEndpointProbeInterface
 {
-    public function __construct(private readonly AgentRepository $agentRepository)
+    public function __construct(private readonly AgentRepositoryInterface $agentRepository)
     {
     }
 

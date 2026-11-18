@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Module\Core\Application;
 
 use App\Module\Core\Application\DatabaseTableService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
@@ -147,9 +147,9 @@ final class DatabaseTableEditServiceTest extends TestCase
         return new DatabaseTableService($this->enc(), static fn () => $pdo);
     }
 
-    private function enc(): EncryptionService
+    private function enc(): EncryptionServiceInterface
     {
-        $enc = $this->createStub(EncryptionService::class);
+        $enc = $this->createStub(EncryptionServiceInterface::class);
         $enc->method('decrypt')->willReturn('pw');
         return $enc;
     }

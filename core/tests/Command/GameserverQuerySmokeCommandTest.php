@@ -9,7 +9,7 @@ use App\Module\Core\Domain\Entity\Template;
 use App\Module\Gameserver\Application\Query\QuerySmokeRunnerInterface;
 use App\Module\Gameserver\Application\Query\TemplateEngineFamilyResolver;
 use App\Module\Gameserver\Command\GameserverQuerySmokeCommand;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -20,7 +20,7 @@ final class GameserverQuerySmokeCommandTest extends TestCase
     {
         $instance = $this->instance(1, 'l4d2');
 
-        $repo = $this->createStub(InstanceRepository::class);
+        $repo = $this->createStub(InstanceRepositoryInterface::class);
         $repo->method('findAll')->willReturn([$instance]);
 
         $service = $this->createStub(QuerySmokeRunnerInterface::class);
@@ -44,7 +44,7 @@ final class GameserverQuerySmokeCommandTest extends TestCase
     {
         $instance = $this->instance(1, 'l4d2');
 
-        $repo = $this->createStub(InstanceRepository::class);
+        $repo = $this->createStub(InstanceRepositoryInterface::class);
         $repo->method('findAll')->willReturn([$instance]);
 
         $service = $this->createStub(QuerySmokeRunnerInterface::class);

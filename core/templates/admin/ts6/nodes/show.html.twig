@@ -70,6 +70,10 @@
                     {% endif %}
                 </div>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;padding-top:4px;border-top:1px solid var(--ng-border);">
+                    <form method="post" action="/admin/ts6/nodes/{{ node.id }}/refresh-status">
+                        <input type="hidden" name="_token" value="{{ csrf.status }}">
+                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('admin_voice_node_refresh_status', locale) }}</button>
+                    </form>
                     <form method="post" action="/admin/ts6/nodes/{{ node.id }}/install">
                         <input type="hidden" name="_token" value="{{ csrf.install }}">
                         <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('admin_ts6_node_install', locale) }}</button>

@@ -12,7 +12,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<Database>
  */
-class DatabaseRepository extends ServiceEntityRepository
+final class DatabaseRepository extends ServiceEntityRepository implements DatabaseRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -20,6 +20,7 @@ class DatabaseRepository extends ServiceEntityRepository
     }
 
     /** @return Database[] */
+    #[\Override]
     public function findByCustomer(User $customer, int $limit = 100): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('database')
@@ -30,11 +31,13 @@ class DatabaseRepository extends ServiceEntityRepository
             ->getQuery(), \App\Module\Core\Domain\Entity\Database::class);
     }
 
+    #[\Override]
     public function findOneByCustomerAndName(User $customer, string $engine, string $name): ?Database
     {
         return $this->findOneBy(['customer' => $customer, 'engine' => strtolower($engine), 'name' => $name]);
     }
 
+    #[\Override]
     public function findOneByCustomerAndUsername(User $customer, string $engine, string $username): ?Database
     {
         return $this->findOneBy(['customer' => $customer, 'engine' => strtolower($engine), 'username' => $username]);

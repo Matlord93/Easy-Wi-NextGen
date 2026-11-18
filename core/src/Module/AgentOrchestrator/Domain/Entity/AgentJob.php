@@ -16,6 +16,7 @@ use Doctrine\ORM\Mapping as ORM;
  */
 #[ORM\Entity(repositoryClass: AgentJobRepository::class)]
 #[ORM\Table(name: 'agent_jobs')]
+#[ORM\Index(name: 'idx_agent_jobs_retention', fields: ['status', 'finishedAt'])]
 #[ORM\Index(name: 'idx_agent_jobs_node_status', columns: ['node_id', 'status'])]
 #[ORM\Index(name: 'idx_agent_jobs_idempotency', columns: ['idempotency_key'])]
 class AgentJob

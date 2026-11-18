@@ -7,7 +7,7 @@ namespace App\Module\PanelAdmin\Application;
 use App\Infrastructure\Config\JsonArray;
 
 use App\Module\Core\Application\AgentEndpointResolverInterface;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\MailNode;
@@ -38,7 +38,7 @@ final class MailNodeHealthAggregator implements MailNodeHealthAggregatorInterfac
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly AgentEndpointResolverInterface $endpointResolver,
-        private readonly SecretsCrypto $secretsCrypto,
+        private readonly SecretsCryptoInterface $secretsCrypto,
         private readonly LoggerInterface $logger,
     ) {
     }

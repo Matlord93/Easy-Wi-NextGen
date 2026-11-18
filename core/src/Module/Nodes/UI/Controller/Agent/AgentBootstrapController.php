@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\UI\Controller\Agent;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\LimiterFactoryInterface;
 use App\Module\Core\Application\TokenGeneratorInterface;
 use App\Module\Core\Domain\Entity\AgentRegistrationToken;
 use App\Repository\AgentBootstrapTokenRepositoryInterface;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -27,10 +27,10 @@ final class AgentBootstrapController
 
     public function __construct(
         private readonly AgentBootstrapTokenRepositoryInterface $bootstrapTokenRepository,
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly TokenGeneratorInterface $tokenGenerator,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         #[Autowire(service: 'app.limiter_factory.agent_bootstrap')]
         private readonly LimiterFactoryInterface $bootstrapLimiter,
         #[Autowire('%app.agent_signature_skew_seconds%')]

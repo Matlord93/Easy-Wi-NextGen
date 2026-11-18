@@ -7,7 +7,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\Incident;
 use App\Module\Core\Domain\Entity\IncidentUpdate;
@@ -34,7 +34,7 @@ final class AdminIncidentController
         private readonly StatusComponentRepository $componentRepository,
         private readonly SiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {

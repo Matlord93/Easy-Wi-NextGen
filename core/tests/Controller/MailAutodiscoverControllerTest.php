@@ -8,7 +8,7 @@ use App\Module\Core\Domain\Entity\MailNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\UI\Controller\Public\MailAutodiscoverController;
-use App\Repository\MailDomainRepository;
+use App\Repository\MailDomainRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -16,7 +16,7 @@ final class MailAutodiscoverControllerTest extends TestCase
 {
     public function testAutoconfigReturns404ForUnknownDomain(): void
     {
-        $repo = $this->createStub(MailDomainRepository::class);
+        $repo = $this->createStub(MailDomainRepositoryInterface::class);
         $repo->method('findOneByDomainName')->willReturn(null);
         $controller = new MailAutodiscoverController($repo);
         $response = $controller->autoconfig(new Request(['emailaddress' => 'u@unknown.test']));
@@ -30,7 +30,7 @@ final class MailAutodiscoverControllerTest extends TestCase
         $node = new MailNode('n', 'imap.example.com', 993, 'smtp.example.com', 587, 'https://webmail.example.com');
         $mailDomain = new MailDomain($domain, $node);
 
-        $repo = $this->createStub(MailDomainRepository::class);
+        $repo = $this->createStub(MailDomainRepositoryInterface::class);
         $repo->method('findOneByDomainName')->willReturn($mailDomain);
         $controller = new MailAutodiscoverController($repo);
         $response = $controller->autoconfig(new Request(['emailaddress' => 'u@example.com']));

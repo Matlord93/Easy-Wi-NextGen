@@ -9,7 +9,7 @@ use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Config\DbConfigProvider;
 use App\Infrastructure\Filesystem\WritablePathProbe;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\AppSetting;
 use App\Module\Core\Domain\Entity\CmsPage;
 use App\Module\Core\Domain\Entity\CmsSiteSettings;
@@ -61,7 +61,7 @@ final class InstallerService
         private readonly \App\Module\Core\Application\GameTemplateSeeder $templateSeeder,
         private readonly AdminSshKeyService $sshKeyService,
         private readonly DbConfigProvider $configProvider,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly InstallEnvBootstrap $installEnvBootstrap,
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,

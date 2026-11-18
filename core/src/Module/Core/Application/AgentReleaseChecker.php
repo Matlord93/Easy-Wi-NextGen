@@ -51,7 +51,7 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
     #[\Override]
     public function getLatestVersionForChannel(string $channel, bool $force = false): ?string
     {
-        if (trim($this->repository) === '') {
+        if (trim($this->getRepository()) === '') {
             return null;
         }
 
@@ -87,7 +87,7 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
     #[\Override]
     public function getReleaseAssetUrlsForChannel(string $assetName, string $channel, ?string $targetVersion = null, bool $force = false): ?array
     {
-        if (trim($this->repository) === '') {
+        if (trim($this->getRepository()) === '') {
             return null;
         }
 
@@ -159,28 +159,6 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
             self::CHANNEL_STABLE => 'Stable',
             self::CHANNEL_BETA => 'Beta',
             self::CHANNEL_DEV => 'Dev',
-        ];
-    }
-
-    /** @internal test compatibility */
-    private function compareReleaseTags(string $leftTag, string $rightTag): int
-    {
-        return $this->resolver()->compareReleaseTags($leftTag, $rightTag);
-    }
-
-    /** @internal test compatibility */
-    private function selectLatestReleaseAsset(array $releases, string $channel, string $assetName, ?string $targetVersion = null): ?array
-    {
-        $selected = $this->resolver()->selectLatestAsset(array_values($releases), $channel, $assetName, self::CHECKSUMS_ASSET, self::SIGNATURE_ASSET, $targetVersion);
-        if ($selected === null) {
-            return null;
-        }
-
-        return [
-            'tag' => $selected['version'],
-            'download_url' => $selected['download_url'],
-            'checksums_url' => $selected['checksums_url'],
-            'signature_url' => $selected['signature_url'],
         ];
     }
 

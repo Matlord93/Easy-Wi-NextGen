@@ -10,7 +10,7 @@ use App\Infrastructure\Config\JsonMap;
 
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlugin;
-use App\Repository\MusicbotPluginRepository;
+use App\Repository\MusicbotPluginRepositoryInterface;
 use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -18,7 +18,7 @@ final class MusicbotPluginEventService
 {
     public function __construct(
         private readonly PluginRegistryService $registry,
-        private readonly MusicbotPluginRepository $pluginRepository,
+        private readonly MusicbotPluginRepositoryInterface $pluginRepository,
         private readonly MusicbotPluginActionService $actionService,
         private readonly MusicbotPluginLogService $logService,
         private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,

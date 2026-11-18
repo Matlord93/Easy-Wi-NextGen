@@ -6,13 +6,13 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\MailPolicy;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\MailboxRepository;
+use App\Repository\MailboxRepositoryInterface;
 use App\Repository\MailAliasRepositoryInterface;
-use App\Repository\MailDomainRepository;
+use App\Repository\MailDomainRepositoryInterface;
 use App\Repository\MailLogRepository;
 use App\Repository\MailNodeRepositoryInterface;
 use App\Repository\MailPolicyRepositoryInterface;
@@ -33,12 +33,12 @@ final class AdminMailSystemController
         private readonly MailNodeRepositoryInterface $mailNodeRepository,
         private readonly QuotaPolicyRepository $quotaPolicyRepository,
         private readonly MailPolicyRepositoryInterface $mailPolicyRepository,
-        private readonly MailDomainRepository $mailDomainRepository,
-        private readonly MailboxRepository $mailboxRepository,
+        private readonly MailDomainRepositoryInterface $mailDomainRepository,
+        private readonly MailboxRepositoryInterface $mailboxRepository,
         private readonly MailAliasRepositoryInterface $mailAliasRepository,
         private readonly MailLogRepository $mailLogRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

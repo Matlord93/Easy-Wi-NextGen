@@ -8,7 +8,7 @@ use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Nodes\Application\Console\VmConsoleDiagnostics;
 use App\Module\Nodes\Application\Console\VmConsoleBroker;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,7 +18,7 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class AdminVmConsoleController extends AbstractController
 {
-    public function __construct(private readonly VmConsoleDiagnostics $diagnostics, private readonly AgentRepository $agents, private readonly VmConsoleBroker $broker, #[Autowire('%kernel.project_dir%')] private readonly string $projectDir)
+    public function __construct(private readonly VmConsoleDiagnostics $diagnostics, private readonly AgentRepositoryInterface $agents, private readonly VmConsoleBroker $broker, #[Autowire('%kernel.project_dir%')] private readonly string $projectDir)
     {
     }
 

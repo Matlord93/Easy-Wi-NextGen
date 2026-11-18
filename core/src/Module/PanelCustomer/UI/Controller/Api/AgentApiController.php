@@ -13,9 +13,10 @@ use App\Repository\EntityQueryResult;
 use App\Module\Core\Application\AgentMetricsIngestionService;
 use App\Module\Core\Application\AgentJwtVerifier;
 use App\Module\Core\Application\AgentSignatureVerifier;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\FirewallStateManager;
 use App\Module\Core\Application\GdprAnonymizer;
 use App\Module\Core\Application\InstanceFilesystemResolver;
@@ -39,25 +40,25 @@ use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Gameserver\Application\Query\QueryResultNormalizer;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\BackupTargetRepository;
-use App\Repository\DatabaseRepository;
+use App\Repository\DatabaseRepositoryInterface;
 use App\Repository\DdosPolicyRepository;
 use App\Repository\DdosStatusRepository;
-use App\Repository\DomainRepository;
+use App\Repository\DomainRepositoryInterface;
 use App\Repository\GdprDeletionRequestRepository;
 use App\Repository\InstanceMetricSampleRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\InstanceScheduleRepository;
-use App\Repository\InstanceSftpCredentialRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceSftpCredentialRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use App\Repository\PublicServerRepository;
 use App\Repository\SecurityPolicyRevisionRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts6InstanceRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use App\Repository\VoiceInstanceRepository;
 use App\Repository\WebspaceRepository;
 use DateTimeImmutable;
@@ -79,7 +80,7 @@ final class AgentApiController
 {
     private const DEFAULT_JOB_LOCK_TTL = '+10 minutes';
     private const BACKUP_JOB_LOCK_TTL = '+12 hours';
-    private const INSTANCE_METRIC_MAX_SAMPLES = 288;
+    private const INSTANCE_METRIC_SAMPLES_PER_DAY = 288;
 
     /**
      * Backup jobs create or apply external filesystem state and must not be
@@ -116,18 +117,18 @@ final class AgentApiController
     ];
 
     public function __construct(
-        private readonly AgentRepository $agentRepository,
-        private readonly JobRepository $jobRepository,
-        private readonly DomainRepository $domainRepository,
-        private readonly DatabaseRepository $databaseRepository,
-        private readonly InstanceRepository $instanceRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly JobRepositoryInterface $jobRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
+        private readonly DatabaseRepositoryInterface $databaseRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
-        private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
+        private readonly InstanceSftpCredentialRepositoryInterface $instanceSftpCredentialRepository,
         private readonly PublicServerRepository $publicServerRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly Ts6InstanceRepository $ts6InstanceRepository,
-        private readonly UserRepository $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly VoiceInstanceRepository $voiceInstanceRepository,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly GdprDeletionRequestRepository $gdprDeletionRequestRepository,
@@ -138,11 +139,11 @@ final class AgentApiController
         private readonly DdosStatusRepository $ddosStatusRepository,
         private readonly SecurityPolicyRevisionRepository $policyRevisionRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AppSettingsService $appSettingsService,
-        private readonly EncryptionService $encryptionService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
         private readonly AgentJwtVerifier $jwtVerifier,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly AgentMetricsIngestionService $metricsIngestionService,
         private readonly FirewallStateManager $firewallStateManager,
         private readonly GdprAnonymizer $gdprAnonymizer,
@@ -677,8 +678,9 @@ final class AgentApiController
         $this->entityManager->persist($jobResult);
         $this->applyDomainUpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
         $this->applyDatabaseUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $databaseCredential);
+        $firewallState = null;
         if ($resultStatus === JobResultStatus::Succeeded) {
-            $this->firewallStateManager->applyFirewallJobResult($job, $agent, $output);
+            $firewallState = $this->firewallStateManager->applyFirewallJobResult($job, $agent, $output);
         }
         $this->applyDdosStatusFromJob($job, $resultStatus, $agent, $output, $completedAt);
         $this->applyDdosPolicyFromJob($job, $resultStatus, $agent, $output, $completedAt);
@@ -716,7 +718,11 @@ final class AgentApiController
         );
         $this->entityManager->flush();
 
-        return new JsonResponse(['status' => 'ok']);
+        $response = new JsonResponse(['status' => 'ok']);
+        if ($firewallState !== null) {
+            $response->headers->set('X-Firewall-State-Id', (string) $firewallState->getId());
+        }
+        return $response;
     }
 
     #[Route(path: '/agent/jobs/{id}/logs', name: 'agent_job_logs', methods: ['POST'])]
@@ -1227,9 +1233,8 @@ final class AgentApiController
         $settings = $this->appSettingsService->getSettings();
         $retentionSetting = $settings[AppSettingsService::KEY_METRICS_INSTANCE_RETENTION_DAYS] ?? null;
         $retentionDays = is_numeric($retentionSetting)
-            ? max(1, min(7, (int) $retentionSetting))
+            ? max(1, min(intdiv(PHP_INT_MAX, self::INSTANCE_METRIC_SAMPLES_PER_DAY), (int) $retentionSetting))
             : 1;
-        $retentionThreshold = (new \DateTimeImmutable())->modify(sprintf('-%d days', $retentionDays));
         $resolvedInstances = [];
         $instanceIds = [];
 
@@ -1290,9 +1295,8 @@ final class AgentApiController
             $latestCollectedMap[$instanceId] = $collectedAt;
         }
 
-        $this->instanceMetricSampleRepository->deleteOlderThan($retentionThreshold);
         foreach ($resolvedInstances as $instance) {
-            $this->instanceMetricSampleRepository->deleteExcessForInstance($instance, self::INSTANCE_METRIC_MAX_SAMPLES);
+            $this->instanceMetricSampleRepository->deleteExcessForInstance($instance, self::INSTANCE_METRIC_SAMPLES_PER_DAY * $retentionDays);
         }
     }
 

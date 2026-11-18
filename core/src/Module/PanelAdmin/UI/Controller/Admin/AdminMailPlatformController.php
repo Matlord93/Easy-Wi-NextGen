@@ -6,15 +6,15 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\MailNode;
 use App\Module\Core\Domain\Entity\QuotaPolicy;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\DomainRepository;
-use App\Repository\JobRepository;
-use App\Repository\MailDomainRepository;
+use App\Repository\DomainRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
+use App\Repository\MailDomainRepositoryInterface;
 use App\Repository\MailNodeRepositoryInterface;
 use App\Repository\QuotaPolicyRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -29,10 +29,10 @@ final class AdminMailPlatformController
         private readonly EntityManagerInterface $entityManager,
         private readonly MailNodeRepositoryInterface $nodeRepository,
         private readonly QuotaPolicyRepository $policyRepository,
-        private readonly DomainRepository $domainRepository,
-        private readonly MailDomainRepository $mailDomainRepository,
-        private readonly JobRepository $jobRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly DomainRepositoryInterface $domainRepository,
+        private readonly MailDomainRepositoryInterface $mailDomainRepository,
+        private readonly JobRepositoryInterface $jobRepository,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

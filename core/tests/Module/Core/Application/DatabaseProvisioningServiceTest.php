@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Tests\Module\Core\Application;
 
 use App\Module\Core\Application\DatabaseProvisioningService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
@@ -41,9 +42,9 @@ final class DatabaseProvisioningServiceTest extends TestCase
         self::assertArrayNotHasKey('encrypted_password', $job->getPayload());
     }
 
-    private function newService(): DatabaseProvisioningService
+    private function newService(): DatabaseProvisioningServiceInterface
     {
-        $encryptionService = $this->createStub(EncryptionService::class);
+        $encryptionService = $this->createStub(EncryptionServiceInterface::class);
         $encryptionService->method('decrypt')->willReturn('admin-secret');
 
         return new DatabaseProvisioningService($encryptionService);

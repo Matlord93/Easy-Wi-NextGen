@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Backup\Resource;
 
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Application\Backup\BackupTarReader;
 use App\Module\Core\Application\Backup\BackupFileChecksum;
 use App\Module\Core\Application\Backup\BackupOperationHeartbeat;
@@ -14,7 +14,7 @@ final class ModuleBackupBundle
 {
     private const int MAX_MANIFEST_BYTES = 16777216;
 
-    public function __construct(private readonly SecretsCrypto $crypto, private readonly BackupTarReader $tar = new BackupTarReader(), private readonly ?BackupOperationHeartbeat $heartbeat = null)
+    public function __construct(private readonly SecretsCryptoInterface $crypto, private readonly BackupTarReader $tar = new BackupTarReader(), private readonly ?BackupOperationHeartbeat $heartbeat = null)
     {
     }
 

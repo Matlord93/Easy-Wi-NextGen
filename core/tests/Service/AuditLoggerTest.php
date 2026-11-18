@@ -8,7 +8,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\AuditLogHasher;
 use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Domain\Entity\AuditLog;
-use App\Repository\AuditLogRepository;
+use App\Repository\AuditLogRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -16,7 +16,7 @@ final class AuditLoggerTest extends TestCase
 {
     public function testLogChainsHashValues(): void
     {
-        $repository = $this->createMock(AuditLogRepository::class);
+        $repository = $this->createMock(AuditLogRepositoryInterface::class);
         $repository->expects(self::once())
             ->method('findLatestHash')
             ->willReturn('prev-hash');

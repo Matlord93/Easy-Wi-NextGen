@@ -16,7 +16,7 @@ final class FirewallStateManager
 {
     public function __construct(
         private readonly FirewallStateRepository $firewallStateRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }

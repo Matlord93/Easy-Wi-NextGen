@@ -6,7 +6,7 @@ namespace App\Module\Gameserver\Infrastructure\Client;
 
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\JsonMap;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
@@ -18,7 +18,7 @@ final class AgentGameServerClient implements AgentGameServerClientInterface
 {
     public function __construct(
         private readonly HttpClientInterface $httpClient,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly int $timeoutSeconds = 10,
         private readonly ?AgentHmacHeaderFactory $hmacHeaderFactory = null,
     ) {

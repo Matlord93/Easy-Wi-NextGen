@@ -8,18 +8,18 @@ use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\Ddos\DdosCredentialManager;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\SecurityEvent;
 use App\Module\Core\Domain\Entity\SecurityPolicyRevision;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use App\Repository\DdosPolicyRepository;
 use App\Repository\DdosProviderCredentialRepository;
 use App\Repository\DdosStatusRepository;
 use App\Repository\FirewallStateRepository;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use App\Repository\SecurityEventRepository;
 use App\Repository\SecurityPolicyRevisionRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -49,9 +49,9 @@ final class AdminSecurityController
     private const FAIL2BAN_BACKEND_OPTIONS = ['auto', 'systemd', 'polling', 'pyinotify'];
 
     public function __construct(
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly FirewallStateRepository $firewallStateRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly DdosPolicyRepository $ddosPolicyRepository,
         private readonly DdosStatusRepository $ddosStatusRepository,
         private readonly DdosProviderCredentialRepository $credentialRepository,
@@ -60,7 +60,7 @@ final class AdminSecurityController
         private readonly DdosCredentialManager $credentialManager,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -141,10 +141,10 @@ final class AdminSecurityController
             return $this->renderPage($admin, $request, $errors, Response::HTTP_BAD_REQUEST);
         }
 
-        $this->credentialManager->storeCredential($admin, $provider, $apiKey, $admin);
+        $credential = $this->credentialManager->storeCredential($admin, $provider, $apiKey, $admin);
         $this->entityManager->flush();
 
-        return new RedirectResponse('/admin/security?ddos=updated');
+        return new RedirectResponse('/admin/security?ddos=updated', Response::HTTP_FOUND, ['X-Ddos-Credential-Id' => (string) $credential->getId()]);
     }
 
     #[Route(path: '/ddos/apply', name: 'admin_security_ddos_apply', methods: ['POST'])]

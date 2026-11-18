@@ -69,6 +69,9 @@
                                 <td><code>{{ schedule.source }}:{{ schedule.id }}</code></td>
                                 <td>
                                     <span class="font-medium">{{ schedule.name }}</span>
+                                    {% if schedule.created_at or schedule.updated_at %}
+                                        <p class="mt-1 text-sm text-slate-500">Erstellt: {{ schedule.created_at ? schedule.created_at|date('Y-m-d H:i') : '—' }} · Geändert: {{ schedule.updated_at ? schedule.updated_at|date('Y-m-d H:i') : '—' }}</p>
+                                    {% endif %}
                                     {% if schedule.payload.description is defined %}
                                         <p class="mt-1 text-sm text-slate-500">{{ schedule.payload.description }}</p>
                                     {% endif %}

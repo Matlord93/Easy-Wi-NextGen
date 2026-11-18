@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DatabaseNamingPolicyInterface;
-use App\Module\Core\Application\DatabaseProvisioningService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Application\DatabaseTableServiceInterface as DatabaseTableService;
 use App\Module\Core\Domain\Entity\Agent;
@@ -20,10 +20,10 @@ use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\PanelCustomer\UI\Controller\Api\DatabaseApiController;
 use App\Module\PanelCustomer\UI\Controller\Customer\CustomerDatabaseController;
-use App\Repository\DatabaseNodeRepository;
-use App\Repository\DatabaseRepository;
-use App\Repository\JobRepository;
-use App\Repository\UserRepository;
+use App\Repository\DatabaseNodeRepositoryInterface;
+use App\Repository\DatabaseRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -39,29 +39,29 @@ final class DatabaseApiControllerStatusAndImportGuardTest extends TestCase
         $agent = new Agent('a',['key_id'=>'k','nonce'=>'n','ciphertext'=>'c'],'A');
         $node = new DatabaseNode('n','mariadb','127.0.0.1',3306,$agent);
 
-        $dbRepo = $this->createStub(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepositoryInterface::class);
         $dbRepo->method('findOneByCustomerAndName')->willReturn(null);
         $dbRepo->method('findOneByCustomerAndUsername')->willReturn(null);
 
-        $nodeRepo = $this->createStub(DatabaseNodeRepository::class);
+        $nodeRepo = $this->createStub(DatabaseNodeRepositoryInterface::class);
         $nodeRepo->method('find')->willReturn($node);
 
-        $userRepo = $this->createStub(UserRepository::class);
-        $jobRepo = $this->createStub(JobRepository::class);
+        $userRepo = $this->createStub(UserRepositoryInterface::class);
+        $jobRepo = $this->createStub(JobRepositoryInterface::class);
         $jobRepo->method('findActiveByTypeAndPayloadField')->willReturn(null);
 
         $em = $this->createStub(EntityManagerInterface::class);
         $em->method('persist');
         $em->method('flush');
 
-        $audit = $this->createStub(AuditLogger::class);
-        $prov = $this->createStub(DatabaseProvisioningService::class);
+        $audit = $this->createStub(AuditLoggerInterface::class);
+        $prov = $this->createStub(DatabaseProvisioningServiceInterface::class);
         $prov->method('buildCreateJobs')->willReturn([new Job('database.create',[])]);
         $naming = $this->createStub(DatabaseNamingPolicyInterface::class);
         $naming->method('validateDatabaseName')->willReturn([]);
         $naming->method('buildCustomerScopedName')->willReturn('u1_demo');
 
-        $env = $this->createStub(EncryptionService::class);
+        $env = $this->createStub(EncryptionServiceInterface::class);
         $respFactory = $this->createStub(ResponseEnvelopeFactoryInterface::class);
         $respFactory->method('success')->willReturn(new JsonResponse([],202));
         $respFactory->method('error')->willReturn(new JsonResponse([],400));
@@ -86,12 +86,12 @@ final class DatabaseApiControllerStatusAndImportGuardTest extends TestCase
         $node = new DatabaseNode('n','mariadb','127.0.0.1',3306,$agent);
         $db = new Database($customer,'mariadb','127.0.0.1',3306,'u1_demo','u1_demo',['key_id'=>'k','nonce'=>'n','ciphertext'=>'c'],$node);
 
-        $dbRepo = $this->createStub(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepositoryInterface::class);
         $dbRepo->method('find')->willReturn($db);
-        $nodeRepo = $this->createStub(DatabaseNodeRepository::class);
+        $nodeRepo = $this->createStub(DatabaseNodeRepositoryInterface::class);
         $em = $this->createStub(EntityManagerInterface::class);
-        $audit = $this->createStub(AuditLogger::class);
-        $prov = $this->createStub(DatabaseProvisioningService::class);
+        $audit = $this->createStub(AuditLoggerInterface::class);
+        $prov = $this->createStub(DatabaseProvisioningServiceInterface::class);
         $naming = $this->createStub(DatabaseNamingPolicyInterface::class);
         $twig = $this->createStub(Environment::class);
         $twig->method('render')->willReturnCallback(fn($tpl,$ctx)=>json_encode($ctx['errors']??[]));
@@ -100,7 +100,7 @@ final class DatabaseApiControllerStatusAndImportGuardTest extends TestCase
         $tables = $this->createStub(DatabaseTableService::class);
         $tables->method('importSql')->willThrowException(new \InvalidArgumentException('weird_unexpected_code'));
 
-        $c = new CustomerDatabaseController($dbRepo,$nodeRepo,$this->createStub(JobRepository::class),$em,$audit,$prov,$naming,$twig,$translator,$tables);
+        $c = new CustomerDatabaseController($dbRepo,$nodeRepo,$this->createStub(JobRepositoryInterface::class),$em,$audit,$prov,$naming,$twig,$translator,$tables);
         $r = new Request();
         $r->attributes->set('current_user',$customer);
         $resp = $c->importDatabase($r, 1);

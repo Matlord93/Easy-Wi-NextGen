@@ -14,6 +14,7 @@ use Doctrine\ORM\Mapping as ORM;
  */
 #[ORM\Entity(repositoryClass: MetricAggregateRepository::class)]
 #[ORM\Table(name: 'metric_aggregates')]
+#[ORM\Index(name: 'idx_metric_aggregates_retention', columns: ['bucket_start'])]
 #[ORM\UniqueConstraint(name: 'uniq_metric_aggregate_bucket', columns: ['agent_id', 'bucket', 'bucket_start'])]
 class MetricAggregate
 {

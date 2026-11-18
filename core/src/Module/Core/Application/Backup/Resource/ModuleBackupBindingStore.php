@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Backup\Resource;
 
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 
 /** Only the administrator CLI writes bindings; credentials remain encrypted at rest. */
 final class ModuleBackupBindingStore
 {
-    public function __construct(private readonly Connection $connection, private readonly SecretsCrypto $crypto)
+    public function __construct(private readonly Connection $connection, private readonly SecretsCryptoInterface $crypto)
     {
     }
 

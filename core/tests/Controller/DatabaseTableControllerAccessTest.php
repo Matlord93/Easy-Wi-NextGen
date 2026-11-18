@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DatabaseNamingPolicyInterface;
-use App\Module\Core\Application\DatabaseProvisioningService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
 use App\Module\Core\Application\DatabaseTableServiceInterface as DatabaseTableService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
@@ -14,9 +14,9 @@ use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\UI\Controller\Customer\CustomerDatabaseController;
-use App\Repository\DatabaseNodeRepository;
-use App\Repository\DatabaseRepository;
-use App\Repository\JobRepository;
+use App\Repository\DatabaseNodeRepositoryInterface;
+use App\Repository\DatabaseRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -31,12 +31,12 @@ final class DatabaseTableControllerAccessTest extends TestCase
         $other = new User('other@test', UserType::Customer);
         $db = $this->newDatabase($owner);
 
-        $dbRepo = $this->createStub(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepositoryInterface::class);
         $dbRepo->method('find')->willReturn($db);
-        $nodeRepo = $this->createStub(DatabaseNodeRepository::class);
+        $nodeRepo = $this->createStub(DatabaseNodeRepositoryInterface::class);
         $em = $this->createStub(EntityManagerInterface::class);
-        $audit = $this->createStub(AuditLogger::class);
-        $prov = $this->createStub(DatabaseProvisioningService::class);
+        $audit = $this->createStub(AuditLoggerInterface::class);
+        $prov = $this->createStub(DatabaseProvisioningServiceInterface::class);
         $naming = $this->createStub(DatabaseNamingPolicyInterface::class);
         $twig = $this->createStub(Environment::class);
         $twig->method('render')->willReturn('ok');
@@ -44,7 +44,7 @@ final class DatabaseTableControllerAccessTest extends TestCase
         $translator->method('trans')->willReturn('err');
         $tables = $this->createStub(DatabaseTableService::class);
 
-        $c = new CustomerDatabaseController($dbRepo, $nodeRepo, $this->createStub(JobRepository::class), $em, $audit, $prov, $naming, $twig, $translator, $tables);
+        $c = new CustomerDatabaseController($dbRepo, $nodeRepo, $this->createStub(JobRepositoryInterface::class), $em, $audit, $prov, $naming, $twig, $translator, $tables);
 
         $r = new Request();
         $r->attributes->set('current_user', $other);
@@ -93,15 +93,15 @@ $r2 = new Request();
     {
         $owner = new User('owner@test', UserType::Customer);
         $database = $this->newDatabase($owner);
-        $repository = $this->createStub(DatabaseRepository::class);
+        $repository = $this->createStub(DatabaseRepositoryInterface::class);
         $repository->method('find')->willReturn($database);
         $tables = $this->createStub(DatabaseTableService::class);
         $line = "INSERT INTO t VALUES ('</script><img src=x onerror=alert(1)>', '\"quoted\"');";
         $tables->method('exportDatabaseSql')->willReturn([$line]);
         $controller = new CustomerDatabaseController(
-            $repository, $this->createStub(DatabaseNodeRepository::class), $this->createStub(JobRepository::class),
-            $this->createStub(EntityManagerInterface::class), $this->createStub(AuditLogger::class),
-            $this->createStub(DatabaseProvisioningService::class), $this->createStub(DatabaseNamingPolicyInterface::class),
+            $repository, $this->createStub(DatabaseNodeRepositoryInterface::class), $this->createStub(JobRepositoryInterface::class),
+            $this->createStub(EntityManagerInterface::class), $this->createStub(AuditLoggerInterface::class),
+            $this->createStub(DatabaseProvisioningServiceInterface::class), $this->createStub(DatabaseNamingPolicyInterface::class),
             $this->createStub(Environment::class), $this->createStub(TranslatorInterface::class), $tables,
         );
         $request = new Request();

@@ -10,7 +10,8 @@ use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\Billing\AccountingExportService;
 use App\Module\Core\Application\Billing\BillingAmount;
 use App\Module\Core\Application\Billing\BillingSettings;
@@ -32,7 +33,7 @@ use App\Repository\CreditNoteRepository;
 use App\Repository\InvoiceArchiveRepository;
 use App\Repository\InvoiceRepository;
 use App\Repository\PaymentRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
@@ -59,12 +60,12 @@ final readonly class AdminBillingController
         private InvoiceArchiveRepository $invoiceArchiveRepository,
         private InvoiceArchiveManager $invoiceArchiveManager,
         private AccountingExportService $accountingExportService,
-        private UserRepository $userRepository,
+        private UserRepositoryInterface $userRepository,
         private EntityManagerInterface $entityManager,
-        private AuditLogger $auditLogger,
+        private AuditLoggerInterface $auditLogger,
         private DunningWorkflow $dunningWorkflow,
         private InvoiceStatusUpdater $invoiceStatusUpdater,
-        private AppSettingsService $settingsService,
+        private AppSettingsServiceInterface $settingsService,
         private BillingSettings $billingSettings,
         private InvoiceLayoutRenderer $layoutRenderer,
         private InvoiceDocumentService $documents,
@@ -174,11 +175,13 @@ final readonly class AdminBillingController
         if (InvoiceStatus::Cancelled === $invoice->getStatus()) {
             return $this->detail($request, $invoice, [$this->translator->trans('billing.cancelled_invoice', [], 'billing')], Response::HTTP_CONFLICT);
         }
-        $this->entityManager->wrapInTransaction(function () use ($invoice, $actor): void {
+        $invoice = $this->entityManager->wrapInTransaction(function () use ($invoice, $actor): Invoice {
             $this->entityManager->refresh($invoice, LockMode::PESSIMISTIC_WRITE);
             if ($invoice->getOutstandingCents() > 0) {
-                $this->payments->record($invoice, 'manual', 'MANUAL-'.bin2hex(random_bytes(12)), $invoice->getOutstandingCents(), $invoice->getCurrency(), PaymentStatus::Succeeded, $actor, new \DateTimeImmutable());
+                $payment = $this->payments->record($invoice, 'manual', 'MANUAL-'.bin2hex(random_bytes(12)), $invoice->getOutstandingCents(), $invoice->getCurrency(), PaymentStatus::Succeeded, $actor, new \DateTimeImmutable());
+                return $payment->getInvoice();
             }
+            return $invoice;
         });
 
         return $this->redirect($invoice);
@@ -262,12 +265,12 @@ final readonly class AdminBillingController
             return $this->detail($request, $invoice, [$this->translator->trans('billing.already_archived', [], 'billing')], Response::HTTP_CONFLICT);
         }
         try {
-            $this->invoiceArchiveManager->archiveInvoiceContent($invoice, $this->documents->generate($invoice, $request), (preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()) ?? 'invoice').'.pdf', 'application/pdf', $actor);
+            $archive = $this->invoiceArchiveManager->archiveInvoiceContent($invoice, $this->documents->generate($invoice, $request), (preg_replace('/[^a-zA-Z0-9._-]/', '_', $invoice->getNumber()) ?? 'invoice').'.pdf', 'application/pdf', $actor);
         } catch (\InvalidArgumentException $exception) {
             return $this->detail($request, $invoice, [$this->message($exception)], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        return $this->redirect($invoice);
+        return $this->redirect($archive->getInvoice());
     }
 
     #[Route('/invoices/{id<\d+>}/archive', name: 'admin_billing_invoice_archive', methods: ['POST'])]
@@ -279,9 +282,9 @@ final readonly class AdminBillingController
         if (null !== $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]) || !$file instanceof UploadedFile || !$file->isValid() || (int) $file->getSize() > InvoiceArchiveManager::MAX_FILE_SIZE || 'application/pdf' !== $file->getMimeType() || '%PDF-' !== file_get_contents($file->getPathname(), false, null, 0, 5)) {
             return $this->detail($request, $invoice, [$this->translator->trans('billing.invalid_pdf', [], 'billing')], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
-        $this->invoiceArchiveManager->archiveInvoice($invoice, $file, $actor);
+        $archive = $this->invoiceArchiveManager->archiveInvoice($invoice, $file, $actor);
 
-        return $this->redirect($invoice);
+        return $this->redirect($archive->getInvoice());
     }
 
     #[Route('/invoices/{id<\d+>}/archive/download', name: 'admin_billing_invoice_archive_download', methods: ['GET'])]

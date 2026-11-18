@@ -10,8 +10,8 @@ use App\Module\Core\Application\AgentUpdateQueueService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\JobStatus;
-use App\Repository\AgentRepository;
-use App\Repository\JobRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -80,8 +80,8 @@ final class AgentUpdateQueueServiceTest extends TestCase
     /** @param Job[] $jobs @param array<string,array<string,mixed>> $assets */
     private function createService(array $jobs, array $assets): AgentUpdateQueueService
     {
-        $agentRepository = $this->createStub(AgentRepository::class);
-        $jobRepository = $this->createStub(JobRepository::class);
+        $agentRepository = $this->createStub(AgentRepositoryInterface::class);
+        $jobRepository = $this->createStub(JobRepositoryInterface::class);
         $releaseChecker = $this->createStub(AgentReleaseCheckerInterface::class);
         $entityManager = $this->createStub(EntityManagerInterface::class);
 

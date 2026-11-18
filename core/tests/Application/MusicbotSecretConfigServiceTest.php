@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Application;
 
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Musicbot\Application\MusicbotSecretConfigService;
 use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
@@ -12,7 +13,7 @@ use PHPUnit\Framework\TestCase;
 
 final class MusicbotSecretConfigServiceTest extends TestCase
 {
-    private SecretsCrypto $crypto;
+    private SecretsCryptoInterface $crypto;
     private MusicbotSecretConfigService $service;
 
     protected function setUp(): void

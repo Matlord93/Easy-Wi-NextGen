@@ -8,8 +8,8 @@ use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Application\FileServiceClient;
@@ -19,8 +19,8 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
-use App\Repository\InstanceRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -43,11 +43,11 @@ final class CustomerInstanceFileApiController
     private const int LIST_DEFAULT_LIMIT = 1000;
     private const int LIST_MAX_LIMIT = 5000;
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly FileServiceClient $fileService,
-        private readonly AuditLogger $auditLogger,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly LoggerInterface $logger,
         #[Autowire(service: 'limiter.instance_files_uploads')]

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSftpCredential;
@@ -18,9 +18,9 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\PanelCustomer\UI\Controller\Api\InstanceSftpCredentialApiController;
-use App\Repository\InstanceRepository;
-use App\Repository\InstanceSftpCredentialRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\InstanceSftpCredentialRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -32,14 +32,14 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
     public function testShowForbiddenReturnsJsonWithRequestId(): void
     {
         $controller = new InstanceSftpCredentialApiController(
-            $this->createStub(InstanceRepository::class),
-            $this->createStub(InstanceSftpCredentialRepository::class),
-            $this->createStub(JobRepository::class),
+            $this->createStub(InstanceRepositoryInterface::class),
+            $this->createStub(InstanceSftpCredentialRepositoryInterface::class),
+            $this->createStub(JobRepositoryInterface::class),
             $this->createStub(EntityManagerInterface::class),
-            $this->createStub(EncryptionService::class),
+            $this->createStub(EncryptionServiceInterface::class),
             $this->createStub(AgentGameServerClientInterface::class),
-            $this->createStub(AppSettingsService::class),
-            $this->createStub(AuditLogger::class),
+            $this->createStub(AppSettingsServiceInterface::class),
+            $this->createStub(AuditLoggerInterface::class),
             new NullLogger(),
             $this->createStub(TranslatorInterface::class),
         );
@@ -81,13 +81,13 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         $instance = new Instance($customer, $template, $agent, 1, 1, 1, null, InstanceStatus::Stopped, InstanceUpdatePolicy::Manual);
         $this->setEntityId($instance, 42);
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository = $this->createMock(InstanceRepositoryInterface::class);
         $instanceRepository->expects(self::once())->method('find')->with(42)->willReturn($instance);
 
-        $credentialRepository = $this->createStub(InstanceSftpCredentialRepository::class);
+        $credentialRepository = $this->createStub(InstanceSftpCredentialRepositoryInterface::class);
         $credentialRepository->method('findOneByInstance')->willReturn(null);
 
-        $jobRepository = $this->createStub(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepositoryInterface::class);
         $jobRepository->method('findLatestByTypeAndInstanceId')->willReturn(null);
 
         $persistedJobs = [];
@@ -99,18 +99,18 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         });
         $entityManager->expects($this->once())->method('flush');
 
-        $encryption = $this->createMock(EncryptionService::class);
+        $encryption = $this->createMock(EncryptionServiceInterface::class);
         $encryption->expects($this->exactly(2))->method('encrypt')->willReturn([
             'key_id' => 'k',
             'nonce' => 'n',
             'ciphertext' => 'c',
         ]);
 
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('getSftpHost')->willReturn('sftp.example.test');
         $settings->method('getSftpPort')->willReturn(22);
 
-        $auditLogger = $this->createMock(AuditLogger::class);
+        $auditLogger = $this->createMock(AuditLoggerInterface::class);
         $auditLogger->expects($this->once())->method('log');
 
         $agentClient = $this->createStub(AgentGameServerClientInterface::class);
@@ -189,32 +189,32 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         $credential->setHost('sftp.example.test');
         $credential->setPort(2222);
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository = $this->createMock(InstanceRepositoryInterface::class);
         $instanceRepository->expects(self::once())->method('find')->with(123)->willReturn($instance);
 
-        $credentialRepository = $this->createMock(InstanceSftpCredentialRepository::class);
+        $credentialRepository = $this->createMock(InstanceSftpCredentialRepositoryInterface::class);
         $credentialRepository->expects(self::once())->method('findOneByInstance')->with($instance)->willReturn($credential);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects($this->once())->method('persist')->with($credential);
         $entityManager->expects($this->once())->method('flush');
 
-        $encryption = $this->createMock(EncryptionService::class);
+        $encryption = $this->createMock(EncryptionServiceInterface::class);
         $encryption->expects($this->once())->method('decrypt')->with($credential->getEncryptedPassword())->willReturn('plain-secret');
 
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('getSftpHost')->willReturn('fallback.example.test');
         $settings->method('getSftpPort')->willReturn(22);
 
         $controller = new InstanceSftpCredentialApiController(
             $instanceRepository,
             $credentialRepository,
-            $this->createStub(JobRepository::class),
+            $this->createStub(JobRepositoryInterface::class),
             $entityManager,
             $encryption,
             $this->createStub(AgentGameServerClientInterface::class),
             $settings,
-            $this->createStub(AuditLogger::class),
+            $this->createStub(AuditLoggerInterface::class),
             new NullLogger(),
             $this->createStub(TranslatorInterface::class),
         );

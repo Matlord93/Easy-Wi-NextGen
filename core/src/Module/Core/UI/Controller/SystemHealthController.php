@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace App\Module\Core\UI\Controller;
 
 use App\Infrastructure\Config\DbConfigProvider;
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Application\UpdateJobService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Setup\Application\InstallerService;
-use App\Repository\AgentRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\InstanceRepositoryInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
@@ -25,9 +25,9 @@ final class SystemHealthController
     public function __construct(
         private readonly InstallerService $installerService,
         private readonly DbConfigProvider $configProvider,
-        private readonly AppSettingsService $settingsService,
-        private readonly AgentRepository $agentRepository,
-        private readonly InstanceRepository $instanceRepository,
+        private readonly AppSettingsServiceInterface $settingsService,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly FileServiceClient $fileServiceClient,
         private readonly HttpClientInterface $httpClient,
         private readonly LoggerInterface $logger,

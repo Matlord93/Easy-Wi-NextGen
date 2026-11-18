@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DatabaseNamingPolicyInterface;
-use App\Module\Core\Application\DatabaseProvisioningService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
@@ -20,10 +20,10 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\PanelCustomer\UI\Controller\Api\DatabaseApiController;
-use App\Repository\DatabaseNodeRepository;
-use App\Repository\DatabaseRepository;
-use App\Repository\JobRepository;
-use App\Repository\UserRepository;
+use App\Repository\DatabaseNodeRepositoryInterface;
+use App\Repository\DatabaseRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -101,19 +101,19 @@ final class DatabaseApiControllerJobsRouteTest extends TestCase
         }
         $jobs[] = new Job('database.delete', ['database_id' => '999', 'password' => 'nope']);
 
-        $dbRepo = $this->createStub(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepositoryInterface::class);
         $dbRepo->method('find')->willReturn($database);
 
-        $jobRepo = $this->createStub(JobRepository::class);
+        $jobRepo = $this->createStub(JobRepositoryInterface::class);
         $jobRepo->method('findBy')->willReturn($jobs);
 
-        $nodeRepo = $this->createStub(DatabaseNodeRepository::class);
-        $userRepo = $this->createStub(UserRepository::class);
+        $nodeRepo = $this->createStub(DatabaseNodeRepositoryInterface::class);
+        $userRepo = $this->createStub(UserRepositoryInterface::class);
         $em = $this->createStub(EntityManagerInterface::class);
-        $audit = $this->createStub(AuditLogger::class);
-        $prov = $this->createStub(DatabaseProvisioningService::class);
+        $audit = $this->createStub(AuditLoggerInterface::class);
+        $prov = $this->createStub(DatabaseProvisioningServiceInterface::class);
         $naming = $this->createStub(DatabaseNamingPolicyInterface::class);
-        $encryption = $this->createStub(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionServiceInterface::class);
 
         $respFactory = $this->createStub(ResponseEnvelopeFactoryInterface::class);
         $respFactory->method('error')->willReturnCallback(static fn (Request $r, string $m, string $code, int $status) => new JsonResponse(['error_code' => $code], $status));

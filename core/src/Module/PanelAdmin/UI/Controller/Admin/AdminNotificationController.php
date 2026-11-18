@@ -6,7 +6,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\Notification;
 use App\Module\Core\Domain\Entity\User;
@@ -25,7 +25,7 @@ final class AdminNotificationController
     public function __construct(
         private readonly NotificationRepository $notificationRepository,
         private readonly NotificationService $notificationService,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

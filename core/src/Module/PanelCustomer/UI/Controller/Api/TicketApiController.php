@@ -8,7 +8,7 @@ use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\Ticket;
 use App\Module\Core\Domain\Entity\TicketMessage;
@@ -19,7 +19,7 @@ use App\Module\Core\Domain\Enum\TicketStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\TicketMessageRepository;
 use App\Repository\TicketRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -31,9 +31,9 @@ final class TicketApiController
     public function __construct(
         private readonly TicketRepository $ticketRepository,
         private readonly TicketMessageRepository $ticketMessageRepository,
-        private readonly UserRepository $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly NotificationService $notificationService,
         private readonly TranslatorInterface $translator,
     ) {

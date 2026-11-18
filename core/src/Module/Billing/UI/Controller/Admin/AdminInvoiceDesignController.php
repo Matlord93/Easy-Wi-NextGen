@@ -6,7 +6,7 @@ namespace App\Module\Billing\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\Billing\BillingSettings;
 use App\Module\Core\Application\Billing\InvoiceDesign;
 use App\Module\Core\Application\Billing\InvoiceItems;
@@ -34,7 +34,7 @@ use Twig\Environment;
 #[Route('/admin/billing/design')]
 final readonly class AdminInvoiceDesignController
 {
-    public function __construct(private InvoiceDesign $design, private InvoiceLayoutRenderer $renderer, private BillingSettings $settings, private AuditLogger $audit, private EntityManagerInterface $em, private Environment $twig, private CsrfTokenManagerInterface $csrf, private TranslatorInterface $translator)
+    public function __construct(private InvoiceDesign $design, private InvoiceLayoutRenderer $renderer, private BillingSettings $settings, private AuditLoggerInterface $audit, private EntityManagerInterface $em, private Environment $twig, private CsrfTokenManagerInterface $csrf, private TranslatorInterface $translator)
     {
     }
 

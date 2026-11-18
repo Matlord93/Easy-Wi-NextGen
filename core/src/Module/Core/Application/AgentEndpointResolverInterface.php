@@ -13,5 +13,4 @@ interface AgentEndpointResolverInterface
 
     public function resolveForAgent(Agent $agent): AgentEndpoint;
 
-    public function isLoopback(Agent $agent): bool;
 }

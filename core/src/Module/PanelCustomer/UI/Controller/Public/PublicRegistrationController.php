@@ -6,8 +6,8 @@ namespace App\Module\PanelCustomer\UI\Controller\Public;
 
 use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\ThemeResolver;
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\LocalAntiAbuseService;
 use App\Module\Core\Application\MailService;
 use App\Module\Core\Application\MathCaptchaService;
@@ -15,7 +15,7 @@ use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use App\Security\SessionTokenGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -34,10 +34,10 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class PublicRegistrationController
 {
     public function __construct(
-        private readonly UserRepository $users,
+        private readonly UserRepositoryInterface $users,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly SessionTokenGenerator $tokenGenerator,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly SiteResolver $siteResolver,
         private readonly CmsMaintenanceService $maintenanceService,
@@ -45,7 +45,7 @@ final class PublicRegistrationController
         private readonly MailService $mailService,
         private readonly LocalAntiAbuseService $antiAbuse,
         private readonly MathCaptchaService $captcha,
-        private readonly AppSettingsService $settings,
+        private readonly AppSettingsServiceInterface $settings,
         private readonly UriSigner $uriSigner,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         #[Autowire(service: 'limiter.public_registration')]

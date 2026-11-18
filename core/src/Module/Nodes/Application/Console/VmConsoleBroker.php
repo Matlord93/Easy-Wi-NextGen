@@ -7,8 +7,8 @@ namespace App\Module\Nodes\Application\Console;
 use App\Repository\QueryParameter;
 use App\Module\Core\Application\AgentCredentialsResolver;
 use App\Module\Core\Application\AgentEndpointResolverInterface;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Nodes\Application\Kvm\KvmPanelService;
@@ -33,11 +33,11 @@ final readonly class VmConsoleBroker
         private ProxmoxManager $proxmox,
         private ProxmoxApiClient $api,
         private KvmPanelService $kvm,
-        private SecretsCrypto $crypto,
+        private SecretsCryptoInterface $crypto,
         private AgentEndpointResolverInterface $endpoints,
         private AgentCredentialsResolver $credentials,
         private UserSessionRepository $sessions,
-        private AuditLogger $audit,
+        private AuditLoggerInterface $audit,
         #[Autowire('%env(default::VM_CONSOLE_GATEWAY_SECRET)%')] private ?string $gatewaySecret = null,
     ) {
     }

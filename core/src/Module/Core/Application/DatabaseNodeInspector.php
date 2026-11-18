@@ -9,7 +9,7 @@ use App\Module\Core\Domain\Entity\Database;
 #[\Symfony\Component\DependencyInjection\Attribute\AsAlias(id: DatabaseNodeInspectorInterface::class)]
 final class DatabaseNodeInspector implements DatabaseNodeInspectorInterface
 {
-    public function __construct(private readonly EncryptionService $encryptionService)
+    public function __construct(private readonly EncryptionServiceInterface $encryptionService)
     {
     }
 

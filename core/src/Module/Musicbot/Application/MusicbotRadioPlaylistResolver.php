@@ -13,7 +13,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * Resolves playlist file formats (M3U, PLS, XSPF) to direct stream URLs.
  * Follows HTTP redirects and selects the first reachable stream URL.
  */
-class MusicbotRadioPlaylistResolver
+final class MusicbotRadioPlaylistResolver implements MusicbotRadioPlaylistResolverInterface
 {
     private const int MAX_REDIRECTS = 5;
     private const int CONNECT_TIMEOUT = 8;
@@ -23,7 +23,7 @@ class MusicbotRadioPlaylistResolver
     private readonly HttpClientInterface $publicClient;
 
     public function __construct(
-        private readonly MusicbotWebradioUrlValidator $urlValidator,
+        private readonly MusicbotWebradioUrlValidatorInterface $urlValidator,
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->publicClient = new NoPrivateNetworkHttpClient($httpClient ?? HttpClient::create(), MusicbotWebradioUrlValidator::BLOCKED_NETWORKS);
@@ -33,6 +33,7 @@ class MusicbotRadioPlaylistResolver
      * Given a URL (direct stream or playlist file), return a resolved direct stream URL.
      * Throws \RuntimeException on failure.
      */
+    #[\Override]
     public function resolve(string $url): string
     {
         $url = trim($url);
@@ -76,6 +77,7 @@ class MusicbotRadioPlaylistResolver
      * @return array{url: string, content_type: string|null, bitrate: int|null, stream_name: string|null,
      * genre: string|null}
      */
+    #[\Override]
     public function resolveWithMetadata(string $url): array
     {
         $resolved = $this->resolve($url);

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\InstanceScheduleAction;
@@ -31,7 +31,7 @@ final class InstanceUpdateQueueCommand extends Command
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly DiskEnforcementService $diskEnforcementService,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
     ) {
         parent::__construct();

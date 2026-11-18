@@ -6,12 +6,12 @@ namespace App\Module\Ports\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Form\PortRangeFormType;
 use App\Module\Ports\Domain\Entity\PortRange;
 use App\Module\Ports\Infrastructure\Repository\PortRangeRepository;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -23,10 +23,10 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminNodePortRangeController
 {
     public function __construct(
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly PortRangeRepository $portRangeRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly PortRangeFormType $formType,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

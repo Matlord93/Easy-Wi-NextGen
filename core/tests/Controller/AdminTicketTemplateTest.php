@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\TicketTemplate;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\TicketCategory;
@@ -72,7 +72,7 @@ final class AdminTicketTemplateTest extends TestCase
         $controller = (new \ReflectionClass(AdminTicketController::class))->newInstanceWithoutConstructor();
         $csrf = $this->createStub(CsrfTokenManagerInterface::class);
         $csrf->method('isTokenValid')->willReturn(true);
-        foreach (['entityManager' => $manager, 'auditLogger' => $this->createStub(AuditLogger::class), 'csrfTokenManager' => $csrf] as $property => $dependency) {
+        foreach (['entityManager' => $manager, 'auditLogger' => $this->createStub(AuditLoggerInterface::class), 'csrfTokenManager' => $csrf] as $property => $dependency) {
             (new \ReflectionProperty($controller, $property))->setValue($controller, $dependency);
         }
         return $controller;

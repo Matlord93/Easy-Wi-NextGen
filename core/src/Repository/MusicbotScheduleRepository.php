@@ -13,7 +13,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<MusicbotSchedule>
  */
-class MusicbotScheduleRepository extends ServiceEntityRepository
+final class MusicbotScheduleRepository extends ServiceEntityRepository implements MusicbotScheduleRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -21,6 +21,7 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotSchedule[] */
+    #[\Override]
     public function findByInstance(MusicbotInstance $instance): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('s')
@@ -31,6 +32,7 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotSchedule[] */
+    #[\Override]
     public function findByCustomerAndInstance(User $customer, MusicbotInstance $instance): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('s')
@@ -43,6 +45,7 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotSchedule[] */
+    #[\Override]
     public function findDue(\DateTimeImmutable $now): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('s')
@@ -58,6 +61,7 @@ class MusicbotScheduleRepository extends ServiceEntityRepository
      * @param array{customer_id?: int, instance_id?: int} $filters
      * @return MusicbotSchedule[]
      */
+    #[\Override]
     public function findForAdmin(array $filters = [], int $limit = 200): array
     {
         $qb = $this->createQueryBuilder('s')

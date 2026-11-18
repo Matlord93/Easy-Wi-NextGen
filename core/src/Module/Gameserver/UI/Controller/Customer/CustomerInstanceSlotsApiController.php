@@ -6,12 +6,12 @@ namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\InstanceSlotService;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -27,9 +27,9 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class CustomerInstanceSlotsApiController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly InstanceSlotService $instanceSlotService,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
     ) {

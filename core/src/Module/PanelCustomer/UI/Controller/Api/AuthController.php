@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\UserSession;
 use App\Module\Setup\Application\InstallerService;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use App\Security\IdentifierHasher;
 use App\Security\LoginCredentialVerifier;
 use App\Security\SessionTokenGenerator;
@@ -26,15 +26,15 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AuthController
 {
     public function __construct(
-        private readonly UserRepository $users,
+        private readonly UserRepositoryInterface $users,
         private readonly LoginCredentialVerifier $credentialVerifier,
         private readonly SessionTokenGenerator $tokenGenerator,
-        private readonly AuditLogger $auditLogger,
-        private readonly AppSettingsService $settingsService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly AppSettingsServiceInterface $settingsService,
         private readonly EntityManagerInterface $entityManager,
         private readonly InstallerService $installerService,
         private readonly TwoFactorService $twoFactorService,
-        private readonly SecretsCrypto $secretsCrypto,
+        private readonly SecretsCryptoInterface $secretsCrypto,
         private readonly TwoFactorPolicy $twoFactorPolicy,
         private readonly IdentifierHasher $identifierHasher,
         #[Autowire(service: 'limiter.public_login_ip')]

@@ -8,13 +8,13 @@ use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\AgentReleaseChecker;
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\CookieConsentService;
 use App\Module\Core\Application\PortalLocale;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Setup\Application\WebinterfaceUpdateService;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use App\Repository\NotificationRepository;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -27,9 +27,9 @@ final class PortalContextTwigExtension extends AbstractExtension
         private readonly RequestStack $requestStack,
         private readonly NotificationRepository $notificationRepository,
         private readonly WebinterfaceUpdateService $webinterfaceUpdateService,
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly AgentReleaseChecker $agentReleaseChecker,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly TranslatorInterface $translator,
         private readonly CookieConsentService $cookieConsentService,
         private readonly ThemeResolver $themeResolver,

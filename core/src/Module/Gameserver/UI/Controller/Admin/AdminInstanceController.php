@@ -12,11 +12,11 @@ use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Domain\Entity\InstanceMetricSample;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\DiskUsageFormatter;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSchedule;
@@ -35,20 +35,20 @@ use App\Module\Gameserver\Application\InstanceInstallService;
 use App\Module\Gameserver\Application\InstanceQueryService;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
-use App\Module\Ports\Application\PortLeaseManager;
+use App\Module\Ports\Application\PortLeaseManagerInterface;
 use App\Module\Ports\Domain\Entity\PortAllocation;
 use App\Module\Ports\Domain\Entity\PortBlock;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
-use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
-use App\Repository\AgentRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
+use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
+use App\Repository\AgentRepositoryInterface;
 use App\Repository\BackupScheduleRepository;
 use App\Repository\InstanceMetricSampleRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\InstanceScheduleRepository;
-use App\Repository\InstanceSftpCredentialRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceSftpCredentialRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use App\Repository\TemplateRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -67,28 +67,28 @@ final class AdminInstanceController
     private const DEFAULT_PORT_POOL_NAME = 'Gameserver Standard';
 
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly BackupScheduleRepository $backupScheduleRepository,
-        private readonly JobRepository $jobRepository,
-        private readonly UserRepository $userRepository,
+        private readonly JobRepositoryInterface $jobRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly TemplateRepository $templateRepository,
-        private readonly AgentRepository $agentRepository,
-        private readonly PortBlockRepository $portBlockRepository,
-        private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
+        private readonly InstanceSftpCredentialRepositoryInterface $instanceSftpCredentialRepository,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly EncryptionService $encryptionService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly DiskEnforcementService $diskEnforcementService,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly InstanceInstallService $instanceInstallService,
         private readonly InstanceQueryService $instanceQueryService,
         private readonly AgentGameServerClientInterface $agentGameServerClient,
-        private readonly PortPoolRepository $portPoolRepository,
-        private readonly PortLeaseManager $portLeaseManager,
+        private readonly PortPoolRepositoryInterface $portPoolRepository,
+        private readonly PortLeaseManagerInterface $portLeaseManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
         ?GameServerInstallPathManager $installPathManager = null,

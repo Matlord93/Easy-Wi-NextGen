@@ -17,6 +17,7 @@ use App\Module\Core\Application\Backup\RetentionPolicy;
 use App\Module\Core\Application\Backup\RetentionPruner;
 use App\Module\Core\Application\Backup\Target\WebDavBackupTargetWriter;
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Schema\Schema;
@@ -31,7 +32,7 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 final class RemoteBackupRetentionTest extends TestCase
 {
     private Connection $connection;
-    private SecretsCrypto $crypto;
+    private SecretsCryptoInterface $crypto;
     private DbalBackupPlanStore $plans;
     private BackupArchiveInventory $inventory;
     private BackupPlan $plan;

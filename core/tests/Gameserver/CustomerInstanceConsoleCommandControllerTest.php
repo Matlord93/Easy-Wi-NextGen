@@ -17,9 +17,9 @@ use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
 use App\Module\Gameserver\Application\Console\ConsoleCommandLimiterInterface;
 use App\Module\Gameserver\Application\Console\ConsoleCommandResult;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceConsoleCommandController;
-use App\Repository\AuditLogRepository;
-use App\Repository\InstanceRepository;
-use App\Repository\JobRepository;
+use App\Repository\AuditLogRepositoryInterface;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -86,14 +86,14 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getId')->willReturn(99);
 
-        $repo = $this->createStub(InstanceRepository::class);
+        $repo = $this->createStub(InstanceRepositoryInterface::class);
         $repo->method('find')->willReturnCallback(static fn ($id) => $id === 99 ? $instance : null);
 
         $grpc ??= $this->createStub(ConsoleAgentGrpcClientInterface::class);
-        $jobRepository = $this->createStub(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepositoryInterface::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn($activeJob);
 
-        $auditRepo = $this->createStub(AuditLogRepository::class);
+        $auditRepo = $this->createStub(AuditLogRepositoryInterface::class);
         $auditRepo->method('findLatestHash')->willReturn(null);
         $audit = new AuditLogger($auditRepo, new AuditLogHasher(), $this->createStub(EntityManagerInterface::class), new JobPayloadMasker());
 

@@ -9,8 +9,8 @@ use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Application\MailLimitEnforcer;
 use App\Module\Core\Application\MailPasswordHasher;
@@ -21,12 +21,12 @@ use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\DomainRepository;
+use App\Repository\DomainRepositoryInterface;
 use App\Repository\MailAliasRepositoryInterface;
 use App\Repository\MailPolicyRepositoryInterface;
-use App\Repository\MailboxRepository;
-use App\Repository\MailDomainRepository;
-use App\Repository\JobRepository;
+use App\Repository\MailboxRepositoryInterface;
+use App\Repository\MailDomainRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -55,15 +55,15 @@ final class CustomerMailController
     ];
 
     public function __construct(
-        private readonly MailboxRepository $mailboxRepository,
+        private readonly MailboxRepositoryInterface $mailboxRepository,
         private readonly MailAliasRepositoryInterface $mailAliasRepository,
-        private readonly DomainRepository $domainRepository,
-        private readonly MailDomainRepository $mailDomainRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
+        private readonly MailDomainRepositoryInterface $mailDomainRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly MailPolicyRepositoryInterface $mailPolicyRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly EncryptionService $encryptionService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly MailPasswordHasher $mailPasswordHasher,
         private readonly MailLimitEnforcer $mailLimitEnforcer,
         private readonly MailAliasLoopGuard $mailAliasLoopGuard,

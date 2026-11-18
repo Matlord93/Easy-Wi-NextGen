@@ -19,8 +19,9 @@ final class DiskUsageFormatter
         return sprintf('%.1f %s', $value, $units[$index] ?? 'B');
     }
 
-    public function formatPercent(float $value): string
+    public function formatPercent(float $value, bool $trimZeros = false): string
     {
-        return sprintf('%.1f%%', $value);
+        $number = sprintf('%.1f', $value);
+        return ($trimZeros ? rtrim(rtrim($number, '0'), '.') : $number) . '%';
     }
 }

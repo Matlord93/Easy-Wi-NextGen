@@ -12,7 +12,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<PortPool>
  */
-class PortPoolRepository extends ServiceEntityRepository
+final class PortPoolRepository extends ServiceEntityRepository implements PortPoolRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -22,6 +22,7 @@ class PortPoolRepository extends ServiceEntityRepository
     /**
      * @return PortPool[]
      */
+    #[\Override]
     public function findEnabledByNode(Agent $node): array
     {
         return $this->findBy(['node' => $node, 'enabled' => true], ['tag' => 'ASC']);

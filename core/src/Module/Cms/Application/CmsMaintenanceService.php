@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Cms\Application;
 
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Domain\Entity\Site;
 use Symfony\Component\HttpFoundation\IpUtils;
@@ -12,7 +13,7 @@ use Symfony\Component\HttpFoundation\Request;
 
 final class CmsMaintenanceService
 {
-    public function __construct(private readonly AppSettingsService $settingsService)
+    public function __construct(private readonly AppSettingsServiceInterface $settingsService)
     {
     }
 

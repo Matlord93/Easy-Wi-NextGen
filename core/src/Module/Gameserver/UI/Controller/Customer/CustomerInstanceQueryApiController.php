@@ -13,8 +13,8 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\InstanceQueryService;
 use App\Module\Gameserver\Application\Query\InstanceQuerySpec;
 use App\Module\Gameserver\Application\Query\InvalidInstanceQueryConfiguration;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
-use App\Repository\InstanceRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
+use App\Repository\InstanceRepositoryInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -29,8 +29,8 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class CustomerInstanceQueryApiController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
-        private readonly PortBlockRepository $portBlockRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
         private readonly InstanceQueryService $instanceQueryService,
         private readonly TranslatorInterface $translator,
     ) {

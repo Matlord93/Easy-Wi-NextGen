@@ -7,12 +7,12 @@ namespace App\Module\Ports\Application;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Domain\Entity\PortPool;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
 
-class PortLeaseManager
+final class PortLeaseManager implements PortLeaseManagerInterface
 {
     public function __construct(
-        private readonly PortBlockRepository $portBlockRepository,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
         private readonly NodePortAvailability $availability,
         private readonly \Doctrine\ORM\EntityManagerInterface $em,
     ) {
@@ -21,6 +21,7 @@ class PortLeaseManager
     /**
      * @return PortBlock[]
      */
+    #[\Override]
     public function allocateBlocksInRange(PortPool $pool, User $customer, int $startPort, int $endPort, int $size): array
     {
         return $this->reserve($pool, fn (): array => $this->buildBlocksInRange($pool, $customer, $startPort, $endPort, $size));
@@ -67,6 +68,7 @@ class PortLeaseManager
         return $blocks;
     }
 
+    #[\Override]
     public function allocateBlock(PortPool $pool, User $customer, int $size): PortBlock
     {
         return $this->reserve($pool, fn (): array => [$this->buildBlock($pool, $customer, $size)])[0];
@@ -184,6 +186,7 @@ class PortLeaseManager
         }
     }
 
+    #[\Override]
     public function assertAssignable(PortBlock $block, \App\Module\Core\Domain\Entity\Template $template): void
     {
         $pools = $this->em->getRepository(PortPool::class)->findBy(['node' => $block->getPool()->getNode()]);

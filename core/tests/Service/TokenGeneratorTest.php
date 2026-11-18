@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\TokenGenerator;
 use PHPUnit\Framework\TestCase;
 
@@ -12,7 +12,7 @@ final class TokenGeneratorTest extends TestCase
 {
     public function testFromTokenReturnsHashPrefixAndEncryptedPayload(): void
     {
-        $encryption = $this->createMock(EncryptionService::class);
+        $encryption = $this->createMock(EncryptionServiceInterface::class);
         $encryption
             ->expects(self::once())
             ->method('encrypt')

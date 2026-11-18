@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Security;
 
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 
 final class TwoFactorPolicy
 {
-    public function __construct(private readonly AppSettingsService $settingsService)
+    public function __construct(private readonly AppSettingsServiceInterface $settingsService)
     {
     }
 

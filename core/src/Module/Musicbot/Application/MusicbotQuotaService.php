@@ -8,21 +8,21 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
 use App\Repository\MusicbotInstanceRepository;
-use App\Repository\MusicbotPlaylistRepository;
-use App\Repository\MusicbotPlaylistItemRepository;
-use App\Repository\MusicbotPluginRepository;
+use App\Repository\MusicbotPlaylistRepositoryInterface;
+use App\Repository\MusicbotPlaylistItemRepositoryInterface;
+use App\Repository\MusicbotPluginRepositoryInterface;
 use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
 use App\Repository\MusicbotTrackQueryRepositoryInterface;
 
-class MusicbotQuotaService implements MusicbotQuotaServiceInterface
+final class MusicbotQuotaService implements MusicbotQuotaServiceInterface
 {
     public function __construct(
         private readonly MusicbotPlanLimitResolver $limitResolver,
         private readonly MusicbotInstanceRepository $instanceRepository,
         private readonly MusicbotTrackQueryRepositoryInterface $trackRepository,
-        private readonly MusicbotPlaylistRepository $playlistRepository,
-        private readonly MusicbotPlaylistItemRepository $playlistItemRepository,
-        private readonly MusicbotPluginRepository $pluginRepository,
+        private readonly MusicbotPlaylistRepositoryInterface $playlistRepository,
+        private readonly MusicbotPlaylistItemRepositoryInterface $playlistItemRepository,
+        private readonly MusicbotPluginRepositoryInterface $pluginRepository,
         private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
     ) {
     }
@@ -109,6 +109,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertCanAssignPlugin(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -141,6 +142,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertCanUseTeamspeak6Profile(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -149,6 +151,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertCanManageDiscordConnection(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -202,6 +205,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertWorkflowsAllowed(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -210,6 +214,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
         }
     }
 
+    #[\Override]
     public function assertSchedulerAllowed(User $customer): void
     {
         $limits = $this->limitResolver->resolve($customer);
@@ -224,6 +229,7 @@ class MusicbotQuotaService implements MusicbotQuotaServiceInterface
      * playlist_items: array{used: int, max: int}, plugins: array{used: int, max: int},
      * limits: array<string, mixed>
      * } */
+    #[\Override]
     public function usageForCustomer(User $customer): array
     {
         $limits = $this->limitResolver->resolve($customer);

@@ -14,6 +14,8 @@ use Doctrine\ORM\Mapping as ORM;
  */
 #[ORM\Entity(repositoryClass: MetricSampleRepository::class)]
 #[ORM\Table(name: 'metric_samples')]
+#[ORM\Index(name: 'idx_metric_samples_agent_recorded_at', columns: ['agent_id', 'recorded_at'])]
+#[ORM\Index(name: 'idx_metric_samples_retention', columns: ['recorded_at'])]
 class MetricSample
 {
     #[ORM\Id]

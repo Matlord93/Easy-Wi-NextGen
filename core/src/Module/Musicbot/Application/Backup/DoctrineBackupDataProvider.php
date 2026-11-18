@@ -6,27 +6,27 @@ namespace App\Module\Musicbot\Application\Backup;
 
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Repository\MusicbotAutoDjSettingsRepository;
-use App\Repository\MusicbotConnectionRepository;
+use App\Repository\MusicbotConnectionRepositoryInterface;
 use App\Repository\MusicbotCustomerLimitsRepository;
-use App\Repository\MusicbotPlaylistItemRepository;
-use App\Repository\MusicbotPlaylistRepository;
+use App\Repository\MusicbotPlaylistItemRepositoryInterface;
+use App\Repository\MusicbotPlaylistRepositoryInterface;
 use App\Repository\MusicbotPluginLogRepository;
-use App\Repository\MusicbotPluginRepository;
+use App\Repository\MusicbotPluginRepositoryInterface;
 use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
-use App\Repository\MusicbotRadioStationRepository;
+use App\Repository\MusicbotRadioStationRepositoryInterface;
 use App\Repository\MusicbotTrackQueryRepositoryInterface;
 
 final class DoctrineBackupDataProvider implements MusicbotBackupDataProvider
 {
     public function __construct(
-        private readonly MusicbotConnectionRepository $connectionRepository,
-        private readonly MusicbotPlaylistRepository $playlistRepository,
-        private readonly MusicbotPlaylistItemRepository $playlistItemRepository,
+        private readonly MusicbotConnectionRepositoryInterface $connectionRepository,
+        private readonly MusicbotPlaylistRepositoryInterface $playlistRepository,
+        private readonly MusicbotPlaylistItemRepositoryInterface $playlistItemRepository,
         private readonly MusicbotTrackQueryRepositoryInterface $trackRepository,
         private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
-        private readonly MusicbotRadioStationRepository $radioStationRepository,
+        private readonly MusicbotRadioStationRepositoryInterface $radioStationRepository,
         private readonly MusicbotAutoDjSettingsRepository $autoDjSettingsRepository,
-        private readonly MusicbotPluginRepository $pluginRepository,
+        private readonly MusicbotPluginRepositoryInterface $pluginRepository,
         private readonly MusicbotPluginLogRepository $pluginLogRepository,
         private readonly MusicbotCustomerLimitsRepository $customerLimitsRepository,
     ) {

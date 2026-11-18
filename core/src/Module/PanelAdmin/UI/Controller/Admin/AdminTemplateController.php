@@ -12,7 +12,7 @@ use App\Infrastructure\Http\RequestActor;
 
 use App\Infrastructure\Http\FlashMessages;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\GameTemplateSeedSyncService;
 use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Entity\User;
@@ -91,7 +91,7 @@ final class AdminTemplateController
     public function __construct(
         private readonly TemplateRepository $templateRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly GameTemplateSeedSyncService $seedSyncService,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

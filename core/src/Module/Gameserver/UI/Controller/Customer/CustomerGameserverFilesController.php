@@ -6,11 +6,11 @@ namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -26,8 +26,8 @@ use App\Module\Core\Attribute\RequiresModule;
 final class CustomerGameserverFilesController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly UrlGeneratorInterface $urlGenerator,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

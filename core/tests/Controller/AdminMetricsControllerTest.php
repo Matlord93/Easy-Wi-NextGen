@@ -10,9 +10,9 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\UI\Controller\Admin\AdminMetricsController;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use App\Repository\InstanceMetricSampleRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\MetricSampleRepository;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\EntityRepository;
@@ -31,13 +31,13 @@ final class AdminMetricsControllerTest extends TestCase
     public function testLiveFetchesOnlyTheRequestedAgent(): void
     {
         $agent = $this->agent();
-        $agents = $this->createMock(AgentRepository::class);
+        $agents = $this->createMock(AgentRepositoryInterface::class);
         $agents->expects(self::once())->method('find')->with('node-1')->willReturn($agent);
         $agents->expects(self::never())->method('findBy');
         $registry = $this->createStub(ManagerRegistry::class);
         $controller = $this->controller(
             $agents,
-            $this->createStub(InstanceRepository::class),
+            $this->createStub(InstanceRepositoryInterface::class),
             new MetricSampleRepository($registry),
             new InstanceMetricSampleRepository($registry),
             $this->createStub(Environment::class),
@@ -56,7 +56,7 @@ final class AdminMetricsControllerTest extends TestCase
     public function testIndexReusesSelectedInstanceAndAggregateCounts(): void
     {
         $agent = $this->agent();
-        $agents = $this->createStub(AgentRepository::class);
+        $agents = $this->createStub(AgentRepositoryInterface::class);
         $agents->method('findBy')->willReturn([$agent]);
         $customer = new User('customer@example.test', UserType::Customer);
         $instance = $this->createStub(Instance::class);
@@ -65,7 +65,7 @@ final class AdminMetricsControllerTest extends TestCase
         $instance->method('getNode')->willReturn($agent);
         $instance->method('getCpuLimit')->willReturn(2);
         $instance->method('getRamLimit')->willReturn(1024);
-        $instances = $this->createMock(InstanceRepository::class);
+        $instances = $this->createMock(InstanceRepositoryInterface::class);
         $instances->expects(self::once())->method('find')->with(7)->willReturn($instance);
         $instances->method('findBy')->willReturn([$instance]);
 
@@ -96,7 +96,7 @@ final class AdminMetricsControllerTest extends TestCase
         self::assertSame('metrics', $controller->index($this->request('/admin/metrics?instance=7'))->getContent());
     }
 
-    private function controller(AgentRepository $agents, InstanceRepository $instances, MetricSampleRepository $hostSamples, InstanceMetricSampleRepository $instanceSamples, Environment $twig): AdminMetricsController
+    private function controller(AgentRepositoryInterface $agents, InstanceRepositoryInterface $instances, MetricSampleRepository $hostSamples, InstanceMetricSampleRepository $instanceSamples, Environment $twig): AdminMetricsController
     {
         return new AdminMetricsController($agents, $instances, $hostSamples, $instanceSamples, new MetricsLiveBuffer(new ArrayAdapter()), $twig, new NullLogger(), 120, $this->createStub(TranslatorInterface::class));
     }

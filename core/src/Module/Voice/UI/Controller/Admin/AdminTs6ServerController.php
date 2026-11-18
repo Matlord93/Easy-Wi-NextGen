@@ -1,0 +1,337 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Module\Voice\UI\Controller\Admin;
+
+use App\Infrastructure\Http\RequestActor;
+
+use App\Infrastructure\Http\FlashMessages;
+
+use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
+use App\Module\Voice\Application\Ts6\Ts6VirtualServerService;
+use App\Module\Core\Application\VirtualServerDtoFactory;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Dto\Ts6\AdminCreateVirtualServerDto;
+use App\Module\Core\Form\Ts6AdminCreateVirtualServerType;
+use App\Repository\AgentJobRepository;
+use App\Repository\Ts6NodeRepository;
+use App\Repository\Ts6VirtualServerRepository;
+use App\Repository\UserRepositoryInterface;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormFactoryInterface;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Component\Uid\Uuid;
+use Symfony\Contracts\Translation\TranslatorInterface;
+use Twig\Environment;
+
+#[Route(path: '/admin/ts6/servers')]
+final class AdminTs6ServerController
+{
+    public function __construct(
+        private readonly Ts6NodeRepository $nodeRepository,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly Ts6VirtualServerRepository $virtualServerRepository,
+        private readonly Ts6VirtualServerService $virtualServerService,
+        private readonly AgentJobRepository $agentJobRepository,
+        private readonly FormFactoryInterface $formFactory,
+        private readonly VirtualServerDtoFactory $dtoFactory,
+        private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
+        private readonly EntityManagerInterface $entityManager,
+    ) {
+    }
+
+    #[Route(path: '', name: 'admin_ts6_servers_index', methods: ['GET'])]
+    public function index(Request $request): Response
+    {
+        $this->requireAdmin($request);
+
+        $nodes = $this->nodeRepository->findBy([], ['name' => 'ASC']);
+        $this->queueVirtualServerSync($nodes);
+
+        $servers = $this->virtualServerRepository->findBy(['archivedAt' => null], ['updatedAt' => 'DESC']);
+        $customers = $this->userRepository->findCustomers();
+
+        $customerMap = [];
+        foreach ($customers as $customer) {
+            $customerId = $customer->getId();
+            if ($customerId !== null) {
+                $customerMap[$customerId] = $customer;
+            }
+        }
+
+        $csrf = [];
+        $deleteTokens = [];
+        foreach ($servers as $server) {
+            $serverId = $server->getId();
+            if ($serverId !== null) {
+                $csrf[$serverId] = $this->csrfTokenManager->getToken('ts6_virtual_assign_' . $serverId)->getValue();
+                $deleteTokens[$serverId] = $this->csrfTokenManager->getToken('ts6_virtual_delete_' . $serverId)->getValue();
+            }
+        }
+
+        return new Response($this->twig->render('admin/ts6/servers/index.html.twig', [
+            'activeNav' => 'ts6-servers',
+            'servers' => $servers,
+            'customers' => $customers,
+            'customerMap' => $customerMap,
+            'csrf' => $csrf,
+            'deleteTokens' => $deleteTokens,
+            'serverErrors' => $this->resolveServerErrors($servers),
+        ]));
+    }
+
+    #[Route(path: '/create', name: 'admin_ts6_servers_create', methods: ['GET', 'POST'])]
+    public function create(Request $request): Response
+    {
+        $this->requireAdmin($request);
+
+        $customers = $this->userRepository->findCustomers();
+        $nodes = $this->nodeRepository->findBy([], ['name' => 'ASC']);
+
+        $customerChoices = [];
+        foreach ($customers as $customer) {
+            $customerChoices[$customer->getEmail()] = $customer->getId() ?? 0;
+        }
+
+        $nodeChoices = [];
+        foreach ($nodes as $node) {
+            $nodeChoices[$node->getName()] = $node->getId() ?? 0;
+        }
+
+        $dto = new AdminCreateVirtualServerDto();
+        $form = $this->formFactory->create(Ts6AdminCreateVirtualServerType::class, $dto, [
+            'customer_choices' => $customerChoices,
+            'node_choices' => $nodeChoices,
+        ]);
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            $customer = $this->userRepository->find($dto->getCustomerId());
+            $node = $this->nodeRepository->find($dto->getNodeId());
+
+            if ($customer === null || $node === null) {
+                $form->addError(new FormError($this->translator->trans('form_error_customer_or_node_not_found')));
+            }
+            if ($form->isValid() && $customer !== null && $node !== null) {
+                try {
+                    $createDto = $this->dtoFactory->createTs6($dto);
+                    $this->virtualServerService->createForCustomer($customer->getId() ?? 0, $node, $createDto);
+                    FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_virtual_server_created'));
+
+                    return new Response('', Response::HTTP_FOUND, [
+                        'Location' => '/admin/ts6/servers/create',
+                    ]);
+                } catch (\RuntimeException | \InvalidArgumentException $exception) {
+                    FlashMessages::add($request, 'error', $exception->getMessage());
+                }
+            }
+        }
+
+        return new Response($this->twig->render('admin/ts6/servers/create.html.twig', [
+            'activeNav' => 'ts6-servers',
+            'form' => $form->createView(),
+        ]));
+    }
+
+    #[Route(path: '/{id}/assign', name: 'admin_ts6_servers_assign', methods: ['POST'])]
+    public function assign(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+
+        $server = $this->virtualServerRepository->find($id);
+        if ($server === null) {
+            throw new BadRequestHttpException('Virtual server not found.');
+        }
+
+        $this->validateCsrf($request, 'ts6_virtual_assign_' . $id);
+        $customerId = (int) $request->request->get('customer_id', 0);
+        $customer = $this->userRepository->find($customerId);
+        if ($customer === null || !$customer->isCustomer()) {
+            throw new BadRequestHttpException('Customer not found.');
+        }
+
+        $guard = $this->resolveAssignGuardReason($server->getSid(), $server->getStatus());
+        if ($guard !== null) {
+            $actionId = Uuid::v4()->toRfc4122();
+            FlashMessages::add($request, 'error', $this->translator->trans('admin_ts6_virtual_server_assign_blocked', ['%guard%' => $guard, '%action_id%' => $actionId]));
+            return new Response('', Response::HTTP_FOUND, [
+                'Location' => '/admin/ts6/servers',
+            ]);
+        }
+
+        $server->setCustomerId($customerId);
+        $this->entityManager->flush();
+        FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_virtual_server_assigned'));
+
+        return new Response('', Response::HTTP_FOUND, [
+            'Location' => '/admin/ts6/servers',
+        ]);
+    }
+
+    #[Route(path: '/{id}/delete', name: 'admin_ts6_servers_delete', methods: ['POST'])]
+    public function delete(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+
+        $server = $this->virtualServerRepository->find($id);
+        if ($server === null) {
+            throw new BadRequestHttpException('Virtual server not found.');
+        }
+
+        $this->validateCsrf($request, 'ts6_virtual_delete_' . $id);
+
+        try {
+            $this->virtualServerService->delete($server);
+            FlashMessages::add($request, 'success', $this->translator->trans('admin_ts6_virtual_server_deletion_queued'));
+        } catch (\RuntimeException | \InvalidArgumentException $exception) {
+            FlashMessages::add($request, 'error', $exception->getMessage());
+        }
+
+        return new Response('', Response::HTTP_FOUND, [
+            'Location' => '/admin/ts6/servers',
+        ]);
+    }
+
+    private function requireAdmin(Request $request): void
+    {
+        $actor = RequestActor::user($request);
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
+        }
+
+    }
+
+    private function validateCsrf(Request $request, string $id): void
+    {
+        $token = new CsrfToken($id, (string) $request->request->get('_token'));
+        if (!$this->csrfTokenManager->isTokenValid($token)) {
+            throw new BadRequestHttpException($this->translator->trans('error_invalid_csrf'));
+        }
+    }
+
+    private function resolveAssignGuardReason(int $sid, string $status): ?string
+    {
+        if ($sid <= 0) {
+            return 'SID missing (provisioning not finished)';
+        }
+
+        $normalized = strtolower($status);
+        if (in_array($normalized, ['provisioning', 'deleting', 'deleted', 'error'], true)) {
+            return sprintf('status %s', $normalized);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param \App\Module\Core\Domain\Entity\Ts6VirtualServer[] $servers
+     * @return array<int, array{error: ?string, created_at: \DateTimeImmutable}>
+     */
+    private function resolveServerErrors(array $servers): array
+    {
+        $serversByAgent = [];
+        foreach ($servers as $server) {
+            $serverId = $server->getId();
+            if ($serverId === null) {
+                continue;
+            }
+            $agentId = $server->getNode()->getAgent()->getId();
+            $serversByAgent[$agentId][$serverId] = true;
+        }
+
+        if ($serversByAgent === []) {
+            return [];
+        }
+
+        $errors = [];
+        foreach ($serversByAgent as $agentId => $serverIds) {
+            $jobs = $this->agentJobRepository->findLatestForNodeAndTypes($agentId, [
+                'ts6.virtual.create',
+                'ts6.virtual.action',
+                'ts6.virtual.token.rotate',
+            ], 50);
+
+            foreach ($jobs as $job) {
+                $virtualId = $job->getPayload()['virtual_server_id'] ?? null;
+                if (!is_int($virtualId) && !is_string($virtualId)) {
+                    continue;
+                }
+                $virtualId = (int) $virtualId;
+                if (!isset($serverIds[$virtualId])) {
+                    continue;
+                }
+
+                $errorText = $this->summarizeJobError($job);
+                if ($job->getStatus()->value !== 'failed' && $errorText === null) {
+                    continue;
+                }
+
+                $createdAt = $job->getCreatedAt();
+                if (!isset($errors[$virtualId]) || $createdAt > $errors[$virtualId]['created_at']) {
+                    $errors[$virtualId] = [
+                        'error' => $errorText,
+                        'created_at' => $createdAt,
+                    ];
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    private function summarizeJobError(AgentJob $job): ?string
+    {
+        $error = $job->getErrorText();
+        if ($error !== null) {
+            return $error;
+        }
+
+        $logText = $job->getLogText();
+        if ($logText === null) {
+            return null;
+        }
+
+        $logText = trim($logText);
+        if ($logText === '') {
+            return null;
+        }
+
+        $snippet = mb_substr($logText, 0, 180);
+        if (mb_strlen($logText) > 180) {
+            $snippet .= '…';
+        }
+
+        return $snippet;
+    }
+
+    /**
+     * @param \App\Module\Core\Domain\Entity\Ts6Node[] $nodes
+     */
+    private function queueVirtualServerSync(array $nodes): void
+    {
+        if ($nodes === []) {
+            return;
+        }
+
+        $cutoff = new \DateTimeImmutable('-2 minutes');
+        foreach ($nodes as $node) {
+            $agentId = $node->getAgent()->getId();
+            $jobs = $this->agentJobRepository->findLatestForNodeAndTypes($agentId, ['ts6.virtual.list'], 1);
+            if ($jobs !== [] && $jobs[0]->getCreatedAt() >= $cutoff) {
+                continue;
+            }
+
+            $this->virtualServerService->queueVirtualServerSync($node);
+        }
+    }
+}

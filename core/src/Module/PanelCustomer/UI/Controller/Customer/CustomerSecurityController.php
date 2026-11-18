@@ -6,9 +6,9 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\UserSessionRepository;
@@ -33,11 +33,11 @@ final class CustomerSecurityController
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly TwoFactorService $twoFactorService,
-        private readonly SecretsCrypto $secretsCrypto,
+        private readonly SecretsCryptoInterface $secretsCrypto,
         private readonly TwoFactorPolicy $twoFactorPolicy,
-        private readonly AppSettingsService $settingsService,
+        private readonly AppSettingsServiceInterface $settingsService,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly UserSessionRepository $sessionRepository,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,

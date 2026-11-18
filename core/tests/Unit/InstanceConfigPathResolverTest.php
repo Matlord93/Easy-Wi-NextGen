@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
@@ -15,7 +15,7 @@ final class InstanceConfigPathResolverTest extends TestCase
 {
     public function testResolverBlocksTraversal(): void
     {
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('getInstanceBaseDir')->willReturn('/srv/instances');
         $resolver = new InstanceConfigPathResolver(new InstanceFilesystemResolver($settings));
 
@@ -34,7 +34,7 @@ final class InstanceConfigPathResolverTest extends TestCase
 
     public function testResolverSupportsWindowsPaths(): void
     {
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('getInstanceBaseDir')->willReturn('C:/EasyWI/instances');
         $resolver = new InstanceConfigPathResolver(new InstanceFilesystemResolver($settings));
 
@@ -54,7 +54,7 @@ final class InstanceConfigPathResolverTest extends TestCase
 
     public function testResolverBlocksAbsoluteTargetPath(): void
     {
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('getInstanceBaseDir')->willReturn('/srv/instances');
         $resolver = new InstanceConfigPathResolver(new InstanceFilesystemResolver($settings));
 
@@ -112,7 +112,7 @@ final class InstanceConfigPathResolverTest extends TestCase
     /** @return array{InstanceConfigPathResolver,Instance} */
     private function localFixture(string $root): array
     {
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('getInstanceBaseDir')->willReturn($root);
         $node = $this->createStub(Agent::class);
         $node->method('getMetadata')->willReturn(['os' => 'linux']);

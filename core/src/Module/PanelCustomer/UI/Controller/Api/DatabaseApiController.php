@@ -8,10 +8,10 @@ use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 use App\Infrastructure\Config\JsonArray;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DatabaseNamingPolicyInterface;
-use App\Module\Core\Application\DatabaseProvisioningService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
@@ -22,10 +22,10 @@ use App\Module\Core\Domain\Enum\EngineType;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
-use App\Repository\DatabaseNodeRepository;
-use App\Repository\DatabaseRepository;
-use App\Repository\JobRepository;
-use App\Repository\UserRepository;
+use App\Repository\DatabaseNodeRepositoryInterface;
+use App\Repository\DatabaseRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -36,16 +36,16 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class DatabaseApiController
 {
     public function __construct(
-        private readonly DatabaseRepository $databaseRepository,
-        private readonly DatabaseNodeRepository $databaseNodeRepository,
-        private readonly UserRepository $userRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly DatabaseRepositoryInterface $databaseRepository,
+        private readonly DatabaseNodeRepositoryInterface $databaseNodeRepository,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly DatabaseProvisioningService $provisioningService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly DatabaseProvisioningServiceInterface $provisioningService,
         private readonly DatabaseNamingPolicyInterface $namingPolicy,
         private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly JobPayloadMasker $jobPayloadMasker,
         private readonly TranslatorInterface $translator,
     ) {

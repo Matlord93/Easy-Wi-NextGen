@@ -7,12 +7,12 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\DomainRepository;
+use App\Repository\DomainRepositoryInterface;
 use App\Repository\MailAliasRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -29,9 +29,9 @@ final class AdminMailAliasController
 
     public function __construct(
         private readonly MailAliasRepositoryInterface $aliasRepository,
-        private readonly DomainRepository $domainRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly MailAliasLoopGuard $loopGuard,
         private readonly Environment $twig,
         #[Autowire('%env(default::APP_MAIL_ALIAS_MAP_PATH)%')]

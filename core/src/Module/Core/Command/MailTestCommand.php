@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -23,7 +23,7 @@ final class MailTestCommand extends Command
 {
     public function __construct(
         private readonly MailerInterface $mailer,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
     ) {
         parent::__construct();
     }

@@ -7,7 +7,8 @@ namespace App\Module\PanelCustomer\UI\Controller\Api;
 use App\Infrastructure\Http\RequestActor;
 use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\BackupSchedule;
 use App\Module\Core\Domain\Entity\BackupTarget;
@@ -18,7 +19,7 @@ use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupTargetRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -40,10 +41,10 @@ final class BackupApiController
     public function __construct(
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly BackupTargetRepository $backupTargetRepository,
-        private readonly UserRepository $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
     ) {
     }

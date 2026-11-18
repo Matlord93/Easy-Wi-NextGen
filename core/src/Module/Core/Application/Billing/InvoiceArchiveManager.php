@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Entity\InvoiceArchive;
 use App\Module\Core\Domain\Entity\User;
@@ -19,7 +19,7 @@ final class InvoiceArchiveManager
     public function __construct(
         private readonly InvoiceArchiveRepository $archiveRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

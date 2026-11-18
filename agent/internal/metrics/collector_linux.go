@@ -13,20 +13,35 @@ import (
 	"syscall"
 )
 
-func diskUsage(path string) (uint64, uint64, float64, error) {
+func diskUsage(path string) (uint64, uint64, uint64, float64, error) {
 	var stat syscall.Statfs_t
 	if err := syscall.Statfs(path, &stat); err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, 0, err
 	}
 
+	return diskUsageFromStat(stat)
+}
+
+func diskUsageFromStat(stat syscall.Statfs_t) (uint64, uint64, uint64, float64, error) {
+	if stat.Blocks == 0 || stat.Bsize <= 0 || stat.Bfree > stat.Blocks || stat.Blocks > ^uint64(0)/uint64(stat.Bsize) {
+		return 0, 0, 0, 0, fmt.Errorf("invalid disk capacity")
+	}
+	available := stat.Bavail
+	// Some filesystems expose a negative available count through an unsigned field.
+	if available > stat.Bfree {
+		available = 0
+	}
 	total := stat.Blocks * uint64(stat.Bsize)
-	free := stat.Bfree * uint64(stat.Bsize)
-	if total == 0 {
-		return 0, 0, 0, fmt.Errorf("invalid disk total")
+	used := (stat.Blocks - stat.Bfree) * uint64(stat.Bsize)
+	free := available * uint64(stat.Bsize)
+	usedPercent := 0.0
+	if used+free > 0 {
+		// Match df and the Windows collector: free means usable by this service,
+		// while filesystem-reserved blocks are neither user data nor available space.
+		usedPercent = float64(used) / float64(used+free) * 100
 	}
 
-	usedPercent := float64(total-free) / float64(total) * 100
-	return total, free, usedPercent, nil
+	return total, used, free, usedPercent, nil
 }
 
 func networkCounters() (sent uint64, recv uint64, err error) {

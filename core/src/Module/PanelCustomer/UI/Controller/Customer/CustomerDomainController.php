@@ -6,15 +6,15 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\DomainRepository;
-use App\Repository\MailDomainRepository;
+use App\Repository\DomainRepositoryInterface;
+use App\Repository\MailDomainRepositoryInterface;
 use App\Repository\MailNodeRepositoryInterface;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,12 +30,12 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class CustomerDomainController
 {
     public function __construct(
-        private readonly DomainRepository $domainRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
         private readonly MailNodeRepositoryInterface $mailNodeRepository,
-        private readonly MailDomainRepository $mailDomainRepository,
+        private readonly MailDomainRepositoryInterface $mailDomainRepository,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {

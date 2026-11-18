@@ -8,8 +8,8 @@ use App\Module\AgentOrchestrator\Application\AgentJobResultApplier;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Cms\UI\Command\CmsMigrateLegacyCommand;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\QrCodeService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\CmsBlock;
@@ -28,8 +28,8 @@ use App\Module\PanelCustomer\UI\Controller\Api\BackupTargetApiController;
 use App\Repository\CmsEventRepository;
 use App\Repository\CmsPageRepository;
 use App\Repository\CmsPostRepository;
-use App\Repository\DomainRepository;
-use App\Repository\MailDomainRepository;
+use App\Repository\DomainRepositoryInterface;
+use App\Repository\MailDomainRepositoryInterface;
 use App\Repository\MailPolicyRepository;
 use App\Repository\MailPolicyRepositoryInterface;
 use App\Repository\SiteRepository;
@@ -49,7 +49,7 @@ final class ReportedRuntimeFailuresTest extends TestCase
     public function testMailPolicyUpdatePreservesIndependentSmtpAndAbuseSettings(): void
     {
         $domain = new Domain(new User('customer@example.test', UserType::Customer), null, 'example.test');
-        $domainRepository = $this->createStub(DomainRepository::class);
+        $domainRepository = $this->createStub(DomainRepositoryInterface::class);
         $domainRepository->method('find')->willReturn($domain);
         $policy = new MailPolicy($domain);
         $policy->apply(false, false, 100, 500, false, false, MailPolicy::SPAM_LOW, true);
@@ -58,7 +58,7 @@ final class ReportedRuntimeFailuresTest extends TestCase
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::once())->method('flush');
 
-        $controller = new AdminMailPolicyController($entityManager, $domainRepository, $policyRepository, $this->createStub(AuditLogger::class));
+        $controller = new AdminMailPolicyController($entityManager, $domainRepository, $policyRepository, $this->createStub(AuditLoggerInterface::class));
         $request = Request::create('/api/v1/admin/mail/policies/domains/7', 'PUT', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
             'require_tls' => true,
             'max_recipients' => 30,
@@ -80,7 +80,7 @@ final class ReportedRuntimeFailuresTest extends TestCase
     {
         $domain = new Domain(new User('customer@example.test', UserType::Customer), null, 'example.test');
         $binding = new MailDomain($domain, new MailNode('mail', 'imap.example.test', 993, 'smtp.example.test', 587, null));
-        $domainRepository = $this->createStub(MailDomainRepository::class);
+        $domainRepository = $this->createStub(MailDomainRepositoryInterface::class);
         $domainRepository->method('find')->willReturn($binding);
         $policy = new MailPolicy($domain);
         $policy->apply(false, false, 100, 500, false, true, MailPolicy::SPAM_LOW, false);
@@ -94,7 +94,7 @@ final class ReportedRuntimeFailuresTest extends TestCase
             'mailDomainRepository' => $domainRepository,
             'mailPolicyRepository' => $policyRepository,
             'entityManager' => $entityManager,
-            'auditLogger' => $this->createStub(AuditLogger::class),
+            'auditLogger' => $this->createStub(AuditLoggerInterface::class),
             'csrfTokenManager' => $csrf,
         ]);
         $request = Request::create('/admin/mail/security/contain-domain', 'POST', ['domain_id' => '9', '_token' => 'valid']);
@@ -168,17 +168,17 @@ final class ReportedRuntimeFailuresTest extends TestCase
         $domain = new Domain($customer, null, 'example.test');
         $mailbox = new \App\Module\Core\Domain\Entity\Mailbox($domain, 'user', 'hash', [], 100);
         (new \ReflectionProperty($mailbox, 'id'))->setValue($mailbox, 1);
-        $mailboxRepository = $this->createStub(\App\Repository\MailboxRepository::class);
+        $mailboxRepository = $this->createStub(\App\Repository\MailboxRepositoryInterface::class);
         $mailboxRepository->method('find')->willReturn($mailbox);
         $job = new \App\Module\Core\Domain\Entity\Job('mailbox.create', ['address' => 'user@example.test']);
         new \App\Module\Core\Domain\Entity\JobResult($job, \App\Module\Core\Domain\Enum\JobResultStatus::Failed, ['error_message' => 'Provisioning failed']);
-        $jobRepository = $this->createStub(\App\Repository\JobRepository::class);
+        $jobRepository = $this->createStub(\App\Repository\JobRepositoryInterface::class);
         $jobRepository->method('findLatestByType')->willReturnCallback(static fn (string $type): array => $type === 'mailbox.create' ? [$job] : []);
         $csrf = $this->createStub(CsrfTokenManagerInterface::class);
         $csrf->method('getToken')->willReturn(new \Symfony\Component\Security\Csrf\CsrfToken('mailbox', 'test-token'));
         $controller = $this->withDependencies(\App\Module\PanelCustomer\UI\Controller\Customer\CustomerMailController::class, [
             'mailboxRepository' => $mailboxRepository,
-            'mailDomainRepository' => $this->createStub(MailDomainRepository::class),
+            'mailDomainRepository' => $this->createStub(MailDomainRepositoryInterface::class),
             'mailPolicyRepository' => $this->createStub(MailPolicyRepositoryInterface::class),
             'jobRepository' => $jobRepository,
             'csrfTokenManager' => $csrf,
@@ -195,7 +195,7 @@ final class ReportedRuntimeFailuresTest extends TestCase
 
     public function testS3TargetStoresCredentialsEncryptedAndReturnsOnlyPresenceFlags(): void
     {
-        $encryption = $this->createMock(EncryptionService::class);
+        $encryption = $this->createMock(EncryptionServiceInterface::class);
         $encryption->expects(self::exactly(2))->method('encrypt')->willReturnCallback(static fn (string $value): array => ['key_id' => 'test', 'nonce' => 'nonce', 'ciphertext' => base64_encode($value)]);
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::once())->method('persist')->with(self::callback(static function (object $target): bool {
@@ -210,7 +210,7 @@ final class ReportedRuntimeFailuresTest extends TestCase
         $controller = $this->withDependencies(BackupTargetApiController::class, [
             'encryptionService' => $encryption,
             'entityManager' => $entityManager,
-            'auditLogger' => $this->createStub(AuditLogger::class),
+            'auditLogger' => $this->createStub(AuditLoggerInterface::class),
         ]);
         $request = Request::create('/api/backup-targets', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
             'type' => 's3', 'label' => 'Archive', 'config' => ['bucket' => 'archive-bucket'],
@@ -259,13 +259,13 @@ final class ReportedRuntimeFailuresTest extends TestCase
             $inner = $this->createStub(EntityRepository::class);
             $inner->method('find')->willReturn($server);
             $customer = new User('customer@example.test', UserType::Customer);
-            $userRepository = $this->createStub(\App\Repository\UserRepository::class);
+            $userRepository = $this->createStub(\App\Repository\UserRepositoryInterface::class);
             $userRepository->method('find')->willReturn($customer);
             $entityManager = $this->createMock(EntityManagerInterface::class);
             $entityManager->expects(self::once())->method('flush');
             $csrf = $this->createStub(CsrfTokenManagerInterface::class);
             $csrf->method('isTokenValid')->willReturn(true);
-            $controllerClass = $version === 3 ? \App\Module\Teamspeak\UI\Controller\Admin\AdminTs3ServerController::class : \App\Module\Teamspeak\UI\Controller\Admin\AdminTs6ServerController::class;
+            $controllerClass = $version === 3 ? \App\Module\Voice\UI\Controller\Admin\AdminTs3ServerController::class : \App\Module\Voice\UI\Controller\Admin\AdminTs6ServerController::class;
             $controller = $this->withDependencies($controllerClass, [
                 'virtualServerRepository' => $this->repository($repositoryClass, $inner),
                 'userRepository' => $userRepository,

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Teamspeak;
 
-use App\Module\Teamspeak\Application\Update\TeamspeakVersionNormalizer;
+use App\Module\Voice\Application\Update\TeamspeakVersionNormalizer;
 use PHPUnit\Framework\TestCase;
 
 final class TeamspeakVersionNormalizerTest extends TestCase

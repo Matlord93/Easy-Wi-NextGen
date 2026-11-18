@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Domain\Entity;
 
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\Concerns\TestSettableIdTrait;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\UserRepository;
@@ -288,7 +289,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->totpEnabled = $enabled;
     }
 
-    public function getTotpSecret(?SecretsCrypto $crypto = null): ?string
+    public function getTotpSecret(?SecretsCryptoInterface $crypto = null): ?string
     {
         if ($this->totpSecretEncrypted === null || $this->totpSecretEncrypted === '') {
             return null;
@@ -301,7 +302,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $crypto->decrypt($this->totpSecretEncrypted);
     }
 
-    public function setTotpSecret(?string $secret, ?SecretsCrypto $crypto = null): void
+    public function setTotpSecret(?string $secret, ?SecretsCryptoInterface $crypto = null): void
     {
         if ($secret === null || $secret === '') {
             $this->totpSecretEncrypted = null;

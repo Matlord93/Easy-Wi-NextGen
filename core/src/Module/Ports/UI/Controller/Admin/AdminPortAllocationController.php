@@ -9,8 +9,8 @@ use App\Infrastructure\Http\RequestActor;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Ports\Infrastructure\Repository\PortAllocationRepository;
-use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
-use App\Repository\InstanceRepository;
+use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
+use App\Repository\InstanceRepositoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -21,9 +21,9 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminPortAllocationController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly PortAllocationRepository $portAllocationRepository,
-        private readonly PortPoolRepository $portPoolRepository,
+        private readonly PortPoolRepositoryInterface $portPoolRepository,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {

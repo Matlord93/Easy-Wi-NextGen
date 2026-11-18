@@ -63,7 +63,7 @@ final class AdminCmsPageControllerAccessTest extends TestCase
         $siteResolver = $this->newInstanceWithoutConstructor(\App\Module\Core\Application\SiteResolver::class);
         /** @var EntityManagerInterface $entityManager */
         $entityManager = $this->newInstanceWithoutConstructor(\Doctrine\ORM\EntityManager::class);
-        /** @var \App\Module\Core\Application\AuditLogger $auditLogger */
+        /** @var \App\Module\Core\Application\AuditLoggerInterface $auditLogger */
         $auditLogger = $this->newInstanceWithoutConstructor(\App\Module\Core\Application\AuditLogger::class);
         return new AdminCmsPageController(
             $pageRepository,

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DatabaseNamingPolicyInterface;
-use App\Module\Core\Application\DatabaseProvisioningService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
 use App\Module\Core\Application\DatabaseTableServiceInterface as DatabaseTableService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
@@ -14,9 +14,9 @@ use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\UI\Controller\Customer\CustomerDatabaseController;
-use App\Repository\DatabaseNodeRepository;
-use App\Repository\DatabaseRepository;
-use App\Repository\JobRepository;
+use App\Repository\DatabaseNodeRepositoryInterface;
+use App\Repository\DatabaseRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -127,7 +127,7 @@ final class DatabaseRowEditControllerTest extends TestCase
 
     private function controllerWithTwigAndTables(Database $database, Environment $twig, DatabaseTableService $tables): CustomerDatabaseController
     {
-        $dbRepo = $this->createStub(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepositoryInterface::class);
         $dbRepo->method('find')->willReturn($database);
 
         $translator = $this->createStub(TranslatorInterface::class);
@@ -135,11 +135,11 @@ final class DatabaseRowEditControllerTest extends TestCase
 
         return new CustomerDatabaseController(
             $dbRepo,
-            $this->createStub(DatabaseNodeRepository::class),
-            $this->createStub(JobRepository::class),
+            $this->createStub(DatabaseNodeRepositoryInterface::class),
+            $this->createStub(JobRepositoryInterface::class),
             $this->createStub(EntityManagerInterface::class),
-            $this->createStub(AuditLogger::class),
-            $this->createStub(DatabaseProvisioningService::class),
+            $this->createStub(AuditLoggerInterface::class),
+            $this->createStub(DatabaseProvisioningServiceInterface::class),
             $this->createStub(DatabaseNamingPolicyInterface::class),
             $twig,
             $translator,

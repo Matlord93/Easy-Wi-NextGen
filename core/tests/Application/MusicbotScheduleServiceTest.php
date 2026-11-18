@@ -6,7 +6,7 @@ namespace App\Tests\Application;
 
 use App\Module\AgentOrchestrator\Application\AgentJobValidator;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -15,7 +15,7 @@ use App\Module\Musicbot\Application\MusicbotScheduleService;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotSchedule;
 use App\Module\Musicbot\Domain\Enum\MusicbotScheduleAction;
-use App\Repository\MusicbotScheduleRepository;
+use App\Repository\MusicbotScheduleRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -193,7 +193,7 @@ final class MusicbotScheduleServiceTest extends TestCase
         $scheduleDispatcher = $this->createMock(MusicbotScheduleDispatcherInterface::class);
         $scheduleDispatcher->expects($this->once())->method('dispatch')->willReturn($jobMock);
 
-        $scheduleRepository = $this->createStub(MusicbotScheduleRepository::class);
+        $scheduleRepository = $this->createStub(MusicbotScheduleRepositoryInterface::class);
         $scheduleRepository->method('findDue')->willReturn([$schedule]);
 
         $em = $this->createMock(EntityManagerInterface::class);
@@ -215,7 +215,7 @@ final class MusicbotScheduleServiceTest extends TestCase
         $scheduleDispatcher = $this->createStub(MusicbotScheduleDispatcherInterface::class);
         $scheduleDispatcher->method('dispatch')->willThrowException(new \RuntimeException('Agent unreachable.'));
 
-        $scheduleRepository = $this->createStub(MusicbotScheduleRepository::class);
+        $scheduleRepository = $this->createStub(MusicbotScheduleRepositoryInterface::class);
         $scheduleRepository->method('findDue')->willReturn([$schedule]);
 
         $em = $this->createMock(EntityManagerInterface::class);
@@ -230,7 +230,7 @@ final class MusicbotScheduleServiceTest extends TestCase
 
     public function testRunDueReturnsEmptyWhenNoSchedulesDue(): void
     {
-        $scheduleRepository = $this->createStub(MusicbotScheduleRepository::class);
+        $scheduleRepository = $this->createStub(MusicbotScheduleRepositoryInterface::class);
         $scheduleRepository->method('findDue')->willReturn([]);
 
         $em = $this->createMock(EntityManagerInterface::class);
@@ -297,7 +297,7 @@ final class MusicbotScheduleServiceTest extends TestCase
      */
     private function makeServiceViaReflection(
         ?MusicbotScheduleDispatcherInterface $dispatcher = null,
-        ?MusicbotScheduleRepository $scheduleRepository = null,
+        ?MusicbotScheduleRepositoryInterface $scheduleRepository = null,
         ?EntityManagerInterface $em = null,
         bool $withRuntimeEventService = false,
     ): MusicbotScheduleService {
@@ -321,7 +321,7 @@ final class MusicbotScheduleServiceTest extends TestCase
             $reRef->getProperty('entityManager')->setValue($runtimeService, $this->createStub(EntityManagerInterface::class));
             $ref->getProperty('runtimeEventService')->setValue($service, $runtimeService);
 
-            $ref->getProperty('auditLogger')->setValue($service, $this->createStub(AuditLogger::class));
+            $ref->getProperty('auditLogger')->setValue($service, $this->createStub(AuditLoggerInterface::class));
         }
 
         return $service;
@@ -341,7 +341,7 @@ final class MusicbotScheduleServiceTest extends TestCase
         $emProp->setValue($service, $this->createStub(EntityManagerInterface::class));
 
         $repoProp = $ref->getProperty('scheduleRepository');
-        $repoProp->setValue($service, $this->createStub(MusicbotScheduleRepository::class));
+        $repoProp->setValue($service, $this->createStub(MusicbotScheduleRepositoryInterface::class));
 
         $dispProp = $ref->getProperty('scheduleDispatcher');
         $dispProp->setValue($service, $this->createStub(MusicbotScheduleDispatcherInterface::class));

@@ -13,10 +13,10 @@ use App\Module\Musicbot\Domain\Entity\MusicbotRadioStation;
 use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
 use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
-use App\Repository\MusicbotPlaylistItemRepository;
-use App\Repository\MusicbotPlaylistRepository;
+use App\Repository\MusicbotPlaylistItemRepositoryInterface;
+use App\Repository\MusicbotPlaylistRepositoryInterface;
 use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
-use App\Repository\MusicbotRadioStationRepository;
+use App\Repository\MusicbotRadioStationRepositoryInterface;
 use App\Repository\MusicbotTrackQueryRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -25,15 +25,15 @@ final class MusicbotRadioService
     private const MAX_STATIONS_PER_CUSTOMER = 200;
 
     public function __construct(
-        private readonly MusicbotRadioStationRepository $stationRepository,
+        private readonly MusicbotRadioStationRepositoryInterface $stationRepository,
         private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
-        private readonly MusicbotPlaylistRepository $playlistRepository,
-        private readonly MusicbotPlaylistItemRepository $playlistItemRepository,
+        private readonly MusicbotPlaylistRepositoryInterface $playlistRepository,
+        private readonly MusicbotPlaylistItemRepositoryInterface $playlistItemRepository,
         private readonly MusicbotTrackQueryRepositoryInterface $trackRepository,
-        private readonly MusicbotRadioPlaylistResolver $resolver,
-        private readonly MusicbotWebradioUrlValidator $urlValidator,
-        private readonly MusicbotQuotaService $quotaService,
-        private readonly MusicbotRadioCatalogService $catalogService,
+        private readonly MusicbotRadioPlaylistResolverInterface $resolver,
+        private readonly MusicbotWebradioUrlValidatorInterface $urlValidator,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
+        private readonly MusicbotRadioCatalogServiceInterface $catalogService,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }

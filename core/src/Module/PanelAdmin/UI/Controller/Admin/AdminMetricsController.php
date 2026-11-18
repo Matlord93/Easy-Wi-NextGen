@@ -10,9 +10,9 @@ use App\Module\Core\Application\MetricsLiveBuffer;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use App\Repository\InstanceMetricSampleRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\MetricSampleRepository;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -26,8 +26,8 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminMetricsController
 {
     public function __construct(
-        private readonly AgentRepository $agentRepository,
-        private readonly InstanceRepository $instanceRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly MetricSampleRepository $metricSampleRepository,
         private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
         private readonly MetricsLiveBuffer $liveBuffer,

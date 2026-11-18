@@ -7,6 +7,7 @@ namespace App\Module\Nodes\Application\Monitoring;
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 
 /**
  * @psalm-type MonitoringOptions = array{enabled: bool, retention_days: int, proxmox_batch_size: int,
@@ -19,7 +20,7 @@ use App\Module\Core\Application\AppSettingsService;
  */
 final readonly class InfrastructureMonitoringSettings
 {
-    public function __construct(private AppSettingsService $settings)
+    public function __construct(private AppSettingsServiceInterface $settings)
     {
     }
 

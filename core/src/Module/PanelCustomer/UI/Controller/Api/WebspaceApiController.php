@@ -9,7 +9,7 @@ use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\WebspacePathSanitizer;
 use App\Module\Core\Domain\Entity\Certificate;
 use App\Module\Core\Domain\Entity\Domain;
@@ -20,13 +20,13 @@ use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
-use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
-use App\Repository\AgentRepository;
-use App\Repository\DomainRepository;
-use App\Repository\JobRepository;
-use App\Repository\MailDomainRepository;
+use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\DomainRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
+use App\Repository\MailDomainRepositoryInterface;
 use App\Repository\MailNodeRepositoryInterface;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -40,15 +40,15 @@ final class WebspaceApiController
     private const DEFAULT_WEB_PORTS = [80, 443];
 
     public function __construct(
-        private readonly UserRepository $userRepository,
-        private readonly AgentRepository $agentRepository,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly WebspaceRepository $webspaceRepository,
-        private readonly DomainRepository $domainRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly MailNodeRepositoryInterface $mailNodeRepository,
-        private readonly MailDomainRepository $mailDomainRepository,
-        private readonly PortPoolRepository $portPoolRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly MailDomainRepositoryInterface $mailDomainRepository,
+        private readonly PortPoolRepositoryInterface $portPoolRepository,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly WebspacePathSanitizer $pathSanitizer,
         private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly EntityManagerInterface $entityManager,

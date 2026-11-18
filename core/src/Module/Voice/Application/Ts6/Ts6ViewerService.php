@@ -1,0 +1,171 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Module\Voice\Application\Ts6;
+
+use App\Infrastructure\Doctrine\EntityIdentifier;
+use App\Infrastructure\Config\JsonArray;
+use App\Module\Voice\Application\ViewerSnapshotNormalizer;
+use App\Module\Core\Domain\Entity\Ts6Viewer;
+use App\Module\Core\Domain\Entity\Ts6VirtualServer;
+use App\Module\Core\Dto\Ts6\ViewerDto;
+use App\Repository\Ts6ViewerRepository;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Contracts\Cache\CacheInterface;
+use Symfony\Contracts\Cache\ItemInterface;
+
+final class Ts6ViewerService
+{
+    public function __construct(
+        private readonly \App\Module\AgentOrchestrator\Application\AgentJobDispatcher $jobDispatcher,
+        private readonly CacheInterface $cache,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly Ts6ViewerRepository $viewerRepository,
+    ) {
+    }
+
+    public function enableViewer(Ts6VirtualServer $server, ViewerDto $dto): Ts6Viewer
+    {
+        $viewer = $this->viewerRepository->findOneBy(['virtualServer' => $server]);
+        if ($viewer === null) {
+            $viewer = new Ts6Viewer($server, bin2hex(random_bytes(16)));
+            $this->entityManager->persist($viewer);
+        }
+
+        $viewer->setEnabled($dto->enabled);
+        $viewer->setCacheTtlMs($dto->cacheTtlMs);
+        $viewer->setDomainAllowlist($dto->domainAllowlist);
+        $this->entityManager->flush();
+
+        return $viewer;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getPublicSnapshot(string $publicId, ?string $originOrReferer): array
+    {
+        $viewer = $this->viewerRepository->findOneBy(['publicId' => $publicId]);
+        if ($viewer === null || !$viewer->isEnabled()) {
+            throw new \RuntimeException('Viewer not found.');
+        }
+
+        if (!$this->isDomainAllowed($viewer, $originOrReferer)) {
+            throw new \RuntimeException('Domain not allowed.');
+        }
+
+        $cacheKey = sprintf('ts6_viewer_snapshot_v2_%s', $publicId);
+        $ttlSeconds = max(1, (int) ceil($viewer->getCacheTtlMs() / 1000));
+
+        $snapshot = \App\Infrastructure\Config\JsonMap::fromValue($this->cachedData($cacheKey, function (ItemInterface $item) use ($ttlSeconds): array {
+            $item->expiresAfter($ttlSeconds);
+            return [];
+        })) ?? [];
+
+        if ($snapshot === []) {
+            $server = $viewer->getVirtualServer();
+            $payload = [
+                'virtual_server_id' => $server->getId(),
+                'node_id' => $server->getNode()->getId(),
+                'sid' => $server->getSid(),
+                'cache_key' => $cacheKey,
+                'cache_ttl_seconds' => $ttlSeconds,
+            ];
+            $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.viewer.snapshot', $payload);
+
+            return [
+                'status' => 'pending',
+                'server' => ['sid' => $server->getSid(), 'name' => $server->getName()],
+                'channels' => [],
+                'clients' => [],
+                'snapshot' => ['server' => ['sid' => $server->getSid(), 'name' => $server->getName()], 'channels' => [], 'clients' => []],
+                'generated_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
+            ];
+        }
+
+        $normalized = ViewerSnapshotNormalizer::normalize($snapshot);
+        $channelCount = count($normalized['channels']);
+        $clientCount = count($normalized['clients']);
+        $source = 'viewer-cache';
+
+        if ($channelCount === 0) {
+            $server = $viewer->getVirtualServer();
+            $detailChannels = \App\Infrastructure\Config\JsonMap::fromValue($this->cachedData(sprintf('legacy_ts6_%d_channels', EntityIdentifier::require($server->getId())), static function (ItemInterface $item): array {
+                $item->expiresAfter(1);
+                return ['status' => 'pending'];
+            })) ?? [];
+            $detailClients = \App\Infrastructure\Config\JsonMap::fromValue($this->cachedData(sprintf('legacy_ts6_%d_clients', EntityIdentifier::require($server->getId())), static function (ItemInterface $item): array {
+                $item->expiresAfter(1);
+                return ['status' => 'pending'];
+            })) ?? [];
+            $fallback = ViewerSnapshotNormalizer::normalize([
+                'server' => $normalized['server'],
+                'channels' => JsonArray::orEmpty((\App\Infrastructure\Config\JsonMap::fromValue($detailChannels['payload'] ?? null) ?? [])['channels'] ?? null),
+                'clients' => JsonArray::orEmpty((\App\Infrastructure\Config\JsonMap::fromValue($detailClients['payload'] ?? null) ?? [])['clients'] ?? null),
+            ]);
+            if (count($fallback['channels']) > 0) {
+                $normalized = $fallback;
+                $channelCount = count($normalized['channels']);
+                $clientCount = count($normalized['clients']);
+                $source = 'detail-cache-fallback';
+                $this->cache->delete($cacheKey);
+            }
+        }
+
+        $snapshot['server'] = $normalized['server'];
+        $snapshot['channels'] = $normalized['channels'];
+        $snapshot['clients'] = $normalized['clients'];
+        $snapshot['snapshot'] = $normalized;
+        $snapshot['source'] = $source;
+        $snapshot['debug'] = [
+            'type' => 'ts6',
+            'sid' => $viewer->getVirtualServer()->getSid(),
+            'cache_key' => $cacheKey,
+            'channel_count' => $channelCount,
+            'client_count' => $clientCount,
+            'snapshot_keys' => array_keys($normalized),
+            'payload_keys' => array_keys($snapshot),
+        ];
+
+        return $snapshot;
+    }
+
+    private function isDomainAllowed(Ts6Viewer $viewer, ?string $originOrReferer): bool
+    {
+        $allowlist = $viewer->getDomainAllowlistEntries();
+        if ($allowlist === []) {
+            return true;
+        }
+
+        if ($originOrReferer === null || $originOrReferer === '') {
+            return false;
+        }
+
+        $host = parse_url($originOrReferer, PHP_URL_HOST);
+        if (!is_string($host) || $host === '') {
+            return false;
+        }
+
+        foreach ($allowlist as $entry) {
+            if ($entry === $host) {
+                return true;
+            }
+
+            if (str_starts_with($entry, '*.')) {
+                $suffix = substr($entry, 2);
+                if ($suffix !== '' && str_ends_with($host, $suffix)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /** @param callable(ItemInterface, bool): mixed $loader */
+    private function cachedData(string $key, callable $loader): mixed
+    {
+        return $this->cache->get($key, $loader);
+    }
+}

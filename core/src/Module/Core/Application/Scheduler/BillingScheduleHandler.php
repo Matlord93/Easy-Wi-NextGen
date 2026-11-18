@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Scheduler;
 
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\Billing\BillingAutomationService;
 use App\Module\Core\Application\Billing\BillingSettings;
 
 final readonly class BillingScheduleHandler implements ScheduleHandlerInterface
 {
-    public function __construct(private BillingAutomationService $automation, private BillingSettings $billingSettings, private AppSettingsService $settings)
+    public function __construct(private BillingAutomationService $automation, private BillingSettings $billingSettings, private AppSettingsServiceInterface $settings)
     {
     }
 

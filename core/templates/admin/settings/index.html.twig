@@ -58,6 +58,7 @@
 
             <form method="post" action="{{ path('admin_settings_update') }}">
                 <input type="hidden" name="tab" value="{{ activeTab }}">
+                {% if activeTab == 'logging' %}<input type="hidden" name="_token" value="{{ csrf_token('admin_settings_logging') }}">{% endif %}
 
                 {# ── General ── #}
                 {% if activeTab == 'general' %}
@@ -413,6 +414,15 @@
                 {# ── Logging ── #}
                 {% elseif activeTab == 'logging' %}
                     <div style="display:flex;flex-direction:column;gap:1rem;max-width:720px;">
+                        <div style="display:flex;flex-direction:column;gap:0.375rem;">
+                            <label for="job_history_mode">Jobs und Aufgaben: Historie speichern und anzeigen</label>
+                            <select id="job_history_mode" name="job_history_mode" class="ui-input">
+                                <option value="all" {{ settings.job_history_mode == 'all' ? 'selected' : '' }}>Alles</option>
+                                <option value="customers" {{ settings.job_history_mode == 'customers' ? 'selected' : '' }}>Nur Kundensysteme und Fehler</option>
+                                <option value="errors" {{ settings.job_history_mode == 'errors' ? 'selected' : '' }}>Nur Fehler</option>
+                            </select>
+                            <p style="margin:0;font-size:0.8125rem;color:var(--ng-text-muted);">Die Auswahl reduziert gespeicherte Job-Protokolle und Aufgabenverläufe. Nicht ausgewählte erfolgreiche Jobs werden nach 24 Stunden automatisch entfernt. Laufende Jobs und von Backups benötigte Ergebnisse bleiben erhalten. Fehler werden in allen Modi bis zur eingestellten Fehlerfrist gespeichert. Die Ausführung der Aufgaben bleibt unabhängig von dieser Auswahl aktiv.</p>
+                        </div>
                         <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;color:var(--ng-text);cursor:pointer;">
                             <input type="checkbox" name="database_logging_store_routine" value="1" {{ settings.database_logging_store_routine ? 'checked' : '' }}>
                             Routine-Logs in Datenbank speichern
@@ -428,6 +438,15 @@
                                 <input type="number" min="1" name="database_logging_error_retention_days" value="{{ settings.database_logging_error_retention_days }}" style="width:100%;border:1px solid var(--ng-border);border-radius:var(--ng-radius);padding:0.5rem 0.75rem;font-size:0.875rem;background:var(--ng-surface);color:var(--ng-text);box-sizing:border-box;">
                             </div>
                         </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                            <label>System-Messwerte aufbewahren (Tage)
+                                <input class="ui-input" type="number" min="1" name="metrics_retention_days" value="{{ settings.metrics_retention_days }}">
+                            </label>
+                            <label>Gameserver-Messwerte aufbewahren (Tage)
+                                <input class="ui-input" type="number" min="1" name="metrics_instance_retention_days" value="{{ settings.metrics_instance_retention_days }}">
+                            </label>
+                        </div>
+                        <p style="margin:0;font-size:0.8125rem;color:var(--ng-text-muted);">Routine- und Fehlerfristen gelten auch für die ausgewählte Job-/Aufgabenhistorie. Die Bereinigung läuft automatisch stündlich in begrenzten Schritten. Die Frist für Infrastruktur-/VM-Messwerte wird weiterhin in den Monitoring-Einstellungen festgelegt und auch bei deaktivierter Erfassung angewendet.</p>
                         <p style="margin:0;font-size:0.8125rem;color:var(--ng-text-muted);">Fehler immer speichern: WARNING, ERROR und CRITICAL sowie Security-/Admin-Aktionen werden unabhängig vom Routine-Toggle in der Datenbank behalten.</p>
                     </div>
 

@@ -6,7 +6,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\RetentionPolicy;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\RetentionPolicyRepository;
@@ -23,7 +23,7 @@ final class AdminGdprRetentionController
     public function __construct(
         private readonly RetentionPolicyRepository $retentionRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {

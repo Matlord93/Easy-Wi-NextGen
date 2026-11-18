@@ -10,7 +10,7 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 final readonly class BillingAutomationService
 {
-    public function __construct(private InvoiceRepository $invoices, private InvoiceStatusUpdater $statuses, private DunningWorkflow $dunning, private BillingSettings $settings, private PaymentProviderRegistry $providers, private EntityManagerInterface $em, private EventDispatcherInterface $events, private \App\Module\Core\Application\AppSettingsService $appSettings)
+    public function __construct(private InvoiceRepository $invoices, private InvoiceStatusUpdater $statuses, private DunningWorkflow $dunning, private BillingSettings $settings, private PaymentProviderRegistry $providers, private EntityManagerInterface $em, private EventDispatcherInterface $events, private \App\Module\Core\Application\AppSettingsServiceInterface $appSettings)
     {
     }
 

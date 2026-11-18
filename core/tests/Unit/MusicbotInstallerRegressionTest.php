@@ -6,7 +6,7 @@ namespace App\Tests\Unit;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -33,14 +33,14 @@ use PHPUnit\Framework\TestCase;
 final class MusicbotInstallerRegressionTest extends TestCase
 {
     private AgentJobDispatcherInterface $dispatcher;
-    private AuditLogger $auditLogger;
+    private AuditLoggerInterface $auditLogger;
     private MusicbotInstallerService $installer;
     private MusicbotRepairService $repair;
 
     protected function setUp(): void
     {
         $this->dispatcher = $this->createStub(AgentJobDispatcherInterface::class);
-        $this->auditLogger = $this->createStub(AuditLogger::class);
+        $this->auditLogger = $this->createStub(AuditLoggerInterface::class);
         $this->installer = new MusicbotInstallerService($this->dispatcher, $this->auditLogger);
         $this->repair = new MusicbotRepairService($this->dispatcher, $this->auditLogger);
     }

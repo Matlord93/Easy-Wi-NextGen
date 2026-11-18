@@ -11,10 +11,10 @@ use App\Module\Musicbot\Domain\Entity\MusicbotConnection;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
 use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakBackendStatus;
-use App\Repository\MusicbotTeamspeakBackendConfigRepository;
-use App\Repository\MusicbotConnectionRepository;
-use App\Repository\MusicbotPluginRepository;
-use App\Repository\MusicbotStreamSettingsRepository;
+use App\Repository\MusicbotTeamspeakBackendConfigRepositoryInterface;
+use App\Repository\MusicbotConnectionRepositoryInterface;
+use App\Repository\MusicbotPluginRepositoryInterface;
+use App\Repository\MusicbotStreamSettingsRepositoryInterface;
 
 /**
  * Builds the runtime configuration payload for agent job dispatch.
@@ -31,11 +31,11 @@ use App\Repository\MusicbotStreamSettingsRepository;
 final class MusicbotRuntimeConfigBuilder
 {
     public function __construct(
-        private readonly MusicbotConnectionRepository $connectionRepository,
-        private readonly MusicbotStreamSettingsRepository $streamSettingsRepository,
-        private readonly MusicbotPluginRepository $pluginRepository,
+        private readonly MusicbotConnectionRepositoryInterface $connectionRepository,
+        private readonly MusicbotStreamSettingsRepositoryInterface $streamSettingsRepository,
+        private readonly MusicbotPluginRepositoryInterface $pluginRepository,
         private readonly MusicbotSecretConfigService $secretConfigService,
-        private readonly ?MusicbotTeamspeakBackendConfigRepository $teamspeakBackendConfigRepository = null,
+        private readonly ?MusicbotTeamspeakBackendConfigRepositoryInterface $teamspeakBackendConfigRepository = null,
     ) {
     }
 

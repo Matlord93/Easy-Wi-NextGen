@@ -18,7 +18,7 @@ use App\Module\Gameserver\Application\Console\ConsoleCommandResult;
 use App\Module\Gameserver\Application\Console\ConsoleUnavailableException;
 use App\Module\Gameserver\Application\Console\NodeEndpointMissingException;
 use App\Module\Gameserver\Infrastructure\Client\AgentHmacHeaderFactory;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -28,7 +28,7 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
     private array $resumeCursors = [];
 
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly HttpClientInterface $httpClient,
         private readonly AgentHmacHeaderFactory $hmacHeaderFactory,
         private readonly AgentEndpointResolverInterface $endpointResolver,

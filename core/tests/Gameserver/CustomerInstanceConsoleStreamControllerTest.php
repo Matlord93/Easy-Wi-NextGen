@@ -12,7 +12,7 @@ use App\Module\Gameserver\Application\Console\ConsoleEventBusInterface;
 use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
 use App\Module\Gameserver\Infrastructure\Mercure\NullConsoleAgentGrpcClient;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceConsoleStreamController;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\EventStreamResponse;
@@ -321,7 +321,7 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
         $this->setEntityId($customer, $owner ? 5 : 7);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::exactly($lookupExpected ? 1 : 0))->method('find')->with(1)->willReturn($instance);
 
         return new CustomerInstanceConsoleStreamController($repo, $eventBus, $this->createStub(TranslatorInterface::class), $maxDurationSeconds, 1, $diagnostics, null, false);

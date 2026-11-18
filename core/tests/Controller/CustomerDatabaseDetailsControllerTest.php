@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DatabaseNamingPolicyInterface;
-use App\Module\Core\Application\DatabaseProvisioningService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
 use App\Module\Core\Application\DatabaseTableServiceInterface as DatabaseTableService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
@@ -17,9 +17,9 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\UI\Controller\Customer\CustomerDatabaseController;
-use App\Repository\DatabaseNodeRepository;
-use App\Repository\DatabaseRepository;
-use App\Repository\JobRepository;
+use App\Repository\DatabaseNodeRepositoryInterface;
+use App\Repository\DatabaseRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -107,10 +107,10 @@ final class CustomerDatabaseDetailsControllerTest extends TestCase
         $foreignJob = new Job('database.rotate_password', ['database_id' => '8']);
         new JobResult($foreignJob, JobResultStatus::Succeeded, []);
 
-        $dbRepo = $this->createStub(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepositoryInterface::class);
         $dbRepo->method('find')->willReturn($database);
 
-        $jobRepo = $this->createStub(JobRepository::class);
+        $jobRepo = $this->createStub(JobRepositoryInterface::class);
         $jobRepo->method('findLatestByType')->willReturnCallback(static function (string $type) use ($includeSuccessfulJob, $job, $foreignJob): array {
             if ($type === 'database.create') {
                 return $includeSuccessfulJob ? [$job] : [];
@@ -133,11 +133,11 @@ final class CustomerDatabaseDetailsControllerTest extends TestCase
 
         $controller = new CustomerDatabaseController(
             $dbRepo,
-            $this->createStub(DatabaseNodeRepository::class),
+            $this->createStub(DatabaseNodeRepositoryInterface::class),
             $jobRepo,
             $this->createStub(EntityManagerInterface::class),
-            $this->createStub(AuditLogger::class),
-            $this->createStub(DatabaseProvisioningService::class),
+            $this->createStub(AuditLoggerInterface::class),
+            $this->createStub(DatabaseProvisioningServiceInterface::class),
             $this->createStub(DatabaseNamingPolicyInterface::class),
             $twig,
             $translator,

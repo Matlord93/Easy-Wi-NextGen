@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Core\Domain\Entity\Instance;
@@ -17,8 +17,8 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
-use App\Repository\InstanceRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Messenger\Envelope;
@@ -38,10 +38,10 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($owner);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository = $this->createMock(InstanceRepositoryInterface::class);
         $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
-        $controller = $this->newControllerWith($instanceRepository, $this->createStub(AppSettingsService::class));
+        $controller = $this->newControllerWith($instanceRepository, $this->createStub(AppSettingsServiceInterface::class));
 
         $request = Request::create('/api/instances/7/power', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['action' => 'start']));
         $request->attributes->set('current_user', $customer);
@@ -65,10 +65,10 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository = $this->createMock(InstanceRepositoryInterface::class);
         $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
-        $controller = $this->newControllerWith($instanceRepository, $this->createStub(AppSettingsService::class));
+        $controller = $this->newControllerWith($instanceRepository, $this->createStub(AppSettingsServiceInterface::class));
 
         $request = Request::create('/api/instances/7/power', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['action' => 'launch']));
         $request->attributes->set('current_user', $customer);
@@ -94,17 +94,17 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getId')->willReturn(7);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository = $this->createMock(InstanceRepositoryInterface::class);
         $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('isGameserverStartStopAllowed')->willReturn(true);
 
-        $jobRepository = $this->createStub(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepositoryInterface::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')
             ->willReturnOnConsecutiveCalls(null, new Job('instance.backup.create', ['instance_id' => '7']));
 
-        $auditLogger = $this->createMock(AuditLogger::class);
+        $auditLogger = $this->createMock(AuditLoggerInterface::class);
         $auditLogger->expects(self::once())->method('log');
 
         $controller = $this->newControllerWith($instanceRepository, $settings, $jobRepository, $auditLogger, null);
@@ -131,17 +131,17 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         $instance->method('getId')->willReturn(7);
         $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository = $this->createMock(InstanceRepositoryInterface::class);
         $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('isGameserverStartStopAllowed')->willReturn(true);
 
-        $jobRepository = $this->createStub(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepositoryInterface::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')
             ->willReturn(null);
 
-        $auditLogger = $this->createMock(AuditLogger::class);
+        $auditLogger = $this->createMock(AuditLoggerInterface::class);
         $auditLogger->expects(self::once())->method('log');
 
         $controller = $this->newControllerWith($instanceRepository, $settings, $jobRepository, $auditLogger);
@@ -159,10 +159,10 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
     }
 
     private function newControllerWith(
-        InstanceRepository $instanceRepository,
-        AppSettingsService $settings,
-        ?JobRepository $jobRepository = null,
-        ?AuditLogger $auditLogger = null,
+        InstanceRepositoryInterface $instanceRepository,
+        AppSettingsServiceInterface $settings,
+        ?JobRepositoryInterface $jobRepository = null,
+        ?AuditLoggerInterface $auditLogger = null,
         ?AgentGameServerClientInterface $agentClient = null,
     ): CustomerInstanceActionApiController
     {
@@ -176,8 +176,8 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         foreach ([
             'instanceRepository' => $instanceRepository,
             'appSettingsService' => $settings,
-            'jobRepository' => $jobRepository ?? $this->createStub(JobRepository::class),
-            'auditLogger' => $auditLogger ?? $this->createStub(AuditLogger::class),
+            'jobRepository' => $jobRepository ?? $this->createStub(JobRepositoryInterface::class),
+            'auditLogger' => $auditLogger ?? $this->createStub(AuditLoggerInterface::class),
             'diskEnforcementService' => $this->buildDiskEnforcementService(),
             'agentGameServerClient' => $agentClient,
             'messageBus' => $messageBus,

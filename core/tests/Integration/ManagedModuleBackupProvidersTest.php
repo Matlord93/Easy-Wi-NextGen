@@ -11,6 +11,7 @@ use App\Module\Core\Application\Backup\ModuleArchiveGatewayInterface;
 use App\Module\Core\Application\Backup\Resource\ModuleBackupBindingStore;
 use App\Module\Core\Application\Backup\Resource\ModuleBackupResourceResolver;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Command\BindModuleBackupCommand;
 use App\Module\Core\Domain\Entity\{Agent, Database, DatabaseNode, Domain, Instance, Mailbox, MailDomain, MailNode, Template, Ts3Instance, Ts6Instance, User};
 use App\Module\Core\Domain\Enum\{InstanceStatus, Ts3DatabaseMode, Ts3InstanceStatus, Ts6InstanceStatus, UserType};
@@ -42,7 +43,7 @@ final class ManagedModuleBackupProvidersTest extends KernelTestCase
                 $connection->executeStatement($sql);
             }
             $encryption = new EncryptionService('test', 'test:'.base64_encode(str_repeat('x', 32)));
-            $container->set(EncryptionService::class, $encryption);
+            $container->set(EncryptionServiceInterface::class, $encryption);
             $user = new User('backup@example.test', UserType::Customer);
             $user->setPasswordHash('unused-test-password');
             $agent = new Agent('managed-backup-node', $encryption->encrypt('agent-secret'));

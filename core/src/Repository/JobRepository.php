@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Application\JobHistoryPolicy;
 use App\Module\Core\Domain\Enum\JobStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\DBAL\LockMode;
@@ -13,12 +14,9 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<Job>
  */
-class JobRepository extends ServiceEntityRepository
+final class JobRepository extends ServiceEntityRepository implements JobRepositoryInterface
 {
-    /** Job types that run silently in the background and are never shown in the UI. */
-    private const array BACKGROUND_TYPES = ['instance.query.check'];
-
-    public function __construct(ManagerRegistry $registry)
+    public function __construct(ManagerRegistry $registry, private readonly JobHistoryPolicy $history)
     {
         parent::__construct($registry, Job::class);
     }
@@ -26,11 +24,19 @@ class JobRepository extends ServiceEntityRepository
     /**
      * @return Job[]
      */
+    #[\Override]
     public function findLatest(int $limit = 50): array
     {
+        // Operational consumers use these rows for action/state reconciliation.
         return EntityQueryResult::all($this->createQueryBuilder('job')
-            ->andWhere('job.type NOT IN (:hidden)')
-            ->setParameter('hidden', self::BACKGROUND_TYPES)
+            ->andWhere('job.type <> :background')->setParameter('background', 'instance.query.check')
+            ->orderBy('job.createdAt', 'DESC')->setMaxResults($limit)->getQuery(), Job::class);
+    }
+
+    #[\Override]
+    public function findLatestHistory(int $limit = 50): array
+    {
+        return EntityQueryResult::all($this->history->filterJobs($this->createQueryBuilder('job'))
             ->orderBy('job.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery(), \App\Module\Core\Domain\Entity\Job::class);
@@ -39,11 +45,10 @@ class JobRepository extends ServiceEntityRepository
     /**
      * @return array{jobs: Job[], total: int}
      */
+    #[\Override]
     public function findPaginatedLatest(int $page, int $perPage = 25): array
     {
-        $query = $this->createQueryBuilder('job')
-            ->andWhere('job.type NOT IN (:hidden)')
-            ->setParameter('hidden', self::BACKGROUND_TYPES)
+        $query = $this->history->filterJobs($this->createQueryBuilder('job'))
             ->orderBy('job.createdAt', 'DESC')
             ->setFirstResult(max(0, ($page - 1) * $perPage))
             ->setMaxResults($perPage)
@@ -58,24 +63,22 @@ class JobRepository extends ServiceEntityRepository
         ];
     }
 
+    #[\Override]
     public function countAll(): int
     {
-        return (int) $this->createQueryBuilder('job')
+        return (int) $this->history->filterJobs($this->createQueryBuilder('job'))
             ->select('COUNT(job.id)')
-            ->andWhere('job.type NOT IN (:hidden)')
-            ->setParameter('hidden', self::BACKGROUND_TYPES)
             ->getQuery()
             ->getSingleScalarResult();
     }
 
+    #[\Override]
     public function countByStatus(JobStatus $status): int
     {
-        return (int) $this->createQueryBuilder('job')
+        return (int) $this->history->filterJobs($this->createQueryBuilder('job'))
             ->select('COUNT(job.id)')
             ->andWhere('job.status = :status')
-            ->andWhere('job.type NOT IN (:hidden)')
             ->setParameter('status', $status->value)
-            ->setParameter('hidden', self::BACKGROUND_TYPES)
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -83,6 +86,7 @@ class JobRepository extends ServiceEntityRepository
     /**
      * @return Job[]
      */
+    #[\Override]
     public function findQueuedForDispatchForUpdate(int $limit = 20): array
     {
         $query = $this->createQueryBuilder('job')
@@ -100,6 +104,7 @@ class JobRepository extends ServiceEntityRepository
     /**
      * @return Job[]
      */
+    #[\Override]
     public function findLatestByType(string $type, int $limit = 100): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('job')
@@ -110,6 +115,7 @@ class JobRepository extends ServiceEntityRepository
             ->getQuery(), \App\Module\Core\Domain\Entity\Job::class);
     }
 
+    #[\Override]
     public function countRunningByAgentAndTypes(string $agentId, array $types): int
     {
         if ($types === []) {
@@ -128,6 +134,7 @@ class JobRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
+    #[\Override]
     public function countRunningByAgent(string $agentId): int
     {
         return (int) $this->createQueryBuilder('job')
@@ -143,6 +150,7 @@ class JobRepository extends ServiceEntityRepository
     /**
      * @param array<int, string> $excludedTypes
      */
+    #[\Override]
     public function countRunningByAgentExcludingTypes(string $agentId, array $excludedTypes): int
     {
         $builder = $this->createQueryBuilder('job')
@@ -166,6 +174,7 @@ class JobRepository extends ServiceEntityRepository
     /**
      * @return Job[]
      */
+    #[\Override]
     public function findRunningWithExpiredLock(\DateTimeImmutable $now, int $limit = 200): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('job')
@@ -179,6 +188,7 @@ class JobRepository extends ServiceEntityRepository
             ->getQuery(), \App\Module\Core\Domain\Entity\Job::class);
     }
 
+    #[\Override]
     public function findActiveByTypeAndPayloadField(string $type, string $field, string $value, int $limit = 40): ?Job
     {
         $jobs = $this->findLatestByType($type, $limit);
@@ -197,6 +207,26 @@ class JobRepository extends ServiceEntityRepository
         return null;
     }
 
+    #[\Override]
+    public function findActivePayloadValues(string $type, string $field): array
+    {
+        $rows = $this->createQueryBuilder('job')->select('job.payload AS payload')
+            ->andWhere('job.type = :type')->andWhere('job.status IN (:statuses)')
+            ->setParameter('type', $type)
+            ->setParameter('statuses', [JobStatus::Queued->value, JobStatus::Claimed->value, JobStatus::Running->value])
+            ->getQuery()->getArrayResult();
+        $values = [];
+        foreach (MetricSampleRow::map($rows, static fn (array $row): array => \App\Infrastructure\Config\JsonMap::fromValue($row['payload'] ?? null) ?? []) as $payload) {
+            $value = \App\Infrastructure\Config\ScalarValue::text($payload[$field] ?? null);
+            if ($value !== '') {
+                $values[$value] = true;
+            }
+        }
+
+        return $values;
+    }
+
+    #[\Override]
     public function findLatestByTypeAndInstanceId(string $type, int $instanceId, int $limit = 50): ?Job
     {
         $jobs = $this->findLatestByType($type, $limit);
@@ -210,6 +240,7 @@ class JobRepository extends ServiceEntityRepository
         return null;
     }
 
+    #[\Override]
     public function findLatestActiveByTypeInstanceIdAndScheduleId(string $type, int $instanceId, string $scheduleId, int $limit = 100): ?Job
     {
         if ($instanceId <= 0 || $scheduleId === '') {
@@ -237,6 +268,7 @@ class JobRepository extends ServiceEntityRepository
     }
 
     /** @param list<string> $types */
+    #[\Override]
     public function findLatestActiveByTypesAndInstanceId(array $types, int $instanceId, int $limitPerType = 40): ?Job
     {
         $active = [];

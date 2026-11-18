@@ -1519,7 +1519,15 @@ func normalizeVirtualServerEntry(server map[string]string) map[string]any {
 		return nil
 	}
 
+	// Unknown counts stay null instead of becoming a measured zero.
+	var playersOnline any
+	if raw := resolveVirtualServerValue(server, "virtualserver_clientsonline", "players_online", "clients_online"); raw != "" {
+		if count, err := strconv.Atoi(raw); err == nil && count >= 0 {
+			playersOnline = count
+		}
+	}
 	return map[string]any{
+		"players_online":    playersOnline,
 		"sid":               parseOptionalInt(sidValue),
 		"name":              name,
 		"voice_port":        parseOptionalInt(resolveVirtualServerValue(server, "virtualserver_port", "voice_port", "port", "server_port")),

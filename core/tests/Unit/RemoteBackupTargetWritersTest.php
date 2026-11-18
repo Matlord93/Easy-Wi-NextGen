@@ -13,7 +13,7 @@ use App\Module\Core\Application\Backup\Target\S3BackupTargetWriter;
 use App\Module\Core\Application\Backup\Target\SftpBackupTargetWriter;
 use App\Module\Core\Application\Backup\Target\VerifiedArchiveFile;
 use App\Module\Core\Application\Backup\Target\WebDavBackupTargetWriter;
-use App\Module\Core\Application\SftpConnectionFactory;
+use App\Module\Core\Application\SftpConnectionFactoryInterface;
 use App\Module\Core\Application\SshHostKeyVerifier;
 use phpseclib3\Net\SFTP;
 use PHPUnit\Framework\TestCase;
@@ -128,7 +128,7 @@ final class RemoteBackupTargetWritersTest extends TestCase
 
     public function testSftpMissingFingerprintFailsBeforeConnecting(): void
     {
-        $connections = $this->createMock(SftpConnectionFactory::class);
+        $connections = $this->createMock(SftpConnectionFactoryInterface::class);
         $connections->expects(self::never())->method('create');
         $writer = new SftpBackupTargetWriter($connections, new SshHostKeyVerifier(), new PrivateKeyFileReader());
         $this->expectException(\App\Module\Core\Application\Exception\SftpException::class);
@@ -140,7 +140,7 @@ final class RemoteBackupTargetWritersTest extends TestCase
         $connection = $this->createMock(SFTP::class);
         $connection->method('getServerPublicHostKey')->willReturn('ssh-ed25519 '.base64_encode('server-key'));
         $connection->expects(self::never())->method('login');
-        $connections = $this->createStub(SftpConnectionFactory::class);
+        $connections = $this->createStub(SftpConnectionFactoryInterface::class);
         $connections->method('create')->willReturn($connection);
         $writer = new SftpBackupTargetWriter($connections, new SshHostKeyVerifier(), new PrivateKeyFileReader());
         $target = new BackupStorageTarget('sftp', 'SFTP', ['host' => 'storage', 'path' => '/backups', 'host_key_fingerprint' => 'SHA256:'.rtrim(base64_encode(hash('sha256', 'different-key', true)), '=')], ['username' => 'backup', 'password' => 'secret']);

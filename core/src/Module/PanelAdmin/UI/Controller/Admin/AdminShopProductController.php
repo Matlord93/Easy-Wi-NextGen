@@ -6,11 +6,11 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ShopProduct;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use App\Repository\ShopCategoryRepository;
 use App\Repository\ShopProductRepository;
 use App\Repository\TemplateRepository;
@@ -28,10 +28,10 @@ final class AdminShopProductController
         private readonly ShopProductRepository $productRepository,
         private readonly ShopCategoryRepository $categoryRepository,
         private readonly TemplateRepository $templateRepository,
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly SiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {

@@ -9,12 +9,12 @@ use App\Infrastructure\Config\ScalarValue;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\JobStatus;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -27,10 +27,10 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminJobController
 {
     public function __construct(
-        private readonly JobRepository $jobRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly Environment $twig,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly JobPayloadMasker $jobPayloadMasker,
         private readonly TranslatorInterface $translator,
     ) {

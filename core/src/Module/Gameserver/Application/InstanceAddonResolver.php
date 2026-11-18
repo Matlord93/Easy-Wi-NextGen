@@ -8,13 +8,13 @@ use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Repository\GamePluginRepository;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 
 final class InstanceAddonResolver
 {
     public function __construct(
         private readonly GamePluginRepository $gamePluginRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly JobRepositoryInterface $jobRepository,
     ) {
     }
 

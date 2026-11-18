@@ -14,7 +14,7 @@ use App\Module\Core\Update\UpdateManifest;
 use App\Module\Core\Update\UpdateResult;
 use App\Module\Core\Update\UpdateStatus;
 use App\Repository\AgentJobRepository;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Process\Process;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -62,7 +62,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         private readonly ?string $githubToken = null,
         private readonly ?LoggerInterface $logger = null,
         private readonly ?AgentJobDispatcher $agentJobDispatcher = null,
-        private readonly ?AgentRepository $agentRepository = null,
+        private readonly ?AgentRepositoryInterface $agentRepository = null,
         private readonly ?string $reloadAgentId = null,
         private readonly ?AgentJobRepository $agentJobRepository = null,
         ?string $projectDir = null,
@@ -115,6 +115,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             $manifest->assetUrl,
             $manifest->sha256,
             $manifestResult['cache_status'] ?? [],
+            $manifest->signatureUrl,
         );
     }
 

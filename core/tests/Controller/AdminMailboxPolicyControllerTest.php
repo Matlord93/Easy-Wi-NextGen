@@ -5,10 +5,10 @@ namespace App\Tests\Controller;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\UI\Controller\Admin\AdminMailboxPolicyController;
-use App\Repository\MailboxRepository;
-use App\Repository\MailDomainRepository;
+use App\Repository\MailboxRepositoryInterface;
+use App\Repository\MailDomainRepositoryInterface;
 use App\Repository\MailPolicyRepositoryInterface;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -21,5 +21,5 @@ final class AdminMailboxPolicyControllerTest extends TestCase
 
     private function adminReq(array $data=[]): Request { $r=new Request([],[],[],[],[],['HTTP_X_ADMIN_REQUEST'=>'1'], json_encode($data) ?: ''); $r->initialize([],[],[],[],[],['HTTP_X_ADMIN_REQUEST'=>'1'],json_encode($data) ?: ''); $r->attributes->set('current_user', new User('a@x', UserType::Superadmin)); return $r; }
     private function ctrl(): AdminMailboxPolicyController { return $this->ctrlWithRepo()[0]; }
-    private function ctrlWithRepo(): array { $m=$this->createStub(MailboxRepository::class); $p=$this->createStub(MailPolicyRepositoryInterface::class); $md=$this->createStub(MailDomainRepository::class); $a=$this->createStub(AuditLogger::class); $em=$this->createStub(EntityManagerInterface::class); return [new AdminMailboxPolicyController($m,$p,$md,$a,$em),$m,$p,$em]; }
+    private function ctrlWithRepo(): array { $m=$this->createStub(MailboxRepositoryInterface::class); $p=$this->createStub(MailPolicyRepositoryInterface::class); $md=$this->createStub(MailDomainRepositoryInterface::class); $a=$this->createStub(AuditLoggerInterface::class); $em=$this->createStub(EntityManagerInterface::class); return [new AdminMailboxPolicyController($m,$p,$md,$a,$em),$m,$p,$em]; }
 }

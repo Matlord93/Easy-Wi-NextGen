@@ -8,7 +8,7 @@ use App\Module\Core\Domain\Entity\Agent;
 
 final class AgentCredentialsResolver
 {
-    public function __construct(private readonly EncryptionService $encryptionService)
+    public function __construct(private readonly EncryptionServiceInterface $encryptionService)
     {
     }
 

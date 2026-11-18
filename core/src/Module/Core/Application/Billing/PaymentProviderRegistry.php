@@ -27,7 +27,15 @@ final class PaymentProviderRegistry
 
     public function get(string $name): ?PaymentProviderInterface
     {
-        return $this->providers[$name] ?? null;
+        if (isset($this->providers[$name])) {
+            return $this->providers[$name];
+        }
+        foreach ($this->providers as $provider) {
+            if (in_array($name, $provider->supportedMethods(), true)) {
+                return $provider;
+            }
+        }
+        return null;
     }
 
     /**

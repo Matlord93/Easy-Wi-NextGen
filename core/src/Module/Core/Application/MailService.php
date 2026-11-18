@@ -21,7 +21,7 @@ final class MailService
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
         private readonly LoggerInterface $logger,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly ?MessageBusInterface $messageBus = null,
     ) {
     }

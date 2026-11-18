@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Teamspeak;
 
-use App\Module\Teamspeak\Application\Update\TeamspeakChecksumResolver;
+use App\Module\Voice\Application\Update\TeamspeakChecksumResolver;
 use PHPUnit\Framework\TestCase;
 
 final class TeamspeakChecksumResolverTest extends TestCase

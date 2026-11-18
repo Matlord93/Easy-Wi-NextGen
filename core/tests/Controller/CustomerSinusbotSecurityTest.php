@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\SecretsCrypto;
-use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisioner;
+use App\Module\Core\Application\SecretsCryptoInterface;
+use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisionerInterface;
 use App\Module\Core\Domain\Entity\SinusbotInstance;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\UI\Controller\Customer\CustomerSinusbotController;
-use App\Repository\SinusbotInstanceRepository;
-use App\Repository\SinusbotNodeRepository;
+use App\Repository\SinusbotInstanceRepositoryInterface;
+use App\Repository\SinusbotNodeRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -34,7 +34,7 @@ final class CustomerSinusbotSecurityTest extends TestCase
         $instance = new SinusbotInstance($node, $otherCustomer, 'inst-1', 'user', 3, 'stopped');
         $this->setEntityId($instance, 10);
 
-        $instanceRepo = $this->createStub(SinusbotInstanceRepository::class);
+        $instanceRepo = $this->createStub(SinusbotInstanceRepositoryInterface::class);
         $instanceRepo->method('find')->willReturnCallback(function (mixed ...$stubArguments) use ($instance): mixed {
             $expectedArguments = [10];
             self::assertEquals($expectedArguments, array_slice($stubArguments, 0, count($expectedArguments)));
@@ -42,7 +42,7 @@ final class CustomerSinusbotSecurityTest extends TestCase
             return $instance;
         });
 
-        $provisioner = $this->createMock(SinusbotInstanceProvisioner::class);
+        $provisioner = $this->createMock(SinusbotInstanceProvisionerInterface::class);
         $provisioner->expects($this->never())->method('startInstance');
 
         $csrfManager = $this->createStub(CsrfTokenManagerInterface::class);
@@ -50,9 +50,9 @@ final class CustomerSinusbotSecurityTest extends TestCase
 
         $controller = new CustomerSinusbotController(
             $instanceRepo,
-            $this->createStub(SinusbotNodeRepository::class),
+            $this->createStub(SinusbotNodeRepositoryInterface::class),
             $provisioner,
-            $this->createStub(SecretsCrypto::class),
+            $this->createStub(SecretsCryptoInterface::class),
             $csrfManager,
             $this->createStub(UrlGeneratorInterface::class),
             $this->createStub(Environment::class),

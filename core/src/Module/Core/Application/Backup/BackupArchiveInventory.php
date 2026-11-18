@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Backup;
 
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 
 final readonly class BackupArchiveInventory
 {
-    public function __construct(private Connection $connection, private SecretsCrypto $crypto)
+    public function __construct(private Connection $connection, private SecretsCryptoInterface $crypto)
     {
     }
 

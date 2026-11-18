@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Module\Core\Application\Scheduler;
 
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\PrivacyGdprBackgroundJobResult;
 use App\Module\Core\Application\PrivacyGdprBackgroundJobRunnerInterface;
 use App\Module\Core\Application\Scheduler\PrivacyGdprScheduleHandler;
@@ -85,9 +86,9 @@ final class PrivacyGdprScheduleHandlerTest extends TestCase
     }
 
     /** @param array<string,mixed> $marked */
-    private function settings(bool $enabled, array &$marked): AppSettingsService
+    private function settings(bool $enabled, array &$marked): AppSettingsServiceInterface
     {
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('getSettings')->willReturn([
             AppSettingsService::KEY_PRIVACY_GDPR_JOBS_ENABLED => $enabled,
             AppSettingsService::KEY_PRIVACY_GDPR_JOBS_INTERVAL => '0 3 * * *',

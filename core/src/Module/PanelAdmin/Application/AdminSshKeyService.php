@@ -6,13 +6,13 @@ namespace App\Module\PanelAdmin\Application;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 
 final class AdminSshKeyService
 {
     public function __construct(
         private readonly string $authorizedKeysPath,
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly AgentJobDispatcher $jobDispatcher,
     ) {
     }

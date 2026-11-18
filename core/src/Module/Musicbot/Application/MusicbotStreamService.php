@@ -4,24 +4,24 @@ declare(strict_types=1);
 
 namespace App\Module\Musicbot\Application;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotStreamSettings;
 use App\Module\Musicbot\Domain\Enum\MusicbotStreamAccessMode;
 use App\Module\Musicbot\Infrastructure\Stream\StreamOutputInterface;
-use App\Repository\MusicbotStreamSettingsRepository;
+use App\Repository\MusicbotStreamSettingsRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class MusicbotStreamService
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly MusicbotStreamSettingsRepository $settingsRepository,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotStreamSettingsRepositoryInterface $settingsRepository,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
         private readonly StreamOutputInterface $streamOutput,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

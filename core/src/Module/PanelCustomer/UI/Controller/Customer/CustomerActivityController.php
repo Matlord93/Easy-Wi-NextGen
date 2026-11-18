@@ -8,7 +8,7 @@ use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\AuditLogRepository;
+use App\Repository\AuditLogRepositoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -19,7 +19,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class CustomerActivityController
 {
     public function __construct(
-        private readonly AuditLogRepository $auditLogRepository,
+        private readonly AuditLogRepositoryInterface $auditLogRepository,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {

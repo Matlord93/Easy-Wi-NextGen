@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Module\Core\Domain\Entity\ScheduledTaskRun;
+use App\Module\Core\Application\JobHistoryPolicy;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<ScheduledTaskRun> */
 final class ScheduledTaskRunRepository extends ServiceEntityRepository
 {
-    public function __construct(ManagerRegistry $registry)
+    public function __construct(ManagerRegistry $registry, private readonly JobHistoryPolicy $history)
     {
         parent::__construct($registry, ScheduledTaskRun::class);
     }
@@ -61,12 +62,12 @@ final class ScheduledTaskRunRepository extends ServiceEntityRepository
     /** @return ScheduledTaskRun[] */
     public function findRecent(int $limit = 100): array
     {
-        return $this->findBy([], ['startedAt' => 'DESC'], max(1, $limit));
+        return EntityQueryResult::all($this->history->filterRuns($this->createQueryBuilder('run'))->orderBy('run.startedAt', 'DESC')->addOrderBy('run.id', 'DESC')->setMaxResults(max(1, $limit))->getQuery(), ScheduledTaskRun::class);
     }
 
     /** @return ScheduledTaskRun[] */
     public function findRecentForSchedule(string $source, string $scheduleId, int $limit = 50): array
     {
-        return $this->findBy(['scheduleSource' => $source, 'scheduleId' => $scheduleId], ['startedAt' => 'DESC'], max(1, $limit));
+        return EntityQueryResult::all($this->history->filterRuns($this->createQueryBuilder('run'))->andWhere('run.scheduleSource = :source')->andWhere('run.scheduleId = :schedule')->setParameter('source', $source)->setParameter('schedule', $scheduleId)->orderBy('run.startedAt', 'DESC')->addOrderBy('run.id', 'DESC')->setMaxResults(max(1, $limit))->getQuery(), ScheduledTaskRun::class);
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
@@ -13,8 +13,8 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
-use App\Repository\InstanceRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -39,10 +39,10 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
             $status = $newStatus;
         });
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository = $this->createMock(InstanceRepositoryInterface::class);
         $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
-        $jobRepository = $this->createStub(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepositoryInterface::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(null);
 
         $agentClient = $this->createMock(AgentGameServerClientInterface::class);
@@ -52,7 +52,7 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
         $entityManager->expects(self::once())->method('persist')->with($instance);
         $entityManager->expects(self::once())->method('flush');
 
-        $auditLogger = $this->createMock(AuditLogger::class);
+        $auditLogger = $this->createMock(AuditLoggerInterface::class);
         $auditLogger->expects(self::once())->method('log');
 
         $controller = $this->newController($instanceRepository, $jobRepository, $agentClient, $entityManager, $auditLogger);
@@ -80,16 +80,16 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getId')->willReturn(7);
 
-        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository = $this->createMock(InstanceRepositoryInterface::class);
         $instanceRepository->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $activeJob = new Job('instance.start', ['instance_id' => '7']);
-        $jobRepository = $this->createStub(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepositoryInterface::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn($activeJob);
 
         $agentClient = $this->createStub(AgentGameServerClientInterface::class);
         $entityManager = $this->createStub(EntityManagerInterface::class);
-        $auditLogger = $this->createStub(AuditLogger::class);
+        $auditLogger = $this->createStub(AuditLoggerInterface::class);
 
         $controller = $this->newController($instanceRepository, $jobRepository, $agentClient, $entityManager, $auditLogger);
         $request = Request::create('/api/instances/7/status/fix', 'POST');
@@ -106,11 +106,11 @@ final class CustomerInstanceStatusFixApiControllerTest extends TestCase
     }
 
     private function newController(
-        InstanceRepository $instanceRepository,
-        JobRepository $jobRepository,
+        InstanceRepositoryInterface $instanceRepository,
+        JobRepositoryInterface $jobRepository,
         AgentGameServerClientInterface $agentClient,
         EntityManagerInterface $entityManager,
-        AuditLogger $auditLogger,
+        AuditLoggerInterface $auditLogger,
     ): CustomerInstanceActionApiController {
         $reflection = new \ReflectionClass(CustomerInstanceActionApiController::class);
         /** @var CustomerInstanceActionApiController $controller */

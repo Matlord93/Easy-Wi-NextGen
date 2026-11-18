@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use PHPUnit\Framework\TestCase;
@@ -15,7 +15,7 @@ final class AgentNodePortProbeTest extends TestCase
 {
     public function testProbeAuthenticatesWithNodeSecretAndUnwrapsAgentResponse(): void
     {
-        $encryption = $this->createStub(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionServiceInterface::class);
         $encryption->method('decrypt')->willReturn('test-node-secret');
         $node = new Agent('probe-node', []);
         $node->setServiceBaseUrl('https://node.example:8443');
@@ -35,7 +35,7 @@ final class AgentNodePortProbeTest extends TestCase
 
     public function testAuthenticationFailureDoesNotBecomeAnEmptyFreeList(): void
     {
-        $encryption = $this->createStub(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionServiceInterface::class);
         $encryption->method('decrypt')->willReturn('test-node-secret');
         $node = new Agent('probe-node', []);
         $node->setServiceBaseUrl('https://node.example');

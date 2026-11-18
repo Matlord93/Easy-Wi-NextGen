@@ -9,10 +9,10 @@ use App\Infrastructure\Http\RequestActor;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\EntityQueryResult;
-use App\Repository\DomainRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\DomainRepositoryInterface;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\TicketRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -23,9 +23,9 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminSearchController
 {
     public function __construct(
-        private readonly UserRepository $userRepository,
-        private readonly InstanceRepository $instanceRepository,
-        private readonly DomainRepository $domainRepository,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
         private readonly TicketRepository $ticketRepository,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

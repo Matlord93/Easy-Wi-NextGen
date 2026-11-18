@@ -6,7 +6,7 @@ namespace App\Tests\Service;
 
 use App\Module\Core\Application\AgentEndpoint;
 use App\Module\Core\Application\AgentEndpointResolverInterface;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\MailNode;
@@ -24,7 +24,7 @@ final class MailNodeHealthAggregatorTest extends TestCase
 
         $http = $this->createStub(HttpClientInterface::class);
         $resolver = $this->createStub(AgentEndpointResolverInterface::class);
-        $crypto = $this->createStub(SecretsCrypto::class);
+        $crypto = $this->createStub(SecretsCryptoInterface::class);
 
         $aggregator = new MailNodeHealthAggregator($http, $resolver, $crypto, new NullLogger());
         $result = $aggregator->aggregate([$mailNode], []);
@@ -65,7 +65,7 @@ final class MailNodeHealthAggregatorTest extends TestCase
         $http->method('request')->willReturn($response);
         $resolver = $this->createStub(AgentEndpointResolverInterface::class);
         $resolver->method('resolveForAgent')->willReturn(new AgentEndpoint('http://127.0.0.1:7456'));
-        $crypto = $this->createStub(SecretsCrypto::class);
+        $crypto = $this->createStub(SecretsCryptoInterface::class);
         $crypto->method('decrypt')->willReturn('');
 
         $aggregator = new MailNodeHealthAggregator($http, $resolver, $crypto, new NullLogger());

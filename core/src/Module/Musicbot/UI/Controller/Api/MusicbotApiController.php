@@ -10,7 +10,7 @@ use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -20,7 +20,7 @@ use App\Module\Musicbot\Application\MusicbotPlaylistService;
 use App\Module\Musicbot\Application\MusicbotPluginEventService;
 use App\Module\Musicbot\Application\MusicbotPluginLogService;
 use App\Module\Musicbot\Application\MusicbotPluginService;
-use App\Module\Musicbot\Application\MusicbotQuotaService;
+use App\Module\Musicbot\Application\MusicbotQuotaServiceInterface;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventService;
 use App\Module\Musicbot\Application\MusicbotAutoDjService;
 use App\Module\Musicbot\Application\MusicbotScheduleService;
@@ -29,7 +29,7 @@ use App\Module\Musicbot\Application\MusicbotStreamService;
 use App\Module\Musicbot\Application\MusicbotWorkflowService;
 use App\Module\Musicbot\Domain\Entity\MusicbotWorkflow;
 use App\Module\Musicbot\Domain\Enum\MusicbotWorkflowTriggerType;
-use App\Repository\MusicbotStreamSettingsRepository;
+use App\Repository\MusicbotStreamSettingsRepositoryInterface;
 use App\Module\Musicbot\Application\MusicbotStatusProvider;
 use App\Module\Musicbot\Application\MusicbotTrackService;
 use App\Module\Musicbot\Application\MusicbotYoutubeService;
@@ -51,19 +51,19 @@ use App\Module\Musicbot\Domain\Enum\MusicbotPlaylistVisibility;
 use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakProfile;
 use App\Module\Musicbot\Domain\Exception\MusicbotPermissionDeniedException;
 use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
-use App\Repository\AgentRepository;
-use App\Repository\MusicbotConnectionRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\MusicbotConnectionRepositoryInterface;
 use App\Repository\MusicbotCustomerLimitsRepository;
 use App\Repository\MusicbotAutoDjSettingsRepository;
-use App\Repository\MusicbotScheduleRepository;
+use App\Repository\MusicbotScheduleRepositoryInterface;
 use App\Repository\MusicbotWorkflowExecutionRepository;
 use App\Repository\MusicbotWorkflowRepository;
 use App\Repository\MusicbotInstanceRepository;
-use App\Repository\MusicbotPlaylistRepository;
-use App\Repository\MusicbotPluginRepository;
+use App\Repository\MusicbotPlaylistRepositoryInterface;
+use App\Repository\MusicbotPluginRepositoryInterface;
 use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
 use App\Repository\MusicbotTrackQueryRepositoryInterface;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -86,27 +86,27 @@ final class MusicbotApiController
         private readonly MusicbotAutoDjService $autoDjService,
         private readonly MusicbotAutoDjSettingsRepository $autoDjSettingsRepository,
         private readonly MusicbotScheduleService $scheduleService,
-        private readonly MusicbotScheduleRepository $scheduleRepository,
+        private readonly MusicbotScheduleRepositoryInterface $scheduleRepository,
         private readonly MusicbotStreamService $streamService,
-        private readonly MusicbotStreamSettingsRepository $streamSettingsRepository,
+        private readonly MusicbotStreamSettingsRepositoryInterface $streamSettingsRepository,
         private readonly MusicbotWorkflowService $workflowService,
         private readonly MusicbotWorkflowRepository $workflowRepository,
         private readonly MusicbotWorkflowExecutionRepository $executionRepository,
         private readonly MusicbotSecretConfigService $secretConfigService,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly MusicbotPermissionService $permissionService,
         private readonly MusicbotPlanLimitResolver $planLimitResolver,
         private readonly MusicbotInstanceRepository $instanceRepository,
-        private readonly MusicbotConnectionRepository $connectionRepository,
+        private readonly MusicbotConnectionRepositoryInterface $connectionRepository,
         private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
         private readonly MusicbotTrackQueryRepositoryInterface $trackRepository,
-        private readonly MusicbotPlaylistRepository $playlistRepository,
-        private readonly MusicbotPluginRepository $pluginRepository,
+        private readonly MusicbotPlaylistRepositoryInterface $playlistRepository,
+        private readonly MusicbotPluginRepositoryInterface $pluginRepository,
         private readonly MusicbotCustomerLimitsRepository $customerLimitsRepository,
-        private readonly UserRepository $userRepository,
-        private readonly AgentRepository $agentRepository,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly AgentJobDispatcher $jobDispatcher,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly MusicbotTrackPathResolver $trackPathResolver,
         private readonly MusicbotRuntimeStatusNormalizer $runtimeStatusNormalizer,

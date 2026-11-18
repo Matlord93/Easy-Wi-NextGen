@@ -13,17 +13,20 @@ use App\Repository\InvoiceRepository;
 use App\Repository\EntityQueryResult;
 use App\Repository\NotificationRepository;
 use App\Repository\NotificationPreferenceRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 final class NotificationService
 {
     public function __construct(
         private readonly NotificationRepository $notificationRepository,
-        private readonly UserRepository $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly InvoiceRepository $invoiceRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly NotificationPreferenceRepository $preferenceRepository,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {
     }
 
@@ -52,9 +55,13 @@ final class NotificationService
             ->andWhere('user.type IN (:types)')
             ->setParameter('types', [UserType::Admin->value, UserType::Superadmin->value])
             ->getQuery(), User::class);
+        $created = 0;
         foreach ($admins as $admin) {
-            $this->notify($admin, $eventKey, $title, $body, $category, $actionUrl);
+            if ($this->notify($admin, $eventKey, $title, $body, $category, $actionUrl) !== null) {
+                ++$created;
+            }
         }
+        $this->logger->debug('notification.admin_batch_completed', ['event_key' => $eventKey, 'recipients' => count($admins), 'created' => $created]);
     }
 
     public function syncAdminPaymentNotifications(): void

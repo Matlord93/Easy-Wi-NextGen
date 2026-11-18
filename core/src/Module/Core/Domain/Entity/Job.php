@@ -15,6 +15,8 @@ use Doctrine\ORM\Mapping as ORM;
  */
 #[ORM\Entity(repositoryClass: JobRepository::class)]
 #[ORM\Table(name: 'jobs')]
+#[ORM\Index(name: 'idx_core_jobs_type_status', columns: ['type', 'status'])]
+#[ORM\Index(name: 'idx_jobs_status_updated', fields: ['status', 'updatedAt'])]
 class Job
 {
     /** @var array<string, list<JobStatus>> */

@@ -7,13 +7,13 @@ namespace App\Module\Gameserver\Application\Query;
 use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Application\InstanceQueryService;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
 
 final class QuerySmokeService implements QuerySmokeRunnerInterface
 {
     public function __construct(
         private readonly InstanceQueryService $instanceQueryService,
-        private readonly PortBlockRepository $portBlockRepository,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
         private readonly TemplateEngineFamilyResolver $engineFamilyResolver,
     ) {
     }

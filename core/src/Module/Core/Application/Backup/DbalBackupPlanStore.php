@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Backup;
 
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 
@@ -13,7 +13,7 @@ final class DbalBackupPlanStore implements WritableBackupPlanStoreInterface, Bac
     /** @var array<string, string> Tokens owned by this worker, never another worker's lease. */
     private array $lockTokens = [];
 
-    public function __construct(private readonly Connection $connection, private readonly SecretsCrypto $crypto, private readonly BackupPlanJsonCodec $codec)
+    public function __construct(private readonly Connection $connection, private readonly SecretsCryptoInterface $crypto, private readonly BackupPlanJsonCodec $codec)
     {
     }
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Module\Core\Application;
 
 use App\Module\Core\Application\DatabaseTableService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
@@ -17,7 +17,7 @@ final class DatabaseTableServiceTest extends TestCase
 {
     public function testListTablesStillWorksAfterOneTimeRevealConsumptionBecauseEncryptedPasswordRemains(): void
     {
-        $encryption = $this->createStub(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionServiceInterface::class);
         $encryption->method('decrypt')->willReturn('operational-password');
 
         $statement = new class extends \PDOStatement { public function __construct() {}

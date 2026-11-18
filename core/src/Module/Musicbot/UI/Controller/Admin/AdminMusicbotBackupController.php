@@ -9,7 +9,7 @@ use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Application\Backup\MusicbotBackupOptions;
 use App\Module\Musicbot\Application\Backup\MusicbotBackupService;
@@ -30,7 +30,7 @@ final class AdminMusicbotBackupController
         private readonly MusicbotBackupService $backupService,
         private readonly MusicbotRestoreService $restoreService,
         private readonly MusicbotMigrationService $migrationService,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Entity\User;
 use Doctrine\DBAL\LockMode;
@@ -12,7 +12,7 @@ use Doctrine\ORM\EntityManagerInterface;
 
 final readonly class InvoiceAdjustmentService
 {
-    public function __construct(private EntityManagerInterface $em, private CreditNoteIssuer $credits, private AuditLogger $audit)
+    public function __construct(private EntityManagerInterface $em, private CreditNoteIssuer $credits, private AuditLoggerInterface $audit)
     {
     }
 
@@ -38,8 +38,10 @@ final readonly class InvoiceAdjustmentService
             }
             $amount = $cancel ? $invoice->getAmountDueCents() : $amount;
             $wasPaid = $invoice->getPaidAt() !== null;
+            $creditNoteNumber = null;
             if ($amount !== null && $amount > 0) {
-                $this->credits->issue($invoice, 'CN-'.date('Ymd').'-'.bin2hex(random_bytes(6)), $amount, $invoice->getCurrency(), $reason, $actor);
+$creditNote = $this->credits->issue($invoice, 'CN-'.date('Ymd').'-'.bin2hex(random_bytes(6)), $amount, $invoice->getCurrency(), $reason, $actor);
+                $creditNoteNumber = $creditNote->getNumber();
             } elseif (!$cancel) {
                 throw new \InvalidArgumentException('billing.invalid_credit');
             }
@@ -48,7 +50,7 @@ final readonly class InvoiceAdjustmentService
                 if (!$wasPaid) {
                     $invoice->clearPaidAt();
                 }
-                $this->audit->log($actor, 'billing.invoice.cancelled', ['invoice_id' => $invoice->getId(), 'reason' => $reason]);
+                $this->audit->log($actor, 'billing.invoice.cancelled', ['invoice_id' => $invoice->getId(), 'reason' => $reason, 'credit_note_number' => $creditNoteNumber]);
             }
         });
     }

@@ -35,7 +35,7 @@ final class MusicbotTrackService
         private readonly MusicbotTrackRepositoryInterface $trackRepository,
         private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly MusicbotTrackPathResolver $pathResolver,
-        private readonly MusicbotWebradioUrlValidator $webradioValidator = new MusicbotWebradioUrlValidator(),
+        private readonly MusicbotWebradioUrlValidatorInterface $webradioValidator = new MusicbotWebradioUrlValidator(),
     ) {
     }
 

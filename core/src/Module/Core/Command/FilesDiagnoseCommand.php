@@ -7,10 +7,12 @@ namespace App\Module\Core\Command;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\PanelCustomer\Application\SftpFilesystemService;
-use App\Repository\InstanceRepository;
+use App\Module\PanelCustomer\Application\SftpFilesystemServiceInterface;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\WebspaceRepository;
 use App\Repository\WebspaceSftpCredentialRepository;
 use Psr\Log\LoggerInterface;
@@ -28,12 +30,12 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class FilesDiagnoseCommand extends Command
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly WebspaceSftpCredentialRepository $webspaceSftpCredentialRepository,
         private readonly FileServiceClient $fileServiceClient,
-        private readonly SftpFilesystemService $sftpFilesystemService,
-        private readonly AppSettingsService $settingsService,
+        private readonly SftpFilesystemServiceInterface $sftpFilesystemService,
+        private readonly AppSettingsServiceInterface $settingsService,
         private readonly LoggerInterface $logger,
         private readonly GameServerPathResolver $gameServerPathResolver,
     ) {

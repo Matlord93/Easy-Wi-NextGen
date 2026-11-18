@@ -8,7 +8,7 @@ use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Message\RunInstanceActionMessage;
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Application\JobPayloadMasker;
@@ -25,10 +25,10 @@ use App\Module\Gameserver\Application\InstanceInstallService;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Gameserver\Application\TemplateInstallResolverInterface;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
-use App\Repository\InstanceRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\JobLogRepository;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -44,18 +44,18 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class CustomerJobApiController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly JobLogRepository $jobLogRepository,
         private readonly JobLogger $jobLogger,
         private readonly JobPayloadMasker $jobPayloadMasker,
         private readonly DiskEnforcementService $diskEnforcementService,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly SetupChecker $setupChecker,
         private readonly InstanceInstallService $instanceInstallService,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly TemplateInstallResolverInterface $templateInstallResolver,
-        private readonly PortBlockRepository $portBlockRepository,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
         private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,

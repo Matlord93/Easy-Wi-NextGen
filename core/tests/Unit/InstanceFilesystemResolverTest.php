@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
@@ -14,7 +14,7 @@ final class InstanceFilesystemResolverTest extends TestCase
 {
     public function testResolveInstanceDirUsesWindowsSeparatorWhenBaseDirIsWindowsPath(): void
     {
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $resolver = new InstanceFilesystemResolver($settings);
 
         $instance = $this->createStub(Instance::class);

@@ -6947,3 +6947,6 @@ admin_updates_activation_running: "Update wird installiert und aktiviert …"
 admin_updates_activation_failed: "Update oder Aktivierung fehlgeschlagen – Protokoll prüfen"
 
 customer_files_sftp_health_failed: "Die SFTP-Verbindung ist derzeit nicht verfügbar."
+
+admin_voice_node_refresh_status: "Status aktualisieren"
+admin_voice_node_status_queued: "Statusprüfung wurde eingereiht."

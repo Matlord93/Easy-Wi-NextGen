@@ -6,13 +6,15 @@ namespace App\Module\Core\Command;
 
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Gameserver\Application\GameServerPathResolver;
-use App\Repository\AgentRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Lock\LockFactory;
 
 #[AsCommand(
     name: 'disk:scan:reconcile',
@@ -23,10 +25,12 @@ final class DiskScanReconcileCommand extends Command
     private const DEFAULT_BATCH_LIMIT = 50;
 
     public function __construct(
-        private readonly AgentRepository $agentRepository,
-        private readonly InstanceRepository $instanceRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly GameServerPathResolver $filesystemResolver,
         private readonly EntityManagerInterface $entityManager,
+        private readonly JobRepositoryInterface $jobRepository,
+        private readonly LockFactory $locks,
     ) {
         parent::__construct();
     }
@@ -34,9 +38,24 @@ final class DiskScanReconcileCommand extends Command
     #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        $lock = $this->locks->createLock('core.disk_scan.reconcile');
+        if (!$lock->acquire()) {
+            return Command::SUCCESS;
+        }
+        try {
+            return $this->queueScans($output);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function queueScans(OutputInterface $output): int
+    {
         $now = new \DateTimeImmutable();
         $queuedScans = 0;
         $queuedStats = 0;
+        $activeScans = $this->jobRepository->findActivePayloadValues('instance.disk.scan', 'instance_id');
+        $activeStats = $this->jobRepository->findActivePayloadValues('node.disk.stat', 'node_id');
 
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         foreach ($nodes as $node) {
@@ -49,6 +68,10 @@ final class DiskScanReconcileCommand extends Command
 
             $instances = $this->instanceRepository->findScanCandidates($node, $threshold, $remaining);
             foreach ($instances as $instance) {
+                $instanceId = (string) $instance->getId();
+                if (isset($activeScans[$instanceId])) {
+                    continue;
+                }
                 $payload = [
                     'instance_id' => (string) ($instance->getId() ?? ''),
                     'customer_id' => (string) $instance->getCustomer()->getId(),
@@ -58,6 +81,7 @@ final class DiskScanReconcileCommand extends Command
 
                 $job = new Job('instance.disk.scan', $payload);
                 $this->entityManager->persist($job);
+                $activeScans[$instanceId] = true;
                 $queuedScans++;
 
                 if ($queuedScans >= self::DEFAULT_BATCH_LIMIT) {
@@ -67,6 +91,9 @@ final class DiskScanReconcileCommand extends Command
         }
 
         foreach ($nodes as $node) {
+            if (isset($activeStats[$node->getId()])) {
+                continue;
+            }
             $metadata = $node->getMetadata();
             $stat = \App\Infrastructure\Config\JsonMap::fromValue($metadata['disk_stat'] ?? null);
             $checkedAt = null;

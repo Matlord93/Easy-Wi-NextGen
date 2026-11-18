@@ -7,7 +7,7 @@ namespace App\Module\Nodes\UI\Controller\Admin;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -16,7 +16,7 @@ use App\Module\Nodes\Application\Kvm\KvmOperationLock;
 use App\Module\Nodes\Application\Kvm\KvmPanelService;
 use App\Module\Nodes\Domain\Entity\KvmGuestAssignment;
 use App\Repository\AgentJobRepository;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -30,10 +30,10 @@ use Symfony\Component\Uid\Uuid;
 final class AdminKvmController extends AbstractController
 {
     public function __construct(
-        private readonly AgentRepository $agents,
+        private readonly AgentRepositoryInterface $agents,
         private readonly AgentJobRepository $jobs,
         private readonly KvmPanelService $kvm,
-        private readonly AuditLogger $audit,
+        private readonly AuditLoggerInterface $audit,
         private readonly EntityManagerInterface $em,
     ) {
     }

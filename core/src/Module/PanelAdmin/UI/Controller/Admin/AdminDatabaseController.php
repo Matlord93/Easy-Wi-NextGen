@@ -7,19 +7,19 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Http\RequestActor;
 use App\Infrastructure\Config\ScalarValue;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DatabaseNamingPolicyInterface;
-use App\Module\Core\Application\DatabaseProvisioningService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\EngineType;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\AgentRepository;
-use App\Repository\DatabaseNodeRepository;
-use App\Repository\DatabaseRepository;
-use App\Repository\UserRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\DatabaseNodeRepositoryInterface;
+use App\Repository\DatabaseRepositoryInterface;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -31,14 +31,14 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminDatabaseController
 {
     public function __construct(
-        private readonly DatabaseRepository $databaseRepository,
-        private readonly DatabaseNodeRepository $databaseNodeRepository,
-        private readonly AgentRepository $agentRepository,
-        private readonly UserRepository $userRepository,
+        private readonly DatabaseRepositoryInterface $databaseRepository,
+        private readonly DatabaseNodeRepositoryInterface $databaseNodeRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly EncryptionService $encryptionService,
-        private readonly DatabaseProvisioningService $provisioningService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly EncryptionServiceInterface $encryptionService,
+        private readonly DatabaseProvisioningServiceInterface $provisioningService,
         private readonly DatabaseNamingPolicyInterface $namingPolicy,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

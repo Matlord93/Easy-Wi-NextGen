@@ -12,7 +12,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\Console\ConsoleEventBusInterface;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceConsoleStreamController;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -83,7 +83,7 @@ final class ConsoleSseEncoderTest extends TestCase
         $owner = new User('owner@example.test', UserType::Customer);
         $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
-        $repository = $this->createStub(InstanceRepository::class);
+        $repository = $this->createStub(InstanceRepositoryInterface::class);
         $repository->method('find')->willReturn($instance);
         $bus = $this->createMock(ConsoleEventBusInterface::class);
         $bus->expects(self::once())->method('incrementSubscriber')->with(1);

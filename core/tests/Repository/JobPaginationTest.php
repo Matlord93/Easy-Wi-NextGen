@@ -6,6 +6,8 @@ namespace App\Tests\Repository;
 
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\JobResult;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\JobHistoryPolicy;
 use App\Repository\JobRepository;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\ORM\EntityManager;
@@ -16,7 +18,7 @@ use PHPUnit\Framework\TestCase;
 
 final class JobPaginationTest extends TestCase
 {
-    public function testPaginationKeepsNewestFirstAndExcludesBackgroundJobsFromPageAndTotal(): void
+    public function testAllHistoryModeKeepsNewestFirstAndIncludesBackgroundJobsInPageAndTotal(): void
     {
         $configuration = ORMSetup::createAttributeMetadataConfiguration([dirname(__DIR__, 2).'/src/Module/Core/Domain/Entity'], true);
         $configuration->enableNativeLazyObjects(true);
@@ -41,18 +43,21 @@ final class JobPaginationTest extends TestCase
         $em->clear();
         $registry = $this->createStub(ManagerRegistry::class);
         $registry->method('getManagerForClass')->willReturn($em);
-        $repository = new JobRepository($registry);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
+        $settings->method('getSettings')->willReturn(['job_history_mode' => 'all']);
+        $repository = new JobRepository($registry, new JobHistoryPolicy($settings));
 
         $first = $repository->findPaginatedLatest(1, 1);
-        self::assertSame(2, $first['total']);
+        self::assertSame(3, $first['total']);
         self::assertCount(1, $first['jobs']);
-        self::assertSame($newer->getId(), $first['jobs'][0]->getId());
+        self::assertSame($hidden->getId(), $first['jobs'][0]->getId());
 
         $second = $repository->findPaginatedLatest(2, 1);
-        self::assertSame(2, $second['total']);
+        self::assertSame(3, $second['total']);
         self::assertCount(1, $second['jobs']);
-        self::assertSame($older->getId(), $second['jobs'][0]->getId());
+        self::assertSame($newer->getId(), $second['jobs'][0]->getId());
 
-        self::assertSame(['jobs' => [], 'total' => 2], $repository->findPaginatedLatest(3, 1));
+        self::assertSame($older->getId(), $repository->findPaginatedLatest(3, 1)['jobs'][0]->getId());
+        self::assertSame(['jobs' => [], 'total' => 3], $repository->findPaginatedLatest(4, 1));
     }
 }

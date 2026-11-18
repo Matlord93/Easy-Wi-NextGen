@@ -6,7 +6,7 @@ namespace App\Module\Nodes\UI\Controller;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Nodes\Application\Monitoring\InfrastructureAlerts;
@@ -29,7 +29,7 @@ use Symfony\Component\Routing\Attribute\Route;
 /** @psalm-import-type HistoryPoint from \App\Module\Nodes\Application\Monitoring\InfrastructureHistorySeries */
 final class InfrastructureMonitoringController extends AbstractController
 {
-    public function __construct(private readonly EntityManagerInterface $em, private readonly InfrastructureTargets $targets, private readonly InfrastructureHistoryStore $history, private readonly InfrastructureAlerts $alerts, private readonly InfrastructureMonitoringSettings $settings, private readonly InfrastructureCollector $collector, private readonly AuditLogger $audit)
+    public function __construct(private readonly EntityManagerInterface $em, private readonly InfrastructureTargets $targets, private readonly InfrastructureHistoryStore $history, private readonly InfrastructureAlerts $alerts, private readonly InfrastructureMonitoringSettings $settings, private readonly InfrastructureCollector $collector, private readonly AuditLoggerInterface $audit)
     {
     }
 

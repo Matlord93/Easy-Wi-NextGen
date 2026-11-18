@@ -8,14 +8,14 @@ use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotWorkflow;
 use App\Module\Musicbot\Domain\Entity\MusicbotWorkflowCondition;
 use App\Module\Musicbot\Domain\Enum\MusicbotWorkflowConditionType;
-use App\Repository\MusicbotPluginRepository;
+use App\Repository\MusicbotPluginRepositoryInterface;
 use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
 
 final class MusicbotWorkflowEvaluator
 {
     public function __construct(
         private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
-        private readonly MusicbotPluginRepository $pluginRepository,
+        private readonly MusicbotPluginRepositoryInterface $pluginRepository,
     ) {
     }
 

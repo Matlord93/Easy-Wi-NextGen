@@ -8,7 +8,7 @@ use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\PanelCustomer\Application\SftpFilesystemService;
+use App\Module\PanelCustomer\Application\SftpFilesystemServiceInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class FilesHealthTest extends AbstractWebTestCase
@@ -33,10 +33,10 @@ final class FilesHealthTest extends AbstractWebTestCase
     public function testForeignAndUnknownWebspacesAreRejectedBeforeSftpAccess(): void
     {
         [$client, $ownId, $foreignId] = $this->customerWithWebspaces();
-        $service = $this->createMock(SftpFilesystemService::class);
+        $service = $this->createMock(SftpFilesystemServiceInterface::class);
         $service->expects(self::never())->method('list');
         $client->disableReboot();
-        self::getContainer()->set(SftpFilesystemService::class, $service);
+        self::getContainer()->set(SftpFilesystemServiceInterface::class, $service);
         foreach ([$foreignId, 99999999] as $id) {
             $client->request('GET', '/files/health?webspace='.$id, [], [], ['HTTP_ACCEPT' => 'application/json']);
             self::assertResponseStatusCodeSame(404);
@@ -46,10 +46,10 @@ final class FilesHealthTest extends AbstractWebTestCase
     public function testOwnedWebspaceFailureDoesNotExposePathsOrExceptions(): void
     {
         [$client, $id] = $this->customerWithWebspaces();
-        $service = $this->createMock(SftpFilesystemService::class);
+        $service = $this->createMock(SftpFilesystemServiceInterface::class);
         $service->expects(self::once())->method('list')->willThrowException(new \RuntimeException('Connection failed: internal-host /srv/private/docroot secret-value'));
         $client->disableReboot();
-        self::getContainer()->set(SftpFilesystemService::class, $service);
+        self::getContainer()->set(SftpFilesystemServiceInterface::class, $service);
         $client->request('GET', '/files/health?webspace='.$id, [], [], ['HTTP_ACCEPT' => 'application/json']);
         self::assertResponseStatusCodeSame(503);
         $body = (string) $client->getResponse()->getContent();
@@ -62,10 +62,10 @@ final class FilesHealthTest extends AbstractWebTestCase
     public function testOwnedWebspaceSuccessDoesNotReturnDirectoryEntries(): void
     {
         [$client, $id] = $this->customerWithWebspaces();
-        $service = $this->createMock(SftpFilesystemService::class);
+        $service = $this->createMock(SftpFilesystemServiceInterface::class);
         $service->expects(self::once())->method('list')->willReturn([['name' => 'secret.env', 'path' => '/srv/private/secret.env', 'type' => 'file', 'size' => 100, 'last_modified' => 0]]);
         $client->disableReboot();
-        self::getContainer()->set(SftpFilesystemService::class, $service);
+        self::getContainer()->set(SftpFilesystemServiceInterface::class, $service);
         $client->request('GET', '/files/health?webspace='.$id, [], [], ['HTTP_ACCEPT' => 'application/json']);
         self::assertResponseIsSuccessful();
         self::assertSame(['ok' => true, 'root_readable' => true], json_decode((string) $client->getResponse()->getContent(), true));

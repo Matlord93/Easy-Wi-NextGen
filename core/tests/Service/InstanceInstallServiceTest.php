@@ -15,9 +15,9 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\InstanceInstallService;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Gameserver\Application\TemplateInstallResolverInterface;
-use App\Module\Ports\Application\PortLeaseManager;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
-use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
+use App\Module\Ports\Application\PortLeaseManagerInterface;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
+use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
 use App\Repository\SharedStorageTemplateLocatorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -134,9 +134,9 @@ final class InstanceInstallServiceTest extends TestCase
 
         return new InstanceInstallService(
             new SetupChecker(),
-            $this->createStub(PortPoolRepository::class),
-            $this->createStub(PortBlockRepository::class),
-            $this->createStub(PortLeaseManager::class),
+            $this->createStub(PortPoolRepositoryInterface::class),
+            $this->createStub(PortBlockRepositoryInterface::class),
+            $this->createStub(PortLeaseManagerInterface::class),
             $resolver,
             $sharedStorageLocator ?? $this->createStub(SharedStorageTemplateLocatorInterface::class),
             $this->createStub(EntityManagerInterface::class),

@@ -8,8 +8,8 @@ use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\GamePlugin;
@@ -19,8 +19,8 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\GamePluginRepository;
-use App\Repository\InstanceRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -38,12 +38,12 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class CustomerInstanceFileManagerController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly GamePluginRepository $gamePluginRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly FileServiceClient $fileServiceClient,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

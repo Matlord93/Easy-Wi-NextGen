@@ -6,9 +6,9 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\QrCodeService;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\User;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,8 +20,8 @@ final class TwoFactorQrController
 {
     public function __construct(
         private readonly TwoFactorService $twoFactorService,
-        private readonly AppSettingsService $settings,
-        private readonly SecretsCrypto $secretsCrypto,
+        private readonly AppSettingsServiceInterface $settings,
+        private readonly SecretsCryptoInterface $secretsCrypto,
         private readonly QrCodeService $qrCodeService,
         private readonly TranslatorInterface $translator,
     ) {

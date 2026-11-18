@@ -11,16 +11,15 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Voice\Application\Provider\SinusbotAdapter;
 use App\Module\Voice\Application\Provider\Teamspeak3Adapter;
 use App\Module\Voice\Application\Provider\Teamspeak6Adapter;
-use App\Module\Voice\Application\Provider\Ts3ServerLookupInterface;
-use App\Module\Voice\Application\Provider\Ts6ServerLookupInterface;
+use App\Module\Voice\Application\TeamspeakServerOperationsInterface;
 use PHPUnit\Framework\TestCase;
 
 final class TeamspeakAdaptersTest extends TestCase
 {
     public function testTs3NotFoundProbeMapsReasonAndCode(): void
     {
-        $lookup = $this->createStub(Ts3ServerLookupInterface::class);
-        $lookup->method('find')->willReturn(null);
+        $lookup = $this->createStub(TeamspeakServerOperationsInterface::class);
+        $lookup->method('resolve')->willThrowException(new \RuntimeException('not found'));
 
         $adapter = new Teamspeak3Adapter($lookup);
         $instance = new VoiceInstance(new User('c@example.test', UserType::Customer), new VoiceNode('n1', 'ts3', '127.0.0.1', 10011), '999', 'Srv');
@@ -32,7 +31,7 @@ final class TeamspeakAdaptersTest extends TestCase
 
     public function testTs6RejectsInvalidAction(): void
     {
-        $lookup = $this->createStub(Ts6ServerLookupInterface::class);
+        $lookup = $this->createStub(TeamspeakServerOperationsInterface::class);
         $adapter = new Teamspeak6Adapter($lookup);
         $instance = new VoiceInstance(new User('c2@example.test', UserType::Customer), new VoiceNode('n2', 'ts6', '127.0.0.1', 10022), '111', 'Srv2');
 

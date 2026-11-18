@@ -16,11 +16,11 @@ use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AgentReleaseChecker;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskUsageFormatter;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\NodeDiskProtectionService;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\AgentRegistrationToken;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\LogIndex;
@@ -33,15 +33,15 @@ use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Domain\Entity\PortPool;
 use App\Module\Ports\Domain\Entity\PortRange;
 use App\Repository\AgentJobRepository;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use App\Repository\DdosStatusRepository;
 use App\Repository\FirewallStateRepository;
-use App\Repository\InstanceRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use App\Repository\MetricSampleRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts6InstanceRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
@@ -60,25 +60,25 @@ final class AdminNodeController
     private const ENCRYPTION_CONFIG_ERROR = 'Encryption key configuration is invalid: %s Ensure /etc/easywi/secret.key is readable and contains a base64 key (JSON with active_key_id/keys or "v1:<base64>").';
 
     public function __construct(
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly AgentJobRepository $agentJobRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly DdosStatusRepository $ddosStatusRepository,
         private readonly Environment $twig,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly AgentReleaseChecker $releaseChecker,
-        private readonly EncryptionService $encryptionService,
-        private readonly SecretsCrypto $secretsCrypto,
+        private readonly EncryptionServiceInterface $encryptionService,
+        private readonly SecretsCryptoInterface $secretsCrypto,
         private readonly NodeDiskProtectionService $nodeDiskProtectionService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly Ts6InstanceRepository $ts6InstanceRepository,
         private readonly MetricSampleRepository $metricSampleRepository,
         private readonly FirewallStateRepository $firewallStateRepository,
-        private readonly UserRepository $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly TranslatorInterface $translator,
         #[Autowire(param: 'app.admin_authorized_keys_path')]
         private readonly string $adminAuthorizedKeysPath,

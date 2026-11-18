@@ -8,7 +8,7 @@ use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\CmsMaintenanceWindowProviderInterface;
 use App\Module\Cms\Application\CmsRenderingFlowResolver;
 use App\Module\Cms\Application\ThemeResolver;
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Domain\Entity\MaintenanceWindow;
 use App\Module\Core\Domain\Entity\Site;
 use PHPUnit\Framework\TestCase;
@@ -23,7 +23,7 @@ final class CmsRenderingFlowResolverTest extends TestCase
         $entityManager = $this->createStub(\Doctrine\ORM\EntityManagerInterface::class);
         $themeResolver = new ThemeResolver(new \App\Module\Cms\Application\CmsSettingsProvider($settingsRepository, $entityManager));
 
-        $appSettings = $this->createStub(AppSettingsService::class);
+        $appSettings = $this->createStub(AppSettingsServiceInterface::class);
         $appSettings->method('getSettings')->willReturn([]);
         $maintenanceService = new CmsMaintenanceService($appSettings);
 

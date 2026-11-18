@@ -51,14 +51,14 @@ final readonly class ElectronicInvoiceController
             throw new AccessDeniedHttpException();
         }
         try {
-            $this->service->generate($invoice, $format, $actor);
+            $archive = $this->service->generate($invoice, $format, $actor);
         } catch (\InvalidArgumentException $exception) {
             return $this->page($request, $invoice, $this->safeError($exception), 422);
         } catch (\RuntimeException $exception) {
             return $this->page($request, $invoice, $this->safeError($exception), 503);
         }
 
-        return new RedirectResponse('/admin/billing/invoices/'.$id.'/electronic', Response::HTTP_SEE_OTHER);
+        return new RedirectResponse('/admin/billing/invoices/'.\App\Infrastructure\Doctrine\EntityIdentifier::require($archive->getInvoice()->getId()).'/electronic', Response::HTTP_SEE_OTHER);
     }
 
     #[Route('/admin/billing/invoices/{id<\d+>}/electronic/{format<xrechnung|zugferd>}', name: 'admin_billing_electronic_download', methods: ['GET'])]

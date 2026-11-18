@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Sinusbot;
 
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -15,7 +15,7 @@ final class SinusbotNodeService
     public function __construct(
         private readonly \App\Module\AgentOrchestrator\Application\AgentJobDispatcher $jobDispatcher,
         private readonly EntityManagerInterface $entityManager,
-        private readonly SecretsCrypto $crypto,
+        private readonly SecretsCryptoInterface $crypto,
     ) {
     }
 

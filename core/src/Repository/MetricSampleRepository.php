@@ -99,7 +99,7 @@ final class MetricSampleRepository extends ServiceEntityRepository
      */
     public function findSparklineSeriesForAgentSince(Agent $agent, \DateTimeImmutable $since, int $limit = 240): array
     {
-        return MetricSampleRow::map($this->createQueryBuilder('sample')
+        $rows = MetricSampleRow::map($this->createQueryBuilder('sample')
             ->select(
                 'sample.recordedAt AS recordedAt',
                 'sample.cpuPercent AS cpuPercent',
@@ -113,7 +113,8 @@ final class MetricSampleRepository extends ServiceEntityRepository
             ->andWhere('sample.recordedAt >= :since')
             ->setParameter('agent', QueryParameter::entityId($agent->getId(), \App\Module\Core\Domain\Entity\Agent::class))
             ->setParameter('since', $since, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
-            ->orderBy('sample.recordedAt', 'ASC')
+            ->orderBy('sample.recordedAt', 'DESC')
+            ->addOrderBy('sample.id', 'DESC')
             ->setMaxResults(max(2, min(500, $limit)))
             ->getQuery()
             ->getArrayResult(), static fn (array $row): array => [
@@ -125,6 +126,8 @@ final class MetricSampleRepository extends ServiceEntityRepository
                 'netBytesRecv' => MetricSampleRow::nullableInteger($row['netBytesRecv'] ?? null),
                 'payload' => MetricSampleRow::payload($row['payload'] ?? null),
             ]);
+
+        return array_reverse($rows);
     }
 
     public function buildRecentSamplesQueryBuilder(Agent $agent, \DateTimeImmutable $since, int $page, int $perPage): QueryBuilder

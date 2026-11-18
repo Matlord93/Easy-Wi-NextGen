@@ -60,11 +60,4 @@ final class SinusbotAdapter implements VoiceProviderAdapter
             'port' => null,
         ];
     }
-
-    /** @return array{online: null, max: null} */
-    #[\Override]
-    public function getPlayers(VoiceInstance $instance): array
-    {
-        return ['online' => null, 'max' => null];
-    }
 }

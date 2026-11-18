@@ -51,7 +51,7 @@ func TestConsoleCursorNoDuplicatesAcrossReconnect(t *testing.T) {
 
 func TestJournalReconnectEmitsSingleMetaEvent(t *testing.T) {
 	origStart := startJournalStream
-	defer func() { startJournalStream = origStart }()
+	t.Cleanup(func() { startJournalStream = origStart })
 
 	runs := 0
 	startJournalStream = func(ctx context.Context, unitName string) (*startedJournalStream, error) {
@@ -71,21 +71,25 @@ func TestJournalReconnectEmitsSingleMetaEvent(t *testing.T) {
 		}, nil
 	}
 
-	s := &consoleSession{instanceID: "1", unitName: "gs-1", buffer: make([]consoleLine, 0, 10), sessionID: "sess1"}
+	s := &consoleSession{instanceID: "1", unitName: "gs-1", buffer: make([]consoleLine, 0, 10), sessionID: "sess1", done: make(chan struct{})}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	go s.run()
+	t.Cleanup(func() {
+		s.cancel()
+		<-s.done
+	})
 	time.Sleep(2300 * time.Millisecond)
 	s.cancel()
-	time.Sleep(100 * time.Millisecond)
+	<-s.done
 
 	metaCount := 0
 	reconnectCount := 0
-	for _, line := range s.buffer {
-		if line.Stream != "meta" {
+	for _, line := range s.snapshotAfterCursor("").lines {
+		if line["stream"] != "meta" {
 			continue
 		}
 		metaCount++
-		if line.Text == "reconnected" {
+		if line["text"] == "reconnected" {
 			reconnectCount++
 		}
 	}
@@ -198,11 +202,11 @@ func TestConsoleSnapshotTracksDroppedLinesAndOffsetResume(t *testing.T) {
 
 func TestConsoleLogsSupportsLastOffsetQuery(t *testing.T) {
 	origLookup := lookupCommand
-	defer func() { lookupCommand = origLookup }()
+	t.Cleanup(func() { lookupCommand = origLookup })
 	lookupCommand = func(file string) (string, error) { return "/usr/bin/journalctl", nil }
 
 	origStart := startJournalStream
-	defer func() { startJournalStream = origStart }()
+	t.Cleanup(func() { startJournalStream = origStart })
 	startJournalStream = func(ctx context.Context, unitName string) (*startedJournalStream, error) {
 		<-ctx.Done()
 		return nil, ctx.Err()
@@ -263,6 +267,8 @@ func TestConsoleCommandSubrouteAcceptsHMAC(t *testing.T) {
 	origWrite := writeConsoleCommand
 	defer func() { writeConsoleCommand = origWrite }()
 	writeConsoleCommand = func(socketPath, command string) error { return nil }
+	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
+	t.Cleanup(func() { globalConsoleSessions.stopAll() })
 
 	cfg := fileapi.Config{AgentID: "agent-1", Secret: "shared-secret", MaxSkew: 5 * time.Minute}
 	handler := withInstanceSubRouteAuth(cfg, http.HandlerFunc(handleInstanceQueryHTTP))

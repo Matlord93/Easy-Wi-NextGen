@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Security;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\UserSession;
 use App\Repository\UserSessionRepository;
@@ -20,8 +20,8 @@ final class LoginFinalizer
     public function __construct(
         private readonly SessionTokenGenerator $tokenGenerator,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly AppSettingsService $settingsService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly AppSettingsServiceInterface $settingsService,
         private readonly IdentifierHasher $identifierHasher,
         private readonly UserSessionRepository $sessionRepository,
     ) {

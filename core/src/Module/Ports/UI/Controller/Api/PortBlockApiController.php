@@ -6,14 +6,14 @@ namespace App\Module\Ports\UI\Controller\Api;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\Ports\Application\PortLeaseManager;
+use App\Module\Ports\Application\PortLeaseManagerInterface;
 use App\Module\Ports\Domain\Entity\PortBlock;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
-use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
-use App\Repository\UserRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
+use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -22,12 +22,12 @@ use Symfony\Component\Routing\Attribute\Route;
 final class PortBlockApiController
 {
     public function __construct(
-        private readonly PortBlockRepository $portBlockRepository,
-        private readonly PortPoolRepository $portPoolRepository,
-        private readonly UserRepository $userRepository,
-        private readonly PortLeaseManager $portLeaseManager,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
+        private readonly PortPoolRepositoryInterface $portPoolRepository,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly PortLeaseManagerInterface $portLeaseManager,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

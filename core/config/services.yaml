@@ -113,7 +113,45 @@ services:
   App\Module\Core\Application\PrivacyGdprBackgroundJobRunnerInterface: '@App\Module\Core\Application\PrivacyGdprBackgroundJobService'
   App\Module\Musicbot\Infrastructure\Stream\StreamOutputInterface: '@App\Module\Musicbot\Infrastructure\Stream\PlaceholderStreamOutput'
   App\Module\Musicbot\Application\MusicbotScheduleDispatcherInterface: '@App\Module\Musicbot\Application\MusicbotScheduleDispatcher'
+  App\Module\Core\Application\AppSettingsServiceInterface: '@App\Module\Core\Application\AppSettingsService'
+  App\Module\Core\Application\AuditLoggerInterface: '@App\Module\Core\Application\AuditLogger'
+  App\Module\Core\Application\DatabaseProvisioningServiceInterface: '@App\Module\Core\Application\DatabaseProvisioningService'
+  App\Module\Core\Application\EncryptionServiceInterface: '@App\Module\Core\Application\EncryptionService'
+  App\Module\Core\Application\SecretsCryptoInterface: '@App\Module\Core\Application\SecretsCrypto'
+  App\Module\Core\Application\SftpConnectionFactoryInterface: '@App\Module\Core\Application\SftpConnectionFactory'
+  App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisionerInterface: '@App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisioner'
+  App\Module\PanelCustomer\Application\SftpFilesystemServiceInterface: '@App\Module\PanelCustomer\Application\SftpFilesystemService'
+  App\Module\Ports\Application\PortLeaseManagerInterface: '@App\Module\Ports\Application\PortLeaseManager'
+  App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface: '@App\Module\Ports\Infrastructure\Repository\PortBlockRepository'
+  App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface: '@App\Module\Ports\Infrastructure\Repository\PortPoolRepository'
+  App\Repository\AgentRepositoryInterface: '@App\Repository\AgentRepository'
+  App\Repository\AuditLogRepositoryInterface: '@App\Repository\AuditLogRepository'
+  App\Repository\DatabaseNodeRepositoryInterface: '@App\Repository\DatabaseNodeRepository'
+  App\Repository\DatabaseRepositoryInterface: '@App\Repository\DatabaseRepository'
+  App\Repository\DomainRepositoryInterface: '@App\Repository\DomainRepository'
+  App\Repository\InstanceRepositoryInterface: '@App\Repository\InstanceRepository'
+  App\Repository\InstanceSftpCredentialRepositoryInterface: '@App\Repository\InstanceSftpCredentialRepository'
+  App\Repository\JobRepositoryInterface: '@App\Repository\JobRepository'
+  App\Repository\MailDomainRepositoryInterface: '@App\Repository\MailDomainRepository'
+  App\Repository\MailboxRepositoryInterface: '@App\Repository\MailboxRepository'
+  App\Repository\SinusbotInstanceRepositoryInterface: '@App\Repository\SinusbotInstanceRepository'
+  App\Repository\SinusbotNodeRepositoryInterface: '@App\Repository\SinusbotNodeRepository'
+  App\Repository\UserRepositoryInterface: '@App\Repository\UserRepository'
   App\Repository\MusicbotInstanceRepositoryInterface: '@App\Repository\MusicbotInstanceRepository'
+  App\Repository\MusicbotConnectionRepositoryInterface: '@App\Repository\MusicbotConnectionRepository'
+  App\Repository\MusicbotPlaylistRepositoryInterface: '@App\Repository\MusicbotPlaylistRepository'
+  App\Repository\MusicbotPlaylistItemRepositoryInterface: '@App\Repository\MusicbotPlaylistItemRepository'
+  App\Repository\MusicbotPluginRepositoryInterface: '@App\Repository\MusicbotPluginRepository'
+  App\Repository\MusicbotScheduleRepositoryInterface: '@App\Repository\MusicbotScheduleRepository'
+  App\Repository\MusicbotStreamSettingsRepositoryInterface: '@App\Repository\MusicbotStreamSettingsRepository'
+  App\Repository\MusicbotTeamspeakBackendConfigRepositoryInterface: '@App\Repository\MusicbotTeamspeakBackendConfigRepository'
+  App\Repository\MusicbotRadioStationRepositoryInterface: '@App\Repository\MusicbotRadioStationRepository'
+  App\Repository\MusicbotRadioFavoriteRepositoryInterface: '@App\Repository\MusicbotRadioFavoriteRepository'
+  App\Repository\MusicbotRadioHistoryRepositoryInterface: '@App\Repository\MusicbotRadioHistoryRepository'
+  App\Module\Musicbot\Application\MusicbotQuotaServiceInterface: '@App\Module\Musicbot\Application\MusicbotQuotaService'
+  App\Module\Musicbot\Application\MusicbotRadioCatalogServiceInterface: '@App\Module\Musicbot\Application\MusicbotRadioCatalogService'
+  App\Module\Musicbot\Application\MusicbotRadioPlaylistResolverInterface: '@App\Module\Musicbot\Application\MusicbotRadioPlaylistResolver'
+  App\Module\Musicbot\Application\MusicbotWebradioUrlValidatorInterface: '@App\Module\Musicbot\Application\MusicbotWebradioUrlValidator'
 
   App\:
     resource: '../src/'
@@ -174,14 +212,6 @@ services:
       $requestStack: '@request_stack'
       $gameServerPathResolver: '@App\Module\Gameserver\Application\GameServerPathResolver'
 
-  App\Module\Core\Application\WebspaceFileServiceClient:
-    arguments:
-      $timeoutSeconds: '%app.agent_file_timeout_seconds%'
-      $defaultServicePort: '%app.agent_service_port%'
-      $defaultServiceScheme: 'http'
-      $logger: '@logger'
-      $requestStack: '@request_stack'
-
   App\Module\Core\Application\Sinusbot\SinusbotQuotaValidator:
     arguments:
       $minQuota: '%app.sinusbot_quota_min%'
@@ -210,15 +240,8 @@ services:
   App\Module\Core\Application\CoreReleaseChecker:
     arguments:
       $repository: '%app.core_release_repository%'
-      $cacheTtlSeconds: '%app.update_check_cache_ttl%'
       $channel: '%app.core_release_channel%'
       $releaseResolver: '@App\Module\Core\Application\GithubReleaseResolver'
-
-  App\Module\Core\Application\GithubWorkflowDispatcher:
-    arguments:
-      $repository: '%app.core_update_repository%'
-      $workflowFile: '%app.core_update_workflow%'
-      $token: '%app.core_update_token%'
 
   App\Module\Setup\Application\WebinterfaceUpdateServiceInterface: '@App\Module\Setup\Application\WebinterfaceUpdateService'
 
@@ -374,8 +397,7 @@ services:
   App\Module\Voice\Application\Provider\SinusbotAdapter:
     tags: ['app.voice_provider_adapter']
 
-  App\Module\Voice\Application\Provider\Ts3ServerLookupInterface: '@App\Module\Voice\Application\Provider\DoctrineTs3ServerLookup'
-  App\Module\Voice\Application\Provider\Ts6ServerLookupInterface: '@App\Module\Voice\Application\Provider\DoctrineTs6ServerLookup'
+  App\Module\Voice\Application\TeamspeakServerOperationsInterface: '@App\Module\Voice\Application\TeamspeakServerOperations'
 
   App\Module\Gameserver\Application\Query\QuerySmokeRunnerInterface: '@App\Module\Gameserver\Application\Query\QuerySmokeService'
 
@@ -433,24 +455,23 @@ services:
 
   App\Module\Gameserver\Application\Console\ConsoleCommandLimiterInterface: '@App\Module\Gameserver\Application\Console\SymfonyConsoleCommandLimiter'
 
-  App\Module\Teamspeak\Application\Update\Teamspeak6GithubUpdateProvider:
+  App\Module\Voice\Application\Update\Teamspeak6GithubUpdateProvider:
     arguments:
       $httpClient: '@http_client'
       $githubToken: '%app.core_update_token%'
       $cache: '@cache.app'
       $cacheTtlSeconds: '%app.update_check_cache_ttl%'
 
-  App\Module\Teamspeak\Application\Update\TeamspeakUpdateService:
+  App\Module\Voice\Application\Update\TeamspeakUpdateService:
     arguments:
       $providers:
-        - '@App\Module\Teamspeak\Application\Update\Teamspeak3UpdateProvider'
-        - '@App\Module\Teamspeak\Application\Update\Teamspeak6GithubUpdateProvider'
+        - '@App\Module\Voice\Application\Update\Teamspeak6GithubUpdateProvider'
 
-  App\Module\Teamspeak\Application\Update\TeamspeakUpdateLockManager:
+  App\Module\Voice\Application\Update\TeamspeakUpdateLockManager:
     arguments:
       $lockDir: '%kernel.project_dir%/var/teamspeak-update-locks'
 
-  App\Module\Teamspeak\Application\Update\TeamspeakUpdateDownloadService:
+  App\Module\Voice\Application\Update\TeamspeakUpdateDownloadService:
     arguments:
       $httpClient: '@http_client'
       $githubToken: '%app.core_update_token%'

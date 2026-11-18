@@ -6,7 +6,7 @@ namespace App\Module\Musicbot\Application;
 
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\ScalarValue;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotAutoDjSettings;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
@@ -15,8 +15,8 @@ use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use App\Module\Musicbot\Domain\Enum\MusicbotAutoDjMode;
 use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
 use App\Repository\MusicbotAutoDjSettingsRepository;
-use App\Repository\MusicbotPlaylistItemRepository;
-use App\Repository\MusicbotPlaylistRepository;
+use App\Repository\MusicbotPlaylistItemRepositoryInterface;
+use App\Repository\MusicbotPlaylistRepositoryInterface;
 use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
 use App\Repository\MusicbotTrackQueryRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -31,11 +31,11 @@ final class MusicbotAutoDjService
         private readonly MusicbotQueueService $queueService,
         private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
         private readonly MusicbotTrackQueryRepositoryInterface $trackRepository,
-        private readonly MusicbotPlaylistRepository $playlistRepository,
-        private readonly MusicbotPlaylistItemRepository $playlistItemRepository,
+        private readonly MusicbotPlaylistRepositoryInterface $playlistRepository,
+        private readonly MusicbotPlaylistItemRepositoryInterface $playlistItemRepository,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
-        private readonly MusicbotQuotaService $quotaService,
-        private readonly AuditLogger $auditLogger,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

@@ -6,7 +6,7 @@ namespace App\Module\Core\Application;
 
 use RuntimeException;
 
-class EncryptionService
+final class EncryptionService implements EncryptionServiceInterface
 {
     private int $keyBytes;
     private int $nonceBytes;
@@ -35,6 +35,7 @@ class EncryptionService
     /**
      * @return array{key_id: string, nonce: string, ciphertext: string}
      */
+    #[\Override]
     public function encrypt(string $plaintext): array
     {
         $this->assertAeadAvailable();
@@ -65,6 +66,7 @@ class EncryptionService
     /**
      * @param array<array-key, mixed> $payload
      */
+    #[\Override]
     public function decrypt(array $payload): string
     {
         $this->assertAeadAvailable();

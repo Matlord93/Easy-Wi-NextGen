@@ -12,9 +12,10 @@ use App\Infrastructure\Http\RequestActor;
 
 use App\Message\InstanceActionMessage;
 use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskEnforcementService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Backup;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\BackupTarget;
@@ -27,8 +28,8 @@ use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\BackupTargetRepository;
-use App\Repository\InstanceRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -50,13 +51,13 @@ final class AdminBackupController
         private readonly BackupRepository $backupRepository,
         private readonly BackupTargetRepository $backupTargetRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
-        private readonly InstanceRepository $instanceRepository,
-        private readonly JobRepository $jobRepository,
-        private readonly AppSettingsService $settingsService,
-        private readonly EncryptionService $encryptionService,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly JobRepositoryInterface $jobRepository,
+        private readonly AppSettingsServiceInterface $settingsService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
         private readonly Environment $twig,

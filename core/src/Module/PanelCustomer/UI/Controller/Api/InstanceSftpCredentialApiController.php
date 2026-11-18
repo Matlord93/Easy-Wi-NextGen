@@ -8,18 +8,18 @@ use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSftpCredential;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
-use App\Repository\InstanceRepository;
-use App\Repository\InstanceSftpCredentialRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\InstanceSftpCredentialRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -31,14 +31,14 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class InstanceSftpCredentialApiController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
-        private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly InstanceSftpCredentialRepositoryInterface $instanceSftpCredentialRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly AgentGameServerClientInterface $agentGameServerClient,
-        private readonly AppSettingsService $settingsService,
-        private readonly AuditLogger $auditLogger,
+        private readonly AppSettingsServiceInterface $settingsService,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly LoggerInterface $logger,
         private readonly TranslatorInterface $translator,
     ) {

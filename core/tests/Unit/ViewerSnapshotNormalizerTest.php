@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Module\Core\Application\Voice\ViewerSnapshotNormalizer;
+use App\Module\Voice\Application\ViewerSnapshotNormalizer;
 use PHPUnit\Framework\TestCase;
 
 final class ViewerSnapshotNormalizerTest extends TestCase

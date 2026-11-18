@@ -41,6 +41,7 @@ type consoleSession struct {
 	unitName   string
 	ctx        context.Context
 	cancel     context.CancelFunc
+	done       chan struct{}
 
 	mu           sync.Mutex
 	buffer       []consoleLine
@@ -140,6 +141,7 @@ func (m *consoleSessionManager) getOrCreate(instanceID, unitName string) *consol
 		unitName:   unitName,
 		ctx:        ctx,
 		cancel:     cancel,
+		done:       make(chan struct{}),
 		buffer:     make([]consoleLine, 0, 400),
 		lastAccess: time.Now(),
 		sessionID:  newConsoleSessionID(),
@@ -161,6 +163,11 @@ func (m *consoleSessionManager) stopAll() {
 	m.mu.Unlock()
 	for _, s := range sessions {
 		s.cancel()
+	}
+	for _, s := range sessions {
+		if s.done != nil {
+			<-s.done
+		}
 	}
 }
 
@@ -256,6 +263,9 @@ func (s *consoleSession) snapshotAfterCursor(cursorRaw string) consoleSnapshot {
 }
 
 func (s *consoleSession) run() {
+	if s.done != nil {
+		defer close(s.done)
+	}
 	backoff := time.Second
 	for {
 		select {

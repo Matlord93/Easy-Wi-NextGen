@@ -15,7 +15,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<PortBlock>
  */
-class PortBlockRepository extends ServiceEntityRepository implements PortBlockFinderInterface
+final class PortBlockRepository extends ServiceEntityRepository implements PortBlockFinderInterface, PortBlockRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -25,6 +25,7 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
     /**
      * @return PortBlock[]
      */
+    #[\Override]
     public function findByCustomer(User $customer): array
     {
         return $this->findBy(['customer' => $customer], ['createdAt' => 'DESC']);
@@ -35,6 +36,7 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
      *
      * @return PortBlock[]
      */
+    #[\Override]
     public function findByInstances(array $instances): array
     {
         if ([] === $instances) {
@@ -50,6 +52,7 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
     /**
      * @return PortBlock[]
      */
+    #[\Override]
     public function findByNode(\App\Module\Core\Domain\Entity\Agent $node): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('block')->join('block.pool', 'pool')->where('pool.node = :node')->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))->getQuery(), \App\Module\Ports\Domain\Entity\PortBlock::class);
@@ -58,6 +61,7 @@ class PortBlockRepository extends ServiceEntityRepository implements PortBlockFi
     /**
      * @return PortBlock[]
      */
+    #[\Override]
     public function findAssignedBlocks(): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('block')

@@ -6,15 +6,15 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\AuditLog;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\AuditLogRepository;
+use App\Repository\AuditLogRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
-class AuditLogger
+final class AuditLogger implements AuditLoggerInterface
 {
     private const int MAX_PAYLOAD_JSON_BYTES = 65535;
 
     public function __construct(
-        private readonly AuditLogRepository $auditLogRepository,
+        private readonly AuditLogRepositoryInterface $auditLogRepository,
         private readonly AuditLogHasher $auditLogHasher,
         private readonly EntityManagerInterface $entityManager,
         private readonly JobPayloadMasker $jobPayloadMasker,
@@ -22,6 +22,7 @@ class AuditLogger
     ) {
     }
 
+    #[\Override]
     public function log(?User $actor, string $action, array $payload): ?AuditLog
     {
         $payload = $this->normalizePayload($this->jobPayloadMasker->maskPayload($payload));

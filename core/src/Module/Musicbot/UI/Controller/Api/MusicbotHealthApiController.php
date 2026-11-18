@@ -14,7 +14,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Musicbot\Application\MusicbotDiagnosticBundleService;
 use App\Module\Musicbot\Application\MusicbotHealthService;
 use App\Module\Musicbot\Application\MusicbotPermissionService;
-use App\Module\Musicbot\Application\MusicbotQuotaService;
+use App\Module\Musicbot\Application\MusicbotQuotaServiceInterface;
 use App\Module\Musicbot\Application\MusicbotRepairService;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Enum\MusicbotPermission;
@@ -40,7 +40,7 @@ final class MusicbotHealthApiController
         private readonly MusicbotRepairService $repairService,
         private readonly MusicbotDiagnosticBundleService $bundleService,
         private readonly MusicbotInstanceRepository $instanceRepository,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly MusicbotPermissionService $permissionService,
         private readonly AgentJobDispatcherInterface $jobDispatcher,
     ) {

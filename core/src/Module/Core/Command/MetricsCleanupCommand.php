@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
-use Doctrine\DBAL\Connection;
+use App\Module\Core\Application\MetricsRetentionService;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -17,7 +17,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class MetricsCleanupCommand extends Command
 {
     public function __construct(
-        private readonly Connection $connection,
+        private readonly MetricsRetentionService $retention,
         private readonly LoggerInterface $logger,
     ) {
         parent::__construct();
@@ -27,7 +27,7 @@ final class MetricsCleanupCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('days', null, InputOption::VALUE_REQUIRED, 'Retention in days.', '30')
+            ->addOption('days', null, InputOption::VALUE_REQUIRED, 'Override configured system/instance retention in days.')
             ->addOption('batch', null, InputOption::VALUE_REQUIRED, 'Batch size per delete statement.', '5000');
     }
 
@@ -36,60 +36,25 @@ final class MetricsCleanupCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        $days = max(1, (int) $input->getOption('days'));
-        $batch = max(100, (int) $input->getOption('batch'));
-        $threshold = (new \DateTimeImmutable(sprintf('-%d days', $days)))->format('Y-m-d H:i:s');
-
-        $metricSamplesDeleted = $this->cleanupTable('metric_samples', 'recorded_at', $threshold, $batch);
-        $instanceMetricSamplesDeleted = $this->cleanupTable('instance_metric_samples', 'collected_at', $threshold, $batch);
-        $aggregateThreshold = (new \DateTimeImmutable(sprintf('-%d days', max($days, 30))))->format('Y-m-d H:i:s');
-        $metricAggregatesDeleted = $this->cleanupTable('metric_aggregates', 'bucket_start', $aggregateThreshold, $batch);
-
-        $summary = [
-            'threshold' => $threshold,
-            'days' => $days,
-            'batch' => $batch,
-            'metric_samples_deleted' => $metricSamplesDeleted,
-            'instance_metric_samples_deleted' => $instanceMetricSamplesDeleted,
-            'metric_aggregates_deleted' => $metricAggregatesDeleted,
-        ];
-
+        $rawDays = $input->getOption('days');
+        $days = null;
+        if ($rawDays !== null) {
+            $days = filter_var($rawDays, FILTER_VALIDATE_INT);
+            if (!is_int($days) || $days < 1 || $days > 365) {
+                $io->error('Days must be between 1 and 365.');
+                return Command::INVALID;
+            }
+        }
+        $batch = filter_var($input->getOption('batch'), FILTER_VALIDATE_INT);
+        if (!is_int($batch) || $batch < 1 || $batch > 5000) {
+            $io->error('Days must be between 1 and 365; batch must be between 1 and 5000.');
+            return Command::INVALID;
+        }
+        $summary = $this->retention->cleanup(null, $days, $batch);
         $this->logger->info('metrics.cleanup.completed', $summary);
-
-        $io->success(sprintf(
-            'Metrics cleanup finished. metric_samples=%d, instance_metric_samples=%d, metric_aggregates=%d (threshold=%s, batch=%d)',
-            $metricSamplesDeleted,
-            $instanceMetricSamplesDeleted,
-            $metricAggregatesDeleted,
-            $threshold,
-            $batch,
-        ));
+        $io->success(sprintf('Metrics cleanup finished. Deleted %d expired rows in bounded batches.', array_sum($summary)));
 
         return Command::SUCCESS;
     }
 
-    private function cleanupTable(string $table, string $timestampColumn, string $threshold, int $batch): int
-    {
-        $totalDeleted = 0;
-        $batch = max(100, $batch);
-
-        while (true) {
-            $sql = sprintf(
-                'DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE %s < :threshold ORDER BY id ASC LIMIT %d)',
-                $table,
-                $table,
-                $timestampColumn,
-                $batch,
-            );
-
-            $deleted = (int) $this->connection->executeStatement($sql, ['threshold' => $threshold]);
-            if ($deleted <= 0) {
-                break;
-            }
-
-            $totalDeleted += $deleted;
-        }
-
-        return $totalDeleted;
-    }
 }

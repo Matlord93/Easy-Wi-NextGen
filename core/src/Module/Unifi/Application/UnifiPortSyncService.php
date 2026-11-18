@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Unifi\Application;
 
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Ports\Infrastructure\Repository\PortAllocationRepository;
 use App\Module\Unifi\Domain\Entity\UnifiAuditLog;
 use App\Module\Unifi\Domain\Entity\UnifiManualRule;
@@ -13,7 +13,7 @@ use App\Module\Unifi\Domain\Entity\UnifiPortMapping;
 use App\Module\Unifi\Infrastructure\Repository\UnifiManualRuleRepository;
 use App\Module\Unifi\Infrastructure\Repository\UnifiPolicyRepository;
 use App\Module\Unifi\Infrastructure\Repository\UnifiPortMappingRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 #[\Symfony\Component\DependencyInjection\Attribute\AsAlias(id: QueuedUnifiSynchronizerInterface::class)]
@@ -28,8 +28,8 @@ final class UnifiPortSyncService implements UnifiSynchronizerInterface, QueuedUn
         private readonly UnifiManualRuleRepository $manualRuleRepository,
         private readonly UnifiPortMappingRepository $mappingRepository,
         private readonly PortAllocationRepository $portAllocationRepository,
-        private readonly InstanceRepository $instanceRepository,
-        private readonly EncryptionService $encryptionService,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly UnifiApiClient $apiClient,
         private readonly UnifiRuleDiff $ruleDiff,
         private readonly EntityManagerInterface $entityManager,

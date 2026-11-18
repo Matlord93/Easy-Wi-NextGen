@@ -20,9 +20,9 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\Application\BookedResourceUsageAggregator;
 use App\Repository\ChangelogEntryRepository;
 use App\Repository\CustomerProfileRepository;
-use App\Repository\DatabaseRepository;
+use App\Repository\DatabaseRepositoryInterface;
 use App\Repository\InstanceMetricSampleRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\InvoiceRepository;
 use App\Repository\ShopRentalRepository;
 use App\Repository\TicketRepository;
@@ -37,10 +37,10 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class CustomerDashboardController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
         private readonly WebspaceRepository $webspaceRepository,
-        private readonly DatabaseRepository $databaseRepository,
+        private readonly DatabaseRepositoryInterface $databaseRepository,
         private readonly TicketRepository $ticketRepository,
         private readonly InvoiceRepository $invoiceRepository,
         private readonly ShopRentalRepository $rentalRepository,

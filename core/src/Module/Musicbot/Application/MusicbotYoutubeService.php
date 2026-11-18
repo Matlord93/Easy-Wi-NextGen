@@ -12,7 +12,7 @@ use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlaylist;
 use App\Module\Musicbot\Domain\Entity\MusicbotTrack;
 use App\Module\Musicbot\Domain\Enum\MusicbotTrackSourceType;
-use App\Repository\MusicbotPlaylistRepository;
+use App\Repository\MusicbotPlaylistRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Process\Exception\ExceptionInterface as ProcessException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
@@ -30,9 +30,9 @@ final class MusicbotYoutubeService
         private readonly MusicbotQueueService $queueService,
         private readonly MusicbotPlaylistService $playlistService,
         private readonly MusicbotPlaybackCommandService $playbackCommandService,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly MusicbotSecretConfigService $secretConfigService,
-        private readonly MusicbotPlaylistRepository $playlistRepository,
+        private readonly MusicbotPlaylistRepositoryInterface $playlistRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly string $binary = 'yt-dlp',
     ) {}

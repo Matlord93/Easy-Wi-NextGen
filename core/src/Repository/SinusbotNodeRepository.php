@@ -12,7 +12,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<SinusbotNode>
  */
-class SinusbotNodeRepository extends ServiceEntityRepository
+final class SinusbotNodeRepository extends ServiceEntityRepository implements SinusbotNodeRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -20,6 +20,7 @@ class SinusbotNodeRepository extends ServiceEntityRepository
     }
 
     /** @return SinusbotNode[] */
+    #[\Override]
     public function findSoloByCustomer(User $customer): array
     {
         return $this->findBy(['customer' => $customer, 'instanceMode' => 'solo']);

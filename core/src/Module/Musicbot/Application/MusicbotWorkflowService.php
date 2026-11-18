@@ -6,7 +6,7 @@ namespace App\Module\Musicbot\Application;
 
 use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Config\ScalarValue;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotWorkflow;
@@ -26,8 +26,8 @@ final class MusicbotWorkflowService
         private readonly MusicbotWorkflowRepository $workflowRepository,
         private readonly MusicbotWorkflowExecutor $executor,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
-        private readonly AuditLogger $auditLogger,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
     ) {
     }
 

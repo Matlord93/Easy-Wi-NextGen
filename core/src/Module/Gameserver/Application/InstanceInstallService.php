@@ -10,9 +10,9 @@ use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
-use App\Module\Ports\Application\PortLeaseManager;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
-use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
+use App\Module\Ports\Application\PortLeaseManagerInterface;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
+use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
 use App\Repository\SharedStorageTemplateLocatorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -20,9 +20,9 @@ final class InstanceInstallService
 {
     public function __construct(
         private readonly SetupChecker $setupChecker,
-        private readonly PortPoolRepository $portPoolRepository,
-        private readonly PortBlockRepository $portBlockRepository,
-        private readonly PortLeaseManager $portLeaseManager,
+        private readonly PortPoolRepositoryInterface $portPoolRepository,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
+        private readonly PortLeaseManagerInterface $portLeaseManager,
         private readonly TemplateInstallResolverInterface $templateInstallResolver,
         private readonly SharedStorageTemplateLocatorInterface $templateRepository,
         private readonly EntityManagerInterface $entityManager,

@@ -102,9 +102,32 @@ func handleVoiceAction(job jobs.Job, action string) (jobs.Result, func() error) 
 		}, Completed: time.Now().UTC()}, nil
 	}
 
-	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{
-		"status":        "ok",
-		"action":        action,
-		"provider_type": provider,
-	}, Completed: time.Now().UTC()}, nil
+	// Legacy voice.action jobs must execute the same implementation as the panel's TS jobs.
+	// Incomplete old payloads fail rather than reporting a successful no-op.
+	sid, err := strconv.Atoi(payloadValue(job.Payload, "sid"))
+	if err != nil || sid <= 0 || (action != "start" && action != "stop" && action != "restart") {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{
+			"message": "missing server binding or invalid action", "error_code": "voice_action_invalid",
+		}, Completed: time.Now().UTC()}, nil
+	}
+	payload := make(map[string]any, len(job.Payload)+1)
+	for key, value := range job.Payload {
+		payload[key] = value
+	}
+	payload["action"] = action
+	job.Payload = payload
+	var result orchestratorResult
+	if provider == "ts3" {
+		result = handleTs3VirtualAction(job)
+	} else {
+		result = handleTs6VirtualAction(job)
+	}
+	output := map[string]string{"action": action, "provider_type": provider}
+	if result.status == "success" {
+		output["status"] = "ok"
+	} else {
+		output["message"] = result.errorText
+		output["error_code"] = "voice_action_failed"
+	}
+	return jobs.Result{JobID: job.ID, Status: result.status, Output: output, Completed: time.Now().UTC()}, nil
 }

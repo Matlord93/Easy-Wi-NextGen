@@ -7,12 +7,13 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\GdprDataInventoryMap;
 use App\Module\Core\Application\Scheduler\CentralSchedulerRunner;
 use App\Module\Core\Application\Scheduler\PrivacyGdprScheduleHandler;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\AuditLogRepository;
+use App\Repository\AuditLogRepositoryInterface;
 use App\Repository\RetentionPolicyRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -27,8 +28,8 @@ final class AdminGdprController
     public function __construct(
         private readonly GdprDataInventoryMap $inventoryMap,
         private readonly RetentionPolicyRepository $retentionRepository,
-        private readonly AuditLogRepository $auditLogRepository,
-        private readonly AppSettingsService $settingsService,
+        private readonly AuditLogRepositoryInterface $auditLogRepository,
+        private readonly AppSettingsServiceInterface $settingsService,
         private readonly CentralSchedulerRunner $schedulerRunner,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

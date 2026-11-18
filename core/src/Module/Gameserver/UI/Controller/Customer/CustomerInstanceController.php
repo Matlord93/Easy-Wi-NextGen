@@ -15,10 +15,11 @@ use App\Infrastructure\Http\RequestActor;
 use App\Infrastructure\Http\FlashMessages;
 
 use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\DiskUsageFormatter;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSchedule;
@@ -40,15 +41,15 @@ use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Ports\Infrastructure\Repository\PortAllocationRepository;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\BackupTargetRepository;
 use App\Repository\GamePluginRepository;
 use App\Repository\InstanceMetricSampleRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\InstanceScheduleRepository;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use App\Repository\TemplateRepository;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
@@ -74,29 +75,29 @@ use App\Module\Core\Attribute\RequiresModule;
 final class CustomerInstanceController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
-        private readonly PortBlockRepository $portBlockRepository,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
         private readonly PortAllocationRepository $portAllocationRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly BackupRepository $backupRepository,
         private readonly BackupTargetRepository $backupTargetRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly GamePluginRepository $gamePluginRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly InstanceQueryService $instanceQueryService,
         private readonly GameServerPathResolver $gameServerPathResolver,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly InstanceInstallService $instanceInstallService,
         private readonly TemplateRepository $templateRepository,
         private readonly MinecraftCatalogService $minecraftCatalogService,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly AgentGameServerClientInterface $agentGameServerClient,
         private readonly SetupChecker $setupChecker,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,

@@ -25,12 +25,13 @@ func Collect() map[string]any {
 		}
 	}
 
-	if total, free, usedPercent, err := diskUsage("/"); err == nil {
+	if total, used, free, usedPercent, err := diskUsage("/"); err == nil {
 		snapshot["disk"] = map[string]any{
-			"total":   total,
-			"free":    free,
-			"used":    total - free,
-			"percent": usedPercent,
+			"total":    total,
+			"free":     free,
+			"used":     used,
+			"reserved": total - used - free,
+			"percent":  usedPercent,
 		}
 	}
 

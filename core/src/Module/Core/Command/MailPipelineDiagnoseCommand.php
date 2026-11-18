@@ -14,10 +14,10 @@ use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Enum\JobStatus;
-use App\Repository\AgentRepository;
-use App\Repository\JobRepository;
-use App\Repository\MailboxRepository;
-use App\Repository\MailDomainRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
+use App\Repository\MailboxRepositoryInterface;
+use App\Repository\MailDomainRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -34,10 +34,10 @@ final class MailPipelineDiagnoseCommand extends Command
     private const MAIL_JOB_PREFIXES = ['mail.', 'mailbox.', 'roundcube.'];
 
     public function __construct(
-        private readonly AgentRepository $agentRepository,
-        private readonly JobRepository $jobRepository,
-        private readonly MailDomainRepository $mailDomainRepository,
-        private readonly MailboxRepository $mailboxRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly JobRepositoryInterface $jobRepository,
+        private readonly MailDomainRepositoryInterface $mailDomainRepository,
+        private readonly MailboxRepositoryInterface $mailboxRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
         parent::__construct();

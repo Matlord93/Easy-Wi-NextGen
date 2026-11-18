@@ -6,7 +6,7 @@ namespace App\Module\Musicbot\Application;
 
 use Symfony\Component\HttpFoundation\IpUtils;
 
-class MusicbotWebradioUrlValidator
+final class MusicbotWebradioUrlValidator implements MusicbotWebradioUrlValidatorInterface
 {
     public const array BLOCKED_NETWORKS = [...IpUtils::PRIVATE_SUBNETS, '224.0.0.0/4', 'ff00::/8'];
     private const array BLOCKED_SCHEMES = ['file', 'ftp', 'ftps', 'data', 'javascript'];
@@ -27,6 +27,7 @@ class MusicbotWebradioUrlValidator
 
     private const array BLOCKED_HOSTNAMES = ['localhost', 'localhost.localdomain', 'ip6-localhost', 'ip6-loopback'];
 
+    #[\Override]
     public function validate(string $url): void
     {
         $url = trim($url);

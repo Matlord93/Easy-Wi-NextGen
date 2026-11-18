@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application\Status;
 
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class StatusBatchUpdater
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }

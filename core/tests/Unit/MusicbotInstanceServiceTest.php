@@ -6,7 +6,7 @@ namespace App\Tests\Unit;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Application\MusicbotInstanceService;
@@ -24,7 +24,7 @@ final class MusicbotInstanceServiceTest extends TestCase
     private MusicbotQuotaServiceInterface $quota;
     private MusicbotSecretConfigServiceInterface $secretConfig;
     private AgentJobDispatcherInterface $dispatcher;
-    private AuditLogger $auditLogger;
+    private AuditLoggerInterface $auditLogger;
 
     protected function setUp(): void
     {
@@ -33,7 +33,7 @@ final class MusicbotInstanceServiceTest extends TestCase
         $this->quota = $this->createStub(MusicbotQuotaServiceInterface::class);
         $this->secretConfig = $this->createStub(MusicbotSecretConfigServiceInterface::class);
         $this->dispatcher = $this->createStub(AgentJobDispatcherInterface::class);
-        $this->auditLogger = $this->createStub(AuditLogger::class);
+        $this->auditLogger = $this->createStub(AuditLoggerInterface::class);
     }
 
     private function makeService(): MusicbotInstanceService

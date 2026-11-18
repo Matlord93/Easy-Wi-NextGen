@@ -19,7 +19,7 @@ final class DatabaseTableService implements DatabaseTableServiceInterface
 
     /** @param (\Closure(string, string, string): \PDO)|null $pdoFactory */
     public function __construct(
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly ?\Closure $pdoFactory = null,
     ) {
     }

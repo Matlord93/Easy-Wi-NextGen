@@ -1838,12 +1838,4 @@ final class GameTemplateSeedCatalog
         ];
     }
 
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    public function listPlugins(): array
-    {
-        return (new GamePluginSeedCatalog())->listPlugins();
-    }
-
 }

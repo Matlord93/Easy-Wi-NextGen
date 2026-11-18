@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\PublicServerStatusService;
 use App\Repository\PublicServerRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -24,7 +24,7 @@ final class ServerStatusReconcileCommand extends Command
 
     public function __construct(
         private readonly PublicServerRepository $publicServerRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly PublicServerStatusService $statusService,
     ) {

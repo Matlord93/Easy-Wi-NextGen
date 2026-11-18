@@ -7,15 +7,15 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\DomainRepository;
-use App\Repository\JobRepository;
-use App\Repository\MailboxRepository;
+use App\Repository\DomainRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
+use App\Repository\MailboxRepositoryInterface;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -32,11 +32,11 @@ final class CustomerWebspaceController
 {
     public function __construct(
         private readonly WebspaceRepository $webspaceRepository,
-        private readonly DomainRepository $domainRepository,
-        private readonly MailboxRepository $mailboxRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
+        private readonly MailboxRepositoryInterface $mailboxRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly Environment $twig,
     ) {
     }

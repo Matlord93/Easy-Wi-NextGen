@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Module\Musicbot\Application;
 
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotSchedule;
 use App\Module\Musicbot\Domain\Enum\MusicbotScheduleAction;
-use App\Repository\MusicbotScheduleRepository;
+use App\Repository\MusicbotScheduleRepositoryInterface;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -18,11 +18,11 @@ final class MusicbotScheduleService
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly MusicbotScheduleRepository $scheduleRepository,
+        private readonly MusicbotScheduleRepositoryInterface $scheduleRepository,
         private readonly MusicbotScheduleDispatcherInterface $scheduleDispatcher,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
-        private readonly AuditLogger $auditLogger,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
     ) {
     }
 

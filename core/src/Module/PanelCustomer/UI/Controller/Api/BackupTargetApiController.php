@@ -7,14 +7,14 @@ namespace App\Module\PanelCustomer\UI\Controller\Api;
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\BackupTarget;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\BackupDestinationType;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\BackupTargetRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -33,10 +33,10 @@ final class BackupTargetApiController
 
     public function __construct(
         private readonly BackupTargetRepository $backupTargetRepository,
-        private readonly UserRepository $userRepository,
-        private readonly EncryptionService $encryptionService,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly TranslatorInterface $translator,
     ) {
     }

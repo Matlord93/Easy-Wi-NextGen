@@ -16,7 +16,7 @@ use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -33,7 +33,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWithRepo($repo);
@@ -60,7 +60,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWithRepo($repo);
@@ -84,7 +84,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWithRepo($repo);
@@ -111,7 +111,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getQueryStatusCache')->willReturn(['status' => 'online']);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWithRepo($repo);
@@ -139,7 +139,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getQueryStatusCache')->willReturn(['status' => 'running']);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $agentClient = $this->createStub(AgentGameServerClientInterface::class);
@@ -170,7 +170,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $instance->method('getId')->willReturn(7);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $agentClient = $this->createStub(AgentGameServerClientInterface::class);
@@ -200,7 +200,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $instance->method('getId')->willReturn(7);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $agentClient = $this->createStub(AgentGameServerClientInterface::class);
@@ -236,7 +236,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
         $instance->method('getQueryStatusCache')->willReturn(['status' => 'running']);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $agentClient = $this->createStub(AgentGameServerClientInterface::class);
@@ -271,7 +271,7 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         self::assertSame('ok', $payload['data']['live_output_status']);
     }
 
-    private function newControllerWithRepo(InstanceRepository $repo, ?AgentGameServerClientInterface $agentClient = null): CustomerInstanceActionApiController
+    private function newControllerWithRepo(InstanceRepositoryInterface $repo, ?AgentGameServerClientInterface $agentClient = null): CustomerInstanceActionApiController
     {
         $reflection = new \ReflectionClass(CustomerInstanceActionApiController::class);
         /** @var CustomerInstanceActionApiController $controller */

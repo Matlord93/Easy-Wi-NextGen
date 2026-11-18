@@ -9,6 +9,7 @@ use App\Infrastructure\Http\RequestActor;
 use App\Module\Core\Application\Scheduler\CentralSchedulerRunner;
 use App\Module\Core\Application\Scheduler\InternalSchedule;
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\Scheduler\InternalScheduleProvider;
 use App\Module\Core\Application\Scheduler\PrivacyGdprScheduleHandler;
 use App\Module\Core\Domain\Entity\BackupSchedule;
@@ -37,7 +38,7 @@ final class AdminScheduleController
         private readonly ScheduledTaskRunRepository $runRepository,
         private readonly BackupScheduleRepository $backupScheduleRepository,
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
-        private readonly AppSettingsService $settingsService,
+        private readonly AppSettingsServiceInterface $settingsService,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
@@ -183,6 +184,8 @@ final class AdminScheduleController
             'last_error' => $schedule->lastError,
             'last_job_id' => $lastJobId,
             'locked_until' => $schedule->lockedUntil,
+            'created_at' => $schedule->createdAt,
+            'updated_at' => $schedule->updatedAt,
             'handler_active' => !str_starts_with($schedule->type, 'unassigned.'),
             'warning' => is_string($schedule->payload['warning'] ?? null) ? (string) $schedule->payload['warning'] : null,
         ];

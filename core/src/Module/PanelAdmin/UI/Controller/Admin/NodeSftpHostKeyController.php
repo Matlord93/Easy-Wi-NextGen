@@ -6,9 +6,9 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,7 +19,7 @@ use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final readonly class NodeSftpHostKeyController
 {
-    public function __construct(private AgentRepository $nodes, private EntityManagerInterface $em, private CsrfTokenManagerInterface $csrf, private AuditLogger $audit)
+    public function __construct(private AgentRepositoryInterface $nodes, private EntityManagerInterface $em, private CsrfTokenManagerInterface $csrf, private AuditLoggerInterface $audit)
     {
     }
 

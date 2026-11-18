@@ -8,7 +8,7 @@ use App\Infrastructure\Config\JsonMap;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\InstanceStatus;
@@ -19,8 +19,8 @@ use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
 use App\Module\Gameserver\Application\Console\ConsoleUnavailableException;
 use App\Module\Gameserver\Application\Console\ConsoleCommandLimiterInterface;
 use App\Module\Gameserver\Application\Console\ConsoleCommandRequest;
-use App\Repository\InstanceRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -37,12 +37,12 @@ use App\Module\Core\Attribute\RequiresModule;
 final class CustomerInstanceConsoleCommandController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly ConsoleAgentGrpcClientInterface $grpcClient,
         private readonly ConsoleCommandLimiterInterface $consoleLimiter,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         #[Autowire('%kernel.secret%')]

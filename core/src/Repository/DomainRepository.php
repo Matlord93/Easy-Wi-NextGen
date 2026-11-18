@@ -12,7 +12,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<Domain>
  */
-class DomainRepository extends ServiceEntityRepository
+final class DomainRepository extends ServiceEntityRepository implements DomainRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -22,6 +22,7 @@ class DomainRepository extends ServiceEntityRepository
     /**
      * @return Domain[]
      */
+    #[\Override]
     public function findByCustomer(User $customer, int $limit = 200): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('domain')

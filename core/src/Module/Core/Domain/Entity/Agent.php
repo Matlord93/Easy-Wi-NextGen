@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\ValueObject\SshHostFingerprint;
 use App\Repository\AgentRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -210,7 +210,7 @@ class Agent
         return $this->serviceApiTokenEncrypted ?? '';
     }
 
-    public function getServiceApiToken(SecretsCrypto $crypto): string
+    public function getServiceApiToken(SecretsCryptoInterface $crypto): string
     {
         if ($this->serviceApiTokenEncrypted === null || $this->serviceApiTokenEncrypted === '') {
             return '';
@@ -219,7 +219,7 @@ class Agent
         return $crypto->decrypt($this->serviceApiTokenEncrypted);
     }
 
-    public function setServiceApiToken(string $token, SecretsCrypto $crypto): void
+    public function setServiceApiToken(string $token, SecretsCryptoInterface $crypto): void
     {
         $this->serviceApiTokenEncrypted = $crypto->encrypt($token);
         $this->touch();
@@ -246,12 +246,12 @@ class Agent
         return $this->getServiceApiTokenEncrypted();
     }
 
-    public function getAgentApiToken(SecretsCrypto $crypto): string
+    public function getAgentApiToken(SecretsCryptoInterface $crypto): string
     {
         return $this->getServiceApiToken($crypto);
     }
 
-    public function setAgentApiToken(string $token, SecretsCrypto $crypto): void
+    public function setAgentApiToken(string $token, SecretsCryptoInterface $crypto): void
     {
         $this->setServiceApiToken($token, $crypto);
     }
@@ -404,7 +404,24 @@ class Agent
         // automatically after agent-side jobs or stale /etc/easywi/roles.d files.
 
         if ($metadata !== null) {
-            $this->setMetadata($metadata);
+            if ($roles !== [] || isset($this->metadata['reported_roles'])) {
+                $metadata['reported_roles'] = $this->normalizeRoles($roles);
+            }
+            // Heartbeats report capabilities; they must not erase panel settings
+            // or replace disk measurements accepted through the job-result API.
+            $retainedMetadata = $this->metadata ?? [];
+            foreach (['ts6_supported', 'kvm_managed', 'platform_family', 'minecraft_managed_install', 'os',
+                'bind_ip_addresses', 'php_versions', 'hostname', 'os_release', 'agent_service_port',
+                'agent_service_scheme', 'capabilities', 'ipv6_address', 'ipv6_addresses'] as $reportedKey) {
+                // Native capability snapshots still replace their old values, including omissions.
+                unset($retainedMetadata[$reportedKey]);
+            }
+            foreach (['disk_stat', 'disk_protection', 'core_access_mode', 'instance_base_dirs',
+                'mail_host', 'mail_imap_host', 'mail_smtp_host', 'mail_imap_port', 'mail_smtp_port',
+                'mail_imap_encryption', 'mail_smtp_encryption'] as $managedKey) {
+                unset($metadata[$managedKey]);
+            }
+            $this->setMetadata(array_replace($retainedMetadata, $metadata));
 
             // Extract IPv6 from agent-reported metadata
             if (isset($metadata['ipv6_address']) && is_string($metadata['ipv6_address'])) {

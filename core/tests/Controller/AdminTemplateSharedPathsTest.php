@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\GameTemplateSeedCatalog;
 use App\Module\Core\Application\GameTemplateSeedSyncService;
 use App\Module\Core\Domain\Entity\Template;
@@ -41,7 +41,7 @@ final class AdminTemplateSharedPathsTest extends TestCase
         $em->expects(self::once())->method('flush');
         $registry = $this->createStub(ManagerRegistry::class);
         $registry->method('getManagerForClass')->willReturn($em);
-        $audit = $this->createMock(AuditLogger::class);
+        $audit = $this->createMock(AuditLoggerInterface::class);
         $audit->expects(self::once())->method('log')->with($actor, 'template.shared_paths_synced', ['template_id' => null, 'game_key' => 'cs2']);
         $controller = new AdminTemplateController(
             new TemplateRepository($registry), $em, $audit,

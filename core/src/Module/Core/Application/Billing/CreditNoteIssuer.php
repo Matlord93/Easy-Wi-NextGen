@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\CreditNote;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Enum\CreditNoteStatus;
@@ -15,7 +15,7 @@ final class CreditNoteIssuer
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly InvoiceStatusUpdater $invoiceStatusUpdater,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

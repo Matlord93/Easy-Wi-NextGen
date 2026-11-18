@@ -11,7 +11,7 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceSettingsApiController;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -42,7 +42,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
@@ -59,7 +59,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
 
     public function testShowConfigUnauthorizedReturnsEnvelope(): void
     {
-        $repo = $this->createStub(InstanceRepository::class);
+        $repo = $this->createStub(InstanceRepositoryInterface::class);
         $controller = $this->newController($repo);
 
         $request = Request::create('/api/instances/7/configs/1', 'GET');
@@ -92,7 +92,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getId')->willReturn(7);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
@@ -135,7 +135,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getCurrentVersion')->willReturn(null);
         $instance->method('getPreviousVersion')->willReturn(null);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
@@ -164,7 +164,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getId')->willReturn(7);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
@@ -193,7 +193,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getId')->willReturn(7);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
@@ -222,7 +222,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getLockedVersion')->willReturn('1.20.4');
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newController($repo);
@@ -246,7 +246,7 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $this->setEntityId($customer, 10);
         $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
-        $repo = $this->createStub(InstanceRepository::class);
+        $repo = $this->createStub(InstanceRepositoryInterface::class);
         $repo->method('find')->willReturn($instance);
         $controller = $this->newController($repo);
 
@@ -277,13 +277,13 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         return [$this->newController($repo), $customer];
     }
 
-    private function newController(InstanceRepository $instanceRepo): CustomerInstanceSettingsApiController
+    private function newController(InstanceRepositoryInterface $instanceRepo): CustomerInstanceSettingsApiController
     {
         $reflection = new \ReflectionClass(CustomerInstanceSettingsApiController::class);
         /** @var CustomerInstanceSettingsApiController $controller */

@@ -7,7 +7,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\MailService;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\Ticket;
@@ -25,7 +25,7 @@ use App\Repository\TicketMessageRepository;
 use App\Repository\TicketQuickReplyRepository;
 use App\Repository\TicketRepository;
 use App\Repository\TicketTemplateRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -69,11 +69,11 @@ final class AdminTicketController
         private readonly TicketMessageRepository $ticketMessageRepository,
         private readonly TicketAttachmentRepository $ticketAttachmentRepository,
         #[Autowire(service: 'default.storage')] private readonly FilesystemOperator $storage,
-        private readonly UserRepository $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly TicketTemplateRepository $ticketTemplateRepository,
         private readonly TicketQuickReplyRepository $ticketQuickReplyRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly NotificationService $notificationService,
         private readonly MailService $mailService,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,

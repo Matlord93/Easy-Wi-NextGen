@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Teamspeak;
 
-use App\Module\Teamspeak\Application\Update\TeamspeakSecureArchiveExtractor;
+use App\Module\Voice\Application\Update\TeamspeakSecureArchiveExtractor;
 use PHPUnit\Framework\TestCase;
 
 final class TeamspeakSecureArchiveExtractorTest extends TestCase

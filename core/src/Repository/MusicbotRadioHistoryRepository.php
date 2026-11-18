@@ -14,7 +14,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<MusicbotRadioHistory>
  */
-class MusicbotRadioHistoryRepository extends ServiceEntityRepository
+final class MusicbotRadioHistoryRepository extends ServiceEntityRepository implements MusicbotRadioHistoryRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -22,6 +22,7 @@ class MusicbotRadioHistoryRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotRadioHistory[] */
+    #[\Override]
     public function findByCustomer(User $customer, int $limit = 20): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('h')
@@ -33,6 +34,7 @@ class MusicbotRadioHistoryRepository extends ServiceEntityRepository
     }
 
     /** Prune history entries older than $keepDays days for the customer. */
+    #[\Override]
     public function pruneOld(User $customer, int $keepRows = 100): void
     {
         $subQb = $this->createQueryBuilder('h2')
@@ -51,6 +53,7 @@ class MusicbotRadioHistoryRepository extends ServiceEntityRepository
     }
 
     /** @return array<int,int> stationId => playCount, sorted desc */
+    #[\Override]
     public function getPopularStationIds(int $limit = 20): array
     {
         $rows = ScalarQueryResult::rows($this->createQueryBuilder('h')

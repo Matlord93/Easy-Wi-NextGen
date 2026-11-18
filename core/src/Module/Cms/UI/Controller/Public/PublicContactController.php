@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Public;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\LocalAntiAbuseService;
 use App\Module\Core\Application\MailService;
 use App\Module\Core\Application\MathCaptchaService;
@@ -24,7 +24,7 @@ final class PublicContactController
         private readonly MailService $mailService,
         private readonly LocalAntiAbuseService $antiAbuse,
         private readonly MathCaptchaService $captcha,
-        private readonly AppSettingsService $settings,
+        private readonly AppSettingsServiceInterface $settings,
         private readonly RateLimiterFactory $contactLimiter,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,

@@ -6,6 +6,7 @@ namespace App\Module\Core\Application\Billing;
 
 use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 
 /**
  * @psalm-type DesignOptions = array{
@@ -16,7 +17,7 @@ use App\Module\Core\Application\AppSettingsService;
  */
 final readonly class InvoiceDesign
 {
-    public function __construct(private AppSettingsService $settings)
+    public function __construct(private AppSettingsServiceInterface $settings)
     {
     }
 

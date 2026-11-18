@@ -87,6 +87,13 @@ final class CustomerPaymentController
             return new RedirectResponse('/customer/billing');
         }
 
+        $this->logger->info('customer.payment.intent_created', [
+            'invoice_id' => $invoice->getId(),
+            'provider' => $instruction->provider,
+            'reference' => $instruction->reference,
+            // Provider-specific values can contain secrets; log only their names.
+            'metadata_keys' => array_keys($instruction->metadata),
+        ]);
         if ($instruction->redirectUrl !== null) {
             return new RedirectResponse($instruction->redirectUrl);
         }

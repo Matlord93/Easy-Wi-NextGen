@@ -7,17 +7,17 @@ namespace App\Module\PanelCustomer\UI\Controller\Api;
 use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\MailLimitEnforcer;
 use App\Module\Core\Application\MailPasswordHasher;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\DomainRepository;
-use App\Repository\MailboxRepository;
-use App\Repository\MailDomainRepository;
+use App\Repository\DomainRepositoryInterface;
+use App\Repository\MailboxRepositoryInterface;
+use App\Repository\MailDomainRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -29,12 +29,12 @@ final class MailboxApiController
     private const DEFAULT_MAIL_PORTS = [25, 465, 587, 110, 143, 993, 995];
 
     public function __construct(
-        private readonly MailboxRepository $mailboxRepository,
-        private readonly DomainRepository $domainRepository,
-        private readonly MailDomainRepository $mailDomainRepository,
+        private readonly MailboxRepositoryInterface $mailboxRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
+        private readonly MailDomainRepositoryInterface $mailDomainRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly EncryptionService $encryptionService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly MailPasswordHasher $mailPasswordHasher,
         private readonly MailLimitEnforcer $mailLimitEnforcer,
         private readonly TranslatorInterface $translator,

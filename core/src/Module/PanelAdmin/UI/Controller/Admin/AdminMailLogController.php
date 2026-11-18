@@ -7,7 +7,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\DomainRepository;
+use App\Repository\DomainRepositoryInterface;
 use App\Repository\MailLogRepository;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,7 +19,7 @@ final class AdminMailLogController
 {
     public function __construct(
         private readonly MailLogRepository $mailLogRepository,
-        private readonly DomainRepository $domainRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
         private readonly TranslatorInterface $translator,
     ) {
     }

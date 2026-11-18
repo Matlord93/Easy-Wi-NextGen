@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Scheduler;
 
 use App\Module\Core\Domain\Entity\ScheduledTaskRun;
+use App\Module\Core\Application\JobHistoryPolicy;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 
@@ -14,6 +15,7 @@ final class CentralSchedulerRunner
         private readonly ScheduleHandlerRegistry $registry,
         private readonly EntityManagerInterface $entityManager,
         private readonly LoggerInterface $logger,
+        private readonly JobHistoryPolicy $history,
     ) {
     }
 
@@ -31,7 +33,6 @@ final class CentralSchedulerRunner
         foreach ($this->registry->all() as $handler) {
             $startedAt = new \DateTimeImmutable();
             $run = new ScheduledTaskRun('handler', $handler->type(), $handler->type(), $handler->type(), self::moduleFor($handler->type()), $startedAt);
-            $this->entityManager->persist($run);
 
             try {
                 $result = $handler->runDue($now);
@@ -42,7 +43,9 @@ final class CentralSchedulerRunner
 
             $run->finish($result->status, $result->message, $result->createdJobIds, new \DateTimeImmutable());
             $created += count($result->createdJobIds);
-            $this->entityManager->persist($run);
+            if ($this->history->storesRun($run)) {
+                $this->entityManager->persist($run);
+            }
         }
 
         $this->entityManager->flush();
@@ -60,7 +63,6 @@ final class CentralSchedulerRunner
         $now ??= new \DateTimeImmutable();
         $startedAt = new \DateTimeImmutable();
         $run = new ScheduledTaskRun($source, $id, $type, $type, self::moduleFor($type), $startedAt);
-        $this->entityManager->persist($run);
 
         try {
             $result = $handler->runNow($source, $id, $now);
@@ -70,7 +72,9 @@ final class CentralSchedulerRunner
         }
 
         $run->finish($result->status, $result->message, $result->createdJobIds, new \DateTimeImmutable());
-        $this->entityManager->persist($run);
+        if ($this->history->storesRun($run)) {
+            $this->entityManager->persist($run);
+        }
         $this->entityManager->flush();
 
         return $result;

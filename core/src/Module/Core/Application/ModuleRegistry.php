@@ -86,7 +86,7 @@ final class ModuleRegistry
     public function __construct(
         private readonly ModuleSettingRepository $moduleSettingRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

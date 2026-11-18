@@ -12,17 +12,16 @@ final class JobLogger
 {
     private const MAX_MESSAGE_LENGTH = 255;
 
-    public function __construct(private readonly EntityManagerInterface $entityManager)
+    public function __construct(private readonly EntityManagerInterface $entityManager, private readonly JobHistoryPolicy $history)
     {
     }
 
-    public function log(Job $job, string $message, ?int $progress = null): JobLog
+    public function log(Job $job, string $message, ?int $progress = null): void
     {
-        $log = new JobLog($job, $this->truncateMessage($message), $progress);
-        $this->entityManager->persist($log);
+        if ($this->history->storesJobLog($job)) {
+            $this->entityManager->persist(new JobLog($job, $this->truncateMessage($message), $progress));
+        }
         $job->setProgress($progress);
-
-        return $log;
     }
 
     private function truncateMessage(string $message): string

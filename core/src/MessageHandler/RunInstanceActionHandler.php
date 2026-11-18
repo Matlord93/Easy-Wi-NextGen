@@ -6,7 +6,7 @@ namespace App\MessageHandler;
 
 use App\Message\RunInstanceActionMessage;
 use App\Module\Core\Application\JobLogger;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -14,7 +14,7 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 final class RunInstanceActionHandler
 {
     public function __construct(
-        private readonly JobRepository $jobRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly JobLogger $jobLogger,
         private readonly EntityManagerInterface $entityManager,
     ) {

@@ -14,7 +14,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<MusicbotRadioStation>
  */
-class MusicbotRadioStationRepository extends ServiceEntityRepository
+final class MusicbotRadioStationRepository extends ServiceEntityRepository implements MusicbotRadioStationRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -26,6 +26,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     // -------------------------------------------------------------------------
 
     /** @return MusicbotRadioStation[] */
+    #[\Override]
     public function findByCustomer(User $customer): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('r')
@@ -61,6 +62,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
             ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 
+    #[\Override]
     public function findOneForCustomer(int $id, User $customer): ?MusicbotRadioStation
     {
         return EntityQueryResult::one($this->createQueryBuilder('r')
@@ -71,6 +73,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
             ->getQuery(), \App\Module\Musicbot\Domain\Entity\MusicbotRadioStation::class);
     }
 
+    #[\Override]
     public function countByCustomer(User $customer): int
     {
         return (int) $this->createQueryBuilder('r')
@@ -90,6 +93,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
      * @param array<array-key, mixed> $filters
      * @return list<MusicbotRadioStation>
      */
+    #[\Override]
     public function searchCatalog(array $filters = []): array
     {
         $qb = $this->catalogQuery($filters)
@@ -101,6 +105,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     }
 
     /** @param array<array-key, mixed> $filters */
+    #[\Override]
     public function countCatalog(array $filters = []): int
     {
         return (int) $this->catalogQuery($filters)
@@ -149,6 +154,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotRadioStation[] */
+    #[\Override]
     public function findPopularCatalogStations(array $popularIds, int $limit = 20): array
     {
         if ($popularIds === []) {
@@ -171,6 +177,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotRadioStation[] */
+    #[\Override]
     public function findNewestCatalogStations(int $limit = 20): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('r')
@@ -182,6 +189,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     }
 
     /** @return string[] */
+    #[\Override]
     public function getDistinctGenres(): array
     {
         $rows = $this->createQueryBuilder('r')
@@ -197,6 +205,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     }
 
     /** @return string[] */
+    #[\Override]
     public function getDistinctCountries(): array
     {
         $rows = $this->createQueryBuilder('r')
@@ -216,6 +225,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     // -------------------------------------------------------------------------
 
     /** @return MusicbotRadioStation[] All customer-submitted (private) stations awaiting promotion. */
+    #[\Override]
     public function findPendingCustomerStations(int $limit = 100): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('r')
@@ -227,6 +237,7 @@ class MusicbotRadioStationRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotRadioStation[] */
+    #[\Override]
     public function findAllGlobal(bool $includeInactive = true): array
     {
         $qb = $this->createQueryBuilder('r')->where('r.isGlobal = true');

@@ -14,7 +14,7 @@ use App\Infrastructure\Http\FlashMessages;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
@@ -35,22 +35,22 @@ use App\Module\Musicbot\Application\MusicbotSecretConfigService;
 use App\Module\Musicbot\Application\MusicbotStreamService;
 use App\Module\Musicbot\Application\MusicbotConfigApplyPayloadBuilder;
 use App\Module\Musicbot\Application\MusicbotRuntimeStatusNormalizer;
-use App\Module\Musicbot\Application\MusicbotQuotaService;
+use App\Module\Musicbot\Application\MusicbotQuotaServiceInterface;
 use App\Module\Musicbot\Application\MusicbotWorkflowService;
 use App\Module\Musicbot\Domain\Entity\MusicbotWorkflow;
 use App\Repository\MusicbotWorkflowRepository;
 use App\Module\Musicbot\Application\PluginRegistryService;
 use App\Module\Musicbot\Application\MusicbotPlanLimitResolver;
 use App\Module\Musicbot\Domain\Entity\MusicbotCustomerLimits;
-use App\Repository\AgentRepository;
-use App\Repository\MusicbotConnectionRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\MusicbotConnectionRepositoryInterface;
 use App\Repository\MusicbotInstanceRepository;
-use App\Repository\MusicbotPluginRepository;
+use App\Repository\MusicbotPluginRepositoryInterface;
 use App\Repository\MusicbotCustomerLimitsRepository;
 use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
-use App\Repository\MusicbotScheduleRepository;
-use App\Repository\MusicbotTeamspeakBackendConfigRepository;
-use App\Repository\UserRepository;
+use App\Repository\MusicbotScheduleRepositoryInterface;
+use App\Repository\MusicbotTeamspeakBackendConfigRepositoryInterface;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -97,13 +97,13 @@ final class AdminMusicbotController
 
     public function __construct(
         private readonly MusicbotInstanceRepository $instanceRepository,
-        private readonly MusicbotConnectionRepository $connectionRepository,
-        private readonly MusicbotTeamspeakBackendConfigRepository $teamspeakBackendConfigRepository,
+        private readonly MusicbotConnectionRepositoryInterface $connectionRepository,
+        private readonly MusicbotTeamspeakBackendConfigRepositoryInterface $teamspeakBackendConfigRepository,
         private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
         private readonly MusicbotRuntimeEventService $runtimeEventService,
         private readonly MusicbotAutoDjService $autoDjService,
         private readonly MusicbotScheduleService $scheduleService,
-        private readonly MusicbotScheduleRepository $scheduleRepository,
+        private readonly MusicbotScheduleRepositoryInterface $scheduleRepository,
         private readonly MusicbotStreamService $streamService,
         private readonly MusicbotWorkflowService $workflowService,
         private readonly MusicbotWorkflowRepository $workflowRepository,
@@ -111,14 +111,14 @@ final class AdminMusicbotController
         private readonly MusicbotConfigApplyPayloadBuilder $configApplyPayloadBuilder,
         private readonly MusicbotRuntimeStatusNormalizer $runtimeStatusNormalizer,
         private readonly PluginRegistryService $pluginRegistryService,
-        private readonly MusicbotPluginRepository $pluginRepository,
+        private readonly MusicbotPluginRepositoryInterface $pluginRepository,
         private readonly MusicbotCustomerLimitsRepository $customerLimitsRepository,
         private readonly MusicbotPlanLimitResolver $planLimitResolver,
-        private readonly MusicbotQuotaService $quotaService,
-        private readonly UserRepository $userRepository,
-        private readonly AgentRepository $agentRepository,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly AgentJobDispatcher $jobDispatcher,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

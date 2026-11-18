@@ -6,11 +6,11 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\MailPolicy;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Dto\Mail\MailPolicyUpsertDto;
-use App\Repository\DomainRepository;
+use App\Repository\DomainRepositoryInterface;
 use App\Repository\MailPolicyRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,9 +22,9 @@ final class AdminMailPolicyController
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly DomainRepository $domainRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
         private readonly MailPolicyRepositoryInterface $mailPolicyRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

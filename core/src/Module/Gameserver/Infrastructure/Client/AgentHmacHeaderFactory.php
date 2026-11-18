@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Infrastructure\Client;
 
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Instance;
 
 final class AgentHmacHeaderFactory
@@ -15,7 +15,7 @@ final class AgentHmacHeaderFactory
     public const HEADER_SIGNATURE = 'X-Signature';
     public const HEADER_CONTENT_SHA256 = 'X-Content-SHA256';
 
-    public function __construct(private readonly EncryptionService $encryptionService)
+    public function __construct(private readonly EncryptionServiceInterface $encryptionService)
     {
     }
 

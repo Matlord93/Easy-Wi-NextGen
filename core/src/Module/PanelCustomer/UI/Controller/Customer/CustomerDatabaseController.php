@@ -8,9 +8,9 @@ use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 use App\Infrastructure\Config\ScalarValue;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DatabaseNamingPolicyInterface;
-use App\Module\Core\Application\DatabaseProvisioningService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
 use App\Module\Core\Application\DatabaseTableServiceInterface;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
@@ -19,9 +19,9 @@ use App\Module\Core\Domain\Entity\JobResult;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\DatabaseNodeRepository;
-use App\Repository\DatabaseRepository;
-use App\Repository\JobRepository;
+use App\Repository\DatabaseNodeRepositoryInterface;
+use App\Repository\DatabaseRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -34,12 +34,12 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class CustomerDatabaseController
 {
     public function __construct(
-        private readonly DatabaseRepository $databaseRepository,
-        private readonly DatabaseNodeRepository $databaseNodeRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly DatabaseRepositoryInterface $databaseRepository,
+        private readonly DatabaseNodeRepositoryInterface $databaseNodeRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly DatabaseProvisioningService $provisioningService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly DatabaseProvisioningServiceInterface $provisioningService,
         private readonly DatabaseNamingPolicyInterface $namingPolicy,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

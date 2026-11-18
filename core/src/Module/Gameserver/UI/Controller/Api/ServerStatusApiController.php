@@ -9,7 +9,7 @@ use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\JsonMap;
 use App\Module\Gameserver\Application\Status\HmacRequestValidator;
 use App\Module\Gameserver\Application\Status\StatusBatchUpdater;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
@@ -21,7 +21,7 @@ final class ServerStatusApiController
     public function __construct(
         private readonly HmacRequestValidator $validator,
         private readonly StatusBatchUpdater $statusBatchUpdater,
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly CacheInterface $cache,
         private readonly int $staleGraceSeconds,
     ) {

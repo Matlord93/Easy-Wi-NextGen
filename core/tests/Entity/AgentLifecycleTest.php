@@ -55,4 +55,37 @@ final class AgentLifecycleTest extends TestCase
 
         self::assertSame(['Game'], $agent->getRoles());
     }
+
+    public function testHeartbeatPreservesDiskMeasurementsAndPanelSettings(): void
+    {
+        $agent = new Agent('disk-metadata', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
+        $protection = new \App\Module\Core\Application\NodeDiskProtectionService();
+        $agent->setMetadata(['instance_base_dirs' => ['/srv/games'], 'mail_host' => 'mail.example.test', 'core_access_mode' => 'public', 'hostname' => 'old', 'php_versions' => ['8.4']]);
+        $measuredAt = new \DateTimeImmutable('-1 minute');
+        $protection->updateDiskStat($agent, 1024, 1.0, $measuredAt);
+
+        $agent->recordHeartbeat([], '1.0', '127.0.0.1', [], [
+            'hostname' => 'new', 'ts6_supported' => false,
+            'disk_stat' => ['free_bytes' => 999999, 'free_percent' => 100],
+            'disk_protection' => ['active' => false], 'mail_host' => 'reported.example.test',
+        ]);
+        self::assertSame(1024, $protection->getDiskStat($agent)['free_bytes']);
+        self::assertEquals($measuredAt->format(DATE_RFC3339), $protection->getDiskStat($agent)['checked_at']->format(DATE_RFC3339));
+        self::assertTrue($protection->isProtectionActive($agent, new \DateTimeImmutable()));
+        self::assertSame('mail.example.test', $agent->getMetadata()['mail_host']);
+        self::assertSame(['/srv/games'], $agent->getMetadata()['instance_base_dirs']);
+        self::assertSame('public', $agent->getMetadata()['core_access_mode']);
+        self::assertSame('new', $agent->getMetadata()['hostname']);
+        self::assertArrayNotHasKey('php_versions', $agent->getMetadata());
+        self::assertFalse($agent->getMetadata()['ts6_supported']);
+        $agent->recordHeartbeat([], '1.0', '127.0.0.1', [], []);
+        self::assertSame(1024, $protection->getDiskStat($agent)['free_bytes']);
+    }
+
+    public function testHeartbeatCannotCreatePanelManagedDiskMeasurements(): void
+    {
+        $agent = new Agent('unmeasured-disk', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
+        $agent->recordHeartbeat([], '1.0', '127.0.0.1', [], ['disk_stat' => ['free_bytes' => 0], 'disk_protection' => ['active' => false]]);
+        self::assertNull($agent->getMetadata());
+    }
 }

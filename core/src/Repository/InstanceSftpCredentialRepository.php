@@ -12,13 +12,14 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<InstanceSftpCredential>
  */
-class InstanceSftpCredentialRepository extends ServiceEntityRepository
+final class InstanceSftpCredentialRepository extends ServiceEntityRepository implements InstanceSftpCredentialRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, InstanceSftpCredential::class);
     }
 
+    #[\Override]
     public function findOneByInstance(Instance $instance): ?InstanceSftpCredential
     {
         return $this->findOneBy(['instance' => $instance]);
@@ -29,6 +30,7 @@ class InstanceSftpCredentialRepository extends ServiceEntityRepository
      *
      * @return InstanceSftpCredential[]
      */
+    #[\Override]
     public function findByInstances(array $instances): array
     {
         if ($instances === []) {

@@ -6,7 +6,7 @@ namespace App\Tests\Module\Core\Application\Backup;
 
 use App\Message\RunBackupPlanMessage;
 use App\MessageHandler\RunBackupPlanMessageHandler;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\Backup\Adapter\BackupModuleAdapterInterface;
 use App\Module\Core\Application\Backup\Adapter\BackupSnapshot;
 use App\Module\Core\Application\Backup\Adapter\RestoreReport;
@@ -81,7 +81,7 @@ final class BackupLeaseHeartbeatTest extends TestCase
             self::assertSame(2, (int) $this->db->fetchOne('SELECT COUNT(*) FROM backup_plan_locks WHERE expires_at >= ?', [time() + 58]));
             self::assertFalse($this->competitor->acquireLock('plan:lease-plan', new \DateTimeImmutable('+5 minutes')));
         });
-        $audit = $this->createMock(AuditLogger::class);
+        $audit = $this->createMock(AuditLoggerInterface::class);
         $audit->expects(self::once())->method('log')->with(null, 'backup.plan.run', self::anything())->willReturn(null);
         $handler = new RunBackupPlanMessageHandler($this->store, $this->agent($writer), $audit, $this->heartbeat, $this->store);
         $handler(new RunBackupPlanMessage('lease-plan', false, 'completed-once'));
@@ -102,7 +102,7 @@ final class BackupLeaseHeartbeatTest extends TestCase
             $this->db->update('backup_plan_locks', ['owner_token' => str_repeat('f', 48), 'expires_at' => time() + 300], ['record_key' => hash('sha256', 'plan:lease-plan')]);
             $this->heartbeat->pulse(true);
         });
-        $audit = $this->createMock(AuditLogger::class);
+        $audit = $this->createMock(AuditLoggerInterface::class);
         $audit->expects(self::never())->method('log');
         $handler = new RunBackupPlanMessageHandler($this->store, $this->agent($writer), $audit, $this->heartbeat, $this->store);
         try {
@@ -150,7 +150,7 @@ final class BackupLeaseHeartbeatTest extends TestCase
         $store->failTargetAcquire = true;
         $outerCalls = 0;
         $this->heartbeat->enter(static function () use (&$outerCalls): void { ++$outerCalls; });
-        $audit = $this->createMock(AuditLogger::class);
+        $audit = $this->createMock(AuditLoggerInterface::class);
         $audit->expects(self::never())->method('log');
         $handler = new RunBackupPlanMessageHandler($store, $this->agent($this->writer(static function (): void {})), $audit, $this->heartbeat, $store);
         try {
@@ -169,7 +169,7 @@ final class BackupLeaseHeartbeatTest extends TestCase
         $store->failTargetRelease = true;
         $outerCalls = 0;
         $this->heartbeat->enter(static function () use (&$outerCalls): void { ++$outerCalls; });
-        $audit = $this->createMock(AuditLogger::class);
+        $audit = $this->createMock(AuditLoggerInterface::class);
         $audit->expects(self::once())->method('log')->willReturn(null);
         $handler = new RunBackupPlanMessageHandler($store, $this->agent($this->writer(static function (): void {})), $audit, $this->heartbeat, $store);
         try {
@@ -187,7 +187,7 @@ final class BackupLeaseHeartbeatTest extends TestCase
         $targetScope = 'target:local:'.hash('sha256', json_encode($this->plan->target()->config(), JSON_THROW_ON_ERROR));
         self::assertTrue($this->competitor->acquireLock($targetScope, new \DateTimeImmutable('+5 minutes')));
         $owner = $this->db->fetchOne('SELECT owner_token FROM backup_plan_locks');
-        $audit = $this->createMock(AuditLogger::class);
+        $audit = $this->createMock(AuditLoggerInterface::class);
         $audit->expects(self::never())->method('log');
         $handler = new RunBackupPlanMessageHandler($this->store, $this->agent($this->writer(static function (): void {})), $audit, $this->heartbeat, $this->store);
         $handler(new RunBackupPlanMessage('lease-plan', false));

@@ -6,8 +6,8 @@ namespace App\Module\Nodes\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Nodes\Application\InfrastructureUsage;
@@ -28,7 +28,7 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/admin/proxmox')]
 final class AdminProxmoxController extends AbstractController
 {
-    public function __construct(private readonly EntityManagerInterface $em, private readonly SecretsCrypto $crypto, private readonly ProxmoxManager $manager, private readonly AuditLogger $audit)
+    public function __construct(private readonly EntityManagerInterface $em, private readonly SecretsCryptoInterface $crypto, private readonly ProxmoxManager $manager, private readonly AuditLoggerInterface $audit)
     {
     }
 

@@ -8,14 +8,14 @@ use App\Infrastructure\Http\RequestActor;
 
 use App\Infrastructure\Http\FlashMessages;
 
-use App\Module\Core\Application\SecretsCrypto;
-use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisioner;
+use App\Module\Core\Application\SecretsCryptoInterface;
+use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisionerInterface;
 use App\Module\Core\Domain\Entity\SinusbotInstance;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\SinusbotInstanceRepository;
-use App\Repository\SinusbotNodeRepository;
+use App\Repository\SinusbotInstanceRepositoryInterface;
+use App\Repository\SinusbotNodeRepositoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -37,10 +37,10 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class CustomerSinusbotController
 {
     public function __construct(
-        private readonly SinusbotInstanceRepository $instanceRepository,
-        private readonly SinusbotNodeRepository $nodeRepository,
-        private readonly SinusbotInstanceProvisioner $provisioner,
-        private readonly SecretsCrypto $crypto,
+        private readonly SinusbotInstanceRepositoryInterface $instanceRepository,
+        private readonly SinusbotNodeRepositoryInterface $nodeRepository,
+        private readonly SinusbotInstanceProvisionerInterface $provisioner,
+        private readonly SecretsCryptoInterface $crypto,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly UrlGeneratorInterface $urlGenerator,
         private readonly Environment $twig,

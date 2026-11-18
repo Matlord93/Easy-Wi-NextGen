@@ -10,10 +10,10 @@ use App\Infrastructure\Http\RequestActor;
 use App\Infrastructure\Http\FlashMessages;
 
 use App\Module\Core\Application\AgentConfigurationException;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Application\Sinusbot\AgentBadResponseException;
 use App\Module\Core\Application\Sinusbot\AgentUnavailableException;
-use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisioner;
+use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisionerInterface;
 use App\Module\Core\Application\Sinusbot\SinusbotNodeService;
 use App\Module\Core\Application\Sinusbot\SinusbotQuotaValidator;
 use App\Module\Core\Domain\Entity\Agent;
@@ -23,10 +23,10 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Dto\Sinusbot\SinusbotNodeDto;
 use App\Module\Core\Form\SinusbotNodeType;
 use App\Repository\AgentJobRepository;
-use App\Repository\AgentRepository;
-use App\Repository\SinusbotInstanceRepository;
-use App\Repository\SinusbotNodeRepository;
-use App\Repository\UserRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\SinusbotInstanceRepositoryInterface;
+use App\Repository\SinusbotNodeRepositoryInterface;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormFactoryInterface;
@@ -44,16 +44,16 @@ use Twig\Environment;
 final class AdminSinusbotNodeController
 {
     public function __construct(
-        private readonly SinusbotNodeRepository $nodeRepository,
-        private readonly SinusbotInstanceRepository $instanceRepository,
-        private readonly AgentRepository $agentRepository,
+        private readonly SinusbotNodeRepositoryInterface $nodeRepository,
+        private readonly SinusbotInstanceRepositoryInterface $instanceRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly AgentJobRepository $agentJobRepository,
-        private readonly UserRepository $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly SecretsCrypto $crypto,
+        private readonly SecretsCryptoInterface $crypto,
         private readonly SinusbotNodeService $nodeService,
         private readonly SinusbotQuotaValidator $quotaValidator,
-        private readonly SinusbotInstanceProvisioner $instanceProvisioner,
+        private readonly SinusbotInstanceProvisionerInterface $instanceProvisioner,
         private readonly FormFactoryInterface $formFactory,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,

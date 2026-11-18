@@ -38,12 +38,12 @@ final class AgentReleaseCheckerTest extends TestCase
             ],
         ];
 
-        $method = new \ReflectionMethod($checker, 'selectLatestReleaseAsset');
+        $resolver = new GithubReleaseResolver(new MockHttpClient());
 
-        $selected = $method->invoke($checker, $releases, 'beta', 'easywi-agent-linux-amd64');
+        $selected = $resolver->selectLatestAsset($releases, 'beta', 'easywi-agent-linux-amd64', 'checksums-agent.txt', 'checksums-agent.txt.asc');
 
         self::assertIsArray($selected);
-        self::assertSame('1.1.1-beta.1', $selected['tag']);
+        self::assertSame('1.1.1-beta.1', $selected['version']);
         self::assertSame('https://example.invalid/1.1.1.1/easywi-agent-linux-amd64', $selected['download_url']);
     }
 
@@ -51,9 +51,9 @@ final class AgentReleaseCheckerTest extends TestCase
     {
         $checker = $this->checker('beta');
 
-        $method = new \ReflectionMethod($checker, 'compareReleaseTags');
+        $resolver = new GithubReleaseResolver(new MockHttpClient());
 
-        $result = $method->invoke($checker, '1.1.1-beta.1', '1.1.0-beta.4');
+        $result = $resolver->compareReleaseTags('1.1.1-beta.1', '1.1.0-beta.4');
 
         self::assertIsInt($result);
         self::assertGreaterThan(0, $result);
@@ -84,11 +84,11 @@ final class AgentReleaseCheckerTest extends TestCase
             ],
         ];
 
-        $method = new \ReflectionMethod($checker, 'selectLatestReleaseAsset');
-        $selected = $method->invoke($checker, $releases, 'stable', 'easywi-agent-linux-amd64', '2.0.0');
+        $resolver = new GithubReleaseResolver(new MockHttpClient());
+        $selected = $resolver->selectLatestAsset($releases, 'stable', 'easywi-agent-linux-amd64', 'checksums-agent.txt', 'checksums-agent.txt.asc', '2.0.0');
 
         self::assertIsArray($selected);
-        self::assertSame('v2.0.0', $selected['tag']);
+        self::assertSame('v2.0.0', $selected['version']);
     }
 
     public function testChannelFilteringSeparatesDevBetaAndStableGithubReleases(): void
@@ -128,15 +128,15 @@ final class AgentReleaseCheckerTest extends TestCase
             ],
         ];
 
-        $method = new \ReflectionMethod($checker, 'selectLatestReleaseAsset');
+        $resolver = new GithubReleaseResolver(new MockHttpClient());
 
-        $stable = $method->invoke($checker, $releases, 'stable', 'easywi-agent-linux-amd64');
-        $beta = $method->invoke($checker, $releases, 'beta', 'easywi-agent-linux-amd64');
-        $dev = $method->invoke($checker, $releases, 'dev', 'easywi-agent-linux-amd64');
+        $stable = $resolver->selectLatestAsset($releases, 'stable', 'easywi-agent-linux-amd64', 'checksums-agent.txt', 'checksums-agent.txt.asc');
+        $beta = $resolver->selectLatestAsset($releases, 'beta', 'easywi-agent-linux-amd64', 'checksums-agent.txt', 'checksums-agent.txt.asc');
+        $dev = $resolver->selectLatestAsset($releases, 'dev', 'easywi-agent-linux-amd64', 'checksums-agent.txt', 'checksums-agent.txt.asc');
 
-        self::assertSame('v2.0.0', $stable['tag'] ?? null);
-        self::assertSame('v2.1.0-beta.1', $beta['tag'] ?? null);
-        self::assertSame('v2.2.0-dev.3', $dev['tag'] ?? null);
+        self::assertSame('v2.0.0', $stable['version'] ?? null);
+        self::assertSame('v2.1.0-beta.1', $beta['version'] ?? null);
+        self::assertSame('v2.2.0-dev.3', $dev['version'] ?? null);
     }
 
     public function testAlphaChannelAliasNormalizesToDev(): void

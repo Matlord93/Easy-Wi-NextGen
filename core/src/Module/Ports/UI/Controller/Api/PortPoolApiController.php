@@ -6,11 +6,11 @@ namespace App\Module\Ports\UI\Controller\Api;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Ports\Domain\Entity\PortPool;
-use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
-use App\Repository\AgentRepository;
+use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
+use App\Repository\AgentRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,10 +19,10 @@ use Symfony\Component\Routing\Attribute\Route;
 final class PortPoolApiController
 {
     public function __construct(
-        private readonly AgentRepository $agentRepository,
-        private readonly PortPoolRepository $portPoolRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly PortPoolRepositoryInterface $portPoolRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

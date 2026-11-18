@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Musicbot\Application;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcherInterface;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 
@@ -58,7 +58,7 @@ final class MusicbotRepairService
 
     public function __construct(
         private readonly AgentJobDispatcherInterface $jobDispatcher,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
     ) {
     }
 

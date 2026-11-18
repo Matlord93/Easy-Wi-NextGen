@@ -10,7 +10,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\Console\ConsoleEventBusInterface;
 use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\EventStreamResponse;
 use Symfony\Component\HttpFoundation\ServerEvent;
@@ -27,7 +27,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class CustomerInstanceConsoleStreamController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly ConsoleEventBusInterface $eventBus,
         private readonly TranslatorInterface $translator,
         private readonly int $maxDurationSeconds = 1800,

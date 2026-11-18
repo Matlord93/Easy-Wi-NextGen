@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Application\MailDnsCheckServiceInterface;
 use App\Module\Core\Application\MailLimitEnforcer;
@@ -15,12 +15,12 @@ use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\UI\Controller\Customer\CustomerMailController;
-use App\Repository\DomainRepository;
-use App\Repository\JobRepository;
+use App\Repository\DomainRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use App\Repository\MailAliasRepositoryInterface;
-use App\Repository\MailDomainRepository;
+use App\Repository\MailDomainRepositoryInterface;
 use App\Repository\MailPolicyRepositoryInterface;
-use App\Repository\MailboxRepository;
+use App\Repository\MailboxRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -44,7 +44,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $mailbox->method('isEnabled')->willReturn(true);
         $mailbox->method('getQuota')->willReturn(100);
 
-        $mailboxRepo = $this->createStub(MailboxRepository::class);
+        $mailboxRepo = $this->createStub(MailboxRepositoryInterface::class);
         $mailboxRepo->method('find')->willReturn($mailbox);
 
         $controller = $this->buildController($mailboxRepo, new Environment(new ArrayLoader(['customer/mail/detail.html.twig' => '{{ mailbox.address }} {{ username }} {{ password_csrf }}'])));
@@ -81,8 +81,8 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $mailDomain->method('getNode')->willReturn($mailNode);
         $mailDomain->method('getDomain')->willReturn($domainStub);
 
-        $mailboxRepo = $this->createStub(MailboxRepository::class); $mailboxRepo->method('find')->willReturn($mailbox);
-        $mailDomainRepo = $this->createStub(MailDomainRepository::class); $mailDomainRepo->method('findOneByDomain')->willReturn($mailDomain);
+        $mailboxRepo = $this->createStub(MailboxRepositoryInterface::class); $mailboxRepo->method('find')->willReturn($mailbox);
+        $mailDomainRepo = $this->createStub(MailDomainRepositoryInterface::class); $mailDomainRepo->method('findOneByDomain')->willReturn($mailDomain);
         $twig = new Environment(new ArrayLoader(['customer/mail/detail.html.twig' => '{{ quota_usage.available ? quota_usage.used_mb : "missing" }}|{{ quota_usage.percent }}|{{ quota_usage.quota_mb }}']));
         $controller = $this->buildController($mailboxRepo, $twig, null, $mailDomainRepo);
         $r = new Request(); $r->attributes->set('current_user', $customer);
@@ -102,8 +102,8 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $mailbox->method('getDomain')->willReturn($domain);
         $mailbox->method('getQuota')->willReturn(100);
 
-        $mailboxRepo = $this->createStub(MailboxRepository::class); $mailboxRepo->method('find')->willReturn($mailbox);
-        $mailDomainRepo = $this->createStub(MailDomainRepository::class); $mailDomainRepo->method('findOneByDomain')->willReturn(null);
+        $mailboxRepo = $this->createStub(MailboxRepositoryInterface::class); $mailboxRepo->method('find')->willReturn($mailbox);
+        $mailDomainRepo = $this->createStub(MailDomainRepositoryInterface::class); $mailDomainRepo->method('findOneByDomain')->willReturn(null);
         $twig = new Environment(new ArrayLoader(['customer/mail/detail.html.twig' => '{{ quota_usage.available ? "available" : "missing" }}']));
         $controller = $this->buildController($mailboxRepo, $twig, null, $mailDomainRepo);
         $r = new Request(); $r->attributes->set('current_user', $customer);
@@ -131,8 +131,8 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $mailDomain->method('getNode')->willReturn($mailNode);
         $mailDomain->method('getDomain')->willReturn($domainStub);
 
-        $mailboxRepo = $this->createStub(MailboxRepository::class); $mailboxRepo->method('find')->willReturn($mailbox);
-        $mailDomainRepo = $this->createStub(MailDomainRepository::class); $mailDomainRepo->method('findOneByDomain')->willReturn($mailDomain);
+        $mailboxRepo = $this->createStub(MailboxRepositoryInterface::class); $mailboxRepo->method('find')->willReturn($mailbox);
+        $mailDomainRepo = $this->createStub(MailDomainRepositoryInterface::class); $mailDomainRepo->method('findOneByDomain')->willReturn($mailDomain);
         $twig = new Environment(new ArrayLoader(['customer/mail/detail.html.twig' => '{{ quota_usage.used_mb }}|{{ quota_usage.quota_mb }}|{{ quota_usage.percent }}']));
         $controller = $this->buildController($mailboxRepo, $twig, null, $mailDomainRepo);
         $r = new Request(); $r->attributes->set('current_user', $customer);
@@ -149,7 +149,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $mailbox = $this->createStub(Mailbox::class);
         $mailbox->method('getCustomer')->willReturn($owner);
 
-        $mailboxRepo = $this->createStub(MailboxRepository::class);
+        $mailboxRepo = $this->createStub(MailboxRepositoryInterface::class);
         $mailboxRepo->method('find')->willReturn($mailbox);
 
         $controller = $this->buildController($mailboxRepo, new Environment(new ArrayLoader(['customer/mail/detail.html.twig' => 'x'])));
@@ -194,7 +194,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $mailbox = $this->createStub(Mailbox::class);
         $mailbox->method('getCustomer')->willReturn($owner);
 
-        $mailboxRepo = $this->createStub(MailboxRepository::class);
+        $mailboxRepo = $this->createStub(MailboxRepositoryInterface::class);
         $mailboxRepo->method('find')->willReturn($mailbox);
 
         $controller = $this->buildController($mailboxRepo, new Environment(new ArrayLoader(['customer/mail/index.html.twig' => 'Mailbox not found.'])));
@@ -214,7 +214,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $mailbox = $this->createStub(Mailbox::class);
         $mailbox->method('getCustomer')->willReturn($customer);
 
-        $mailboxRepo = $this->createStub(MailboxRepository::class);
+        $mailboxRepo = $this->createStub(MailboxRepositoryInterface::class);
         $mailboxRepo->method('find')->willReturn($mailbox);
 
         $controller = $this->buildController($mailboxRepo, new Environment(new ArrayLoader(['customer/mail/index.html.twig' => 'Password must be at least 8 characters.'])));
@@ -244,18 +244,18 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $mailbox->method('getAddress')->willReturn('u@example.com');
         $mailbox->expects(self::once())->method('setPassword');
 
-        $mailboxRepo = $this->createStub(MailboxRepository::class);
+        $mailboxRepo = $this->createStub(MailboxRepositoryInterface::class);
         $mailboxRepo->method('find')->willReturn($mailbox);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::once())->method('persist')->with(self::callback(static fn ($job): bool => $job instanceof \App\Module\Core\Domain\Entity\Job && $job->getType() === 'mailbox.password.reset'));
         $entityManager->expects(self::once())->method('flush');
 
-        $mailDomainRepo = $this->createStub(MailDomainRepository::class);
+        $mailDomainRepo = $this->createStub(MailDomainRepositoryInterface::class);
         $mailDomainRepo->method('findOneByDomain')->willReturn($mailDomain);
 
         $hasher = new MailPasswordHasher('bcrypt');
-        $encryption = $this->createStub(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionServiceInterface::class);
         $encryption->method('encrypt')->willReturn(['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
 
         $controller = $this->buildController(
@@ -275,12 +275,12 @@ final class CustomerMailboxDetailControllerTest extends TestCase
     }
 
     private function buildController(
-        MailboxRepository $mailboxRepository,
+        MailboxRepositoryInterface $mailboxRepository,
         Environment $twig,
         ?EntityManagerInterface $entityManager = null,
-        ?MailDomainRepository $mailDomainRepository = null,
+        ?MailDomainRepositoryInterface $mailDomainRepository = null,
         ?MailPasswordHasher $mailPasswordHasher = null,
-        ?EncryptionService $encryptionService = null,
+        ?EncryptionServiceInterface $encryptionService = null,
     ): CustomerMailController
     {
         $csrfManager = $this->createStub(CsrfTokenManagerInterface::class);
@@ -291,12 +291,12 @@ final class CustomerMailboxDetailControllerTest extends TestCase
             $mailboxRepository,
             $this->createStub(MailAliasRepositoryInterface::class),
             $this->createDomainRepository(),
-            $mailDomainRepository ?? $this->createStub(MailDomainRepository::class),
-            $this->createStub(JobRepository::class),
+            $mailDomainRepository ?? $this->createStub(MailDomainRepositoryInterface::class),
+            $this->createStub(JobRepositoryInterface::class),
             $this->createStub(MailPolicyRepositoryInterface::class),
             $entityManager ?? $this->createStub(EntityManagerInterface::class),
-            $this->createStub(AuditLogger::class),
-            $encryptionService ?? $this->createStub(EncryptionService::class),
+            $this->createStub(AuditLoggerInterface::class),
+            $encryptionService ?? $this->createStub(EncryptionServiceInterface::class),
             $mailPasswordHasher ?? new MailPasswordHasher(),
             $this->createMailLimitEnforcer(),
             new MailAliasLoopGuard(),
@@ -315,9 +315,9 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         return new MailLimitEnforcer($mailboxStatsProvider, $entityManager);
     }
 
-    private function createDomainRepository(): DomainRepository
+    private function createDomainRepository(): DomainRepositoryInterface
     {
-        $repo = $this->createStub(DomainRepository::class);
+        $repo = $this->createStub(DomainRepositoryInterface::class);
         $repo->method('findByCustomer')->willReturn([]);
         return $repo;
     }

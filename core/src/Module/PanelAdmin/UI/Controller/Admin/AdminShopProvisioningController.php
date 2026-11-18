@@ -6,8 +6,8 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
@@ -16,10 +16,10 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\GameServerInstallPathManager;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
-use App\Repository\AgentRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
+use App\Repository\AgentRepositoryInterface;
 use App\Repository\TemplateRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -30,14 +30,14 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminShopProvisioningController
 {
     public function __construct(
-        private readonly UserRepository $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly TemplateRepository $templateRepository,
-        private readonly AgentRepository $agentRepository,
-        private readonly PortBlockRepository $portBlockRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
         private readonly UserPasswordHasherInterface $passwordHasher,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly EntityManagerInterface $entityManager,
         private readonly GameServerInstallPathManager $installPathManager,
         private readonly TranslatorInterface $translator,

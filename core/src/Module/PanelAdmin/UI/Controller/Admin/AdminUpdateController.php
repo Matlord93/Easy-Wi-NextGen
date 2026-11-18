@@ -17,7 +17,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Setup\Application\WebinterfaceUpdateService;
 use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -37,7 +37,7 @@ final class AdminUpdateController
     public function __construct(
         private readonly WebinterfaceUpdateService $updateService,
         private readonly WebinterfaceUpdateSettingsService $updateSettingsService,
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly AgentReleaseChecker $releaseChecker,
         private readonly AgentUpdateQueueService $agentUpdateQueueService,
         private readonly CoreReleaseChecker $coreReleaseChecker,
@@ -347,6 +347,8 @@ final class AdminUpdateController
             'latestVersion' => $status->latestVersion,
             'updateAvailable' => $status->updateAvailable,
             'packageUrl' => $status->assetUrl,
+            'packageSha256' => $status->assetSha256,
+            'signatureUrl' => is_string($status->signatureUrl) && in_array(strtolower((string) parse_url($status->signatureUrl, PHP_URL_SCHEME)), ['https', 'http'], true) ? $status->signatureUrl : null,
             'notes' => $status->notes,
             'notesList' => $this->normalizeNotesList($status->notes),
             'manifestError' => $status->error,

@@ -9,8 +9,8 @@ use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\MailPasswordHasher;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
@@ -19,13 +19,13 @@ use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
-use App\Repository\AgentRepository;
-use App\Repository\DomainRepository;
-use App\Repository\MailDomainRepository;
-use App\Repository\MailboxRepository;
+use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\DomainRepositoryInterface;
+use App\Repository\MailDomainRepositoryInterface;
+use App\Repository\MailboxRepositoryInterface;
 use App\Repository\MailNodeRepositoryInterface;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use App\Repository\WebspaceNodeRepository;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -42,18 +42,18 @@ final class AdminWebspaceController
     private const DEFAULT_WEB_PORTS = [80, 443];
 
     public function __construct(
-        private readonly UserRepository $userRepository,
-        private readonly AgentRepository $agentRepository,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly MailNodeRepositoryInterface $mailNodeRepository,
-        private readonly MailDomainRepository $mailDomainRepository,
-        private readonly MailboxRepository $mailboxRepository,
-        private readonly DomainRepository $domainRepository,
+        private readonly MailDomainRepositoryInterface $mailDomainRepository,
+        private readonly MailboxRepositoryInterface $mailboxRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly WebspaceNodeRepository $webspaceNodeRepository,
-        private readonly PortPoolRepository $portPoolRepository,
+        private readonly PortPoolRepositoryInterface $portPoolRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly EncryptionService $encryptionService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly MailPasswordHasher $mailPasswordHasher,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

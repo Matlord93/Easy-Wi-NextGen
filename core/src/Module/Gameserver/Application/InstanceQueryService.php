@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Config\ScalarValue;
@@ -33,7 +33,7 @@ final class InstanceQueryService
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly HttpQueryAdapter $httpQueryAdapter,
         private readonly A2sQueryAdapter $a2sQueryAdapter,
         private readonly RconQueryAdapter $rconQueryAdapter,

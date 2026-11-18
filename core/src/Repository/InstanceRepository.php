@@ -13,7 +13,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<Instance>
  */
-class InstanceRepository extends ServiceEntityRepository
+final class InstanceRepository extends ServiceEntityRepository implements InstanceRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -23,6 +23,7 @@ class InstanceRepository extends ServiceEntityRepository
     /**
      * @return Instance[]
      */
+    #[\Override]
     public function findByCustomer(User $customer): array
     {
         return $this->findBy(['customer' => $customer], ['createdAt' => 'DESC']);
@@ -31,6 +32,7 @@ class InstanceRepository extends ServiceEntityRepository
     /**
      * @return Instance[]
      */
+    #[\Override]
     public function findScanCandidates(Agent $node, \DateTimeImmutable $threshold, int $limit): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('i')
@@ -46,6 +48,7 @@ class InstanceRepository extends ServiceEntityRepository
     /**
      * @return Instance[]
      */
+    #[\Override]
     public function findWatchdogEnabledBatchAfterId(int $afterId, int $limit): array
     {
         return EntityQueryResult::all($this->createQueryBuilder('i')

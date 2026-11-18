@@ -7,7 +7,7 @@ namespace App\Module\Unifi\UI\Controller\Admin;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Message\UnifiSyncManualRulesMessage;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Unifi\Application\UnifiApiClient;
 use App\Module\Unifi\Application\UnifiApiException;
@@ -18,7 +18,7 @@ use App\Module\Unifi\Infrastructure\Repository\UnifiAuditLogRepository;
 use App\Module\Unifi\Infrastructure\Repository\UnifiManualRuleRepository;
 use App\Module\Unifi\Infrastructure\Repository\UnifiPolicyRepository;
 use App\Module\Unifi\Application\UnifiSettingsProviderInterface;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -36,8 +36,8 @@ final class AdminUnifiController
         private readonly UnifiPolicyRepository $policyRepository,
         private readonly UnifiManualRuleRepository $manualRuleRepository,
         private readonly UnifiAuditLogRepository $auditLogRepository,
-        private readonly AgentRepository $agentRepository,
-        private readonly EncryptionService $encryptionService,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly UnifiApiClient $apiClient,
         private readonly UnifiSynchronizerInterface $syncService,
         private readonly EntityManagerInterface $entityManager,

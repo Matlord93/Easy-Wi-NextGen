@@ -12,16 +12,16 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\TicketStatus;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\AgentRepository;
-use App\Repository\DatabaseRepository;
-use App\Repository\InstanceRepository;
-use App\Repository\JobRepository;
-use App\Repository\MailboxRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\DatabaseRepositoryInterface;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
+use App\Repository\MailboxRepositoryInterface;
 use App\Repository\MetricSampleRepository;
 use App\Repository\TicketRepository;
 use App\Repository\Ts3VirtualServerRepository;
 use App\Repository\Ts6VirtualServerRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use App\Repository\WebspaceRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -33,19 +33,20 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminDashboardController
 {
     public function __construct(
-        private readonly JobRepository $jobRepository,
-        private readonly AgentRepository $agentRepository,
-        private readonly UserRepository $userRepository,
-        private readonly InstanceRepository $instanceRepository,
+        private readonly JobRepositoryInterface $jobRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly WebspaceRepository $webspaceRepository,
-        private readonly DatabaseRepository $databaseRepository,
-        private readonly MailboxRepository $mailboxRepository,
+        private readonly DatabaseRepositoryInterface $databaseRepository,
+        private readonly MailboxRepositoryInterface $mailboxRepository,
         private readonly Ts3VirtualServerRepository $ts3VirtualServerRepository,
         private readonly Ts6VirtualServerRepository $ts6VirtualServerRepository,
         private readonly TicketRepository $ticketRepository,
         private readonly MetricSampleRepository $metricSampleRepository,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly \App\Module\Core\Application\DiskUsageFormatter $percentFormatter = new \App\Module\Core\Application\DiskUsageFormatter(),
     ) {
     }
 
@@ -56,9 +57,10 @@ final class AdminDashboardController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $jobs = $this->jobRepository->findLatest(8);
-        $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        $agentSummary = $this->buildAgentSummary($agents);
+        $jobs = $this->jobRepository->findLatestHistory(8);
+        $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC'], 6);
+        $now = new \DateTimeImmutable();
+        $agentSummary = $this->agentRepository->countHeartbeatStates($now->sub(new \DateInterval('PT5M')), $now->sub(new \DateInterval('PT30M')));
         $jobSummary = [
             'total' => $this->jobRepository->countAll(),
             'running' => $this->jobRepository->countByStatus(JobStatus::Running),
@@ -117,27 +119,6 @@ final class AdminDashboardController
     {
         $actor = RequestActor::user($request);
         return $actor instanceof User && $actor->isAdmin();
-    }
-
-    /**
-     * @param list<Agent> $agents
-     * @return array{total: int, online: int, degraded: int, offline: int}
-     */
-    private function buildAgentSummary(array $agents): array
-    {
-        $summary = [
-            'total' => count($agents),
-            'online' => 0,
-            'degraded' => 0,
-            'offline' => 0,
-        ];
-
-        foreach ($agents as $agent) {
-            $status = $this->resolveAgentStatus($agent->getLastHeartbeatAt());
-            $summary[$status]++;
-        }
-
-        return $summary;
     }
 
     /** @return 'online'|'degraded'|'offline' */
@@ -226,7 +207,7 @@ final class AdminDashboardController
             return null;
         }
 
-        return rtrim(rtrim(sprintf('%.1f', $value), '0'), '.') . '%';
+        return $this->percentFormatter->formatPercent($value, true);
     }
 
     /**

@@ -19,7 +19,7 @@ import (
 	"github.com/shirou/gopsutil/v4/sensors"
 )
 
-func diskUsage(path string) (uint64, uint64, float64, error) {
+func diskUsage(path string) (uint64, uint64, uint64, float64, error) {
 	usagePath := path
 	if usagePath == "" || usagePath == "/" || strings.HasPrefix(usagePath, "/") {
 		drive := strings.TrimSpace(os.Getenv("SystemDrive"))
@@ -31,10 +31,13 @@ func diskUsage(path string) (uint64, uint64, float64, error) {
 
 	usage, err := disk.Usage(usagePath)
 	if err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, 0, err
 	}
 
-	return usage.Total, usage.Free, usage.UsedPercent, nil
+	if usage.Total == 0 || usage.Used > usage.Total || usage.Free > usage.Total-usage.Used {
+		return 0, 0, 0, 0, fmt.Errorf("invalid disk capacity")
+	}
+	return usage.Total, usage.Used, usage.Free, usage.UsedPercent, nil
 }
 
 func networkCounters() (uint64, uint64, error) {

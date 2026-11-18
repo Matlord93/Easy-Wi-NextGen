@@ -6,14 +6,14 @@ namespace App\Module\AgentOrchestrator\UI\Controller\Agent;
 
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\JsonMap;
-use App\Module\Core\Application\Voice\ViewerSnapshotNormalizer;
+use App\Module\Voice\Application\ViewerSnapshotNormalizer;
 use App\Module\Musicbot\Application\MusicbotPayloadLogSummarizer;
 use App\Module\AgentOrchestrator\Application\AgentJobResultApplier;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AgentSignatureVerifier;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Repository\AgentJobRepository;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use DateInterval;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -30,14 +30,15 @@ final class AgentJobController
     private const STALE_JOB_INTERVAL = 'PT15M';
 
     public function __construct(
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly AgentJobRepository $jobRepository,
         private readonly AgentSignatureVerifier $signatureVerifier,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly EntityManagerInterface $entityManager,
         private readonly CacheInterface $cache,
         private readonly AgentJobResultApplier $resultApplier,
         private readonly LoggerInterface $logger,
+        private readonly \App\Module\Core\Application\JobHistoryPolicy $history,
     ) {
     }
 
@@ -135,7 +136,7 @@ final class AgentJobController
             $this->logger->warning('Agent job finished with failure status.', $finishLogContext);
         }
 
-        $job->setLogText($strings['log_text'] ?? null);
+        $job->setLogText($status === AgentJobStatus::Failed || $this->history->keepsJob($job->getType()) ? ($strings['log_text'] ?? null) : null);
         $job->setErrorText($strings['error_text'] ?? null);
         $job->setResultPayload($resultPayload);
         $job->markFinished($status);

@@ -26,9 +26,4 @@ final class InternalSchedule
         public readonly ?\DateTimeImmutable $updatedAt = null,
     ) {
     }
-
-    public function key(): string
-    {
-        return $this->source.':'.$this->id;
-    }
 }

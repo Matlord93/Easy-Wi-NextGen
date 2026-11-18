@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Scheduler;
 
 use App\Module\Core\Domain\Entity\Job;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class SecurityStatusScheduleHandler implements ScheduleHandlerInterface
 {
     public function __construct(
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }

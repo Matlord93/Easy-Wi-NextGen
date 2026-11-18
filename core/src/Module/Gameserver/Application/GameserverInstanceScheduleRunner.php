@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSchedule;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\ScheduledTaskRun;
+use App\Module\Core\Application\JobHistoryPolicy;
 use App\Module\Core\Domain\Enum\InstanceScheduleAction;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Repository\InstanceScheduleRepository;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -46,12 +47,13 @@ final class GameserverInstanceScheduleRunner
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly JobLogger $jobLogger,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
-        private readonly JobRepository $jobRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly LoggerInterface $logger,
         #[Autowire('%app.windows_nodes_enabled%')]
         private readonly bool $windowsNodesEnabled,
+        private readonly JobHistoryPolicy $history,
     ) {
     }
 
@@ -280,7 +282,9 @@ final class GameserverInstanceScheduleRunner
             $startedAt,
         );
         $run->finish($status, $message, $createdJobIds, new \DateTimeImmutable());
-        $this->entityManager->persist($run);
+        if ($this->history->storesRun($run)) {
+            $this->entityManager->persist($run);
+        }
     }
 
     private function agentCanDispatchRestart(Instance $instance): bool

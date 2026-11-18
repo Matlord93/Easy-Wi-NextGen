@@ -11,7 +11,7 @@ use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Domain\Entity\Agent;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -31,7 +31,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 final class FilesAgentDiagnoseCommand extends Command
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly FileServiceClient $fileServiceClient,
         private readonly HttpClientInterface $httpClient,
         private readonly LoggerInterface $logger,

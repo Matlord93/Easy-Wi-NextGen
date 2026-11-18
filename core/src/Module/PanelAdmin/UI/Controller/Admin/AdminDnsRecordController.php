@@ -7,13 +7,13 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DnsRecordHelper;
 use App\Module\Core\Domain\Entity\DnsRecord;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DnsRecordRepository;
-use App\Repository\DomainRepository;
+use App\Repository\DomainRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -26,9 +26,9 @@ final class AdminDnsRecordController
 {
     public function __construct(
         private readonly DnsRecordRepository $dnsRecordRepository,
-        private readonly DomainRepository $domainRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly DnsRecordHelper $recordHelper,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

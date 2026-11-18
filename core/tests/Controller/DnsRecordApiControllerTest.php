@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DnsRecordHelper;
 use App\Module\Core\Domain\Entity\DnsRecord;
 use App\Module\Core\Domain\Entity\Domain;
@@ -13,7 +13,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\UI\Controller\Api\DnsRecordApiController;
 use App\Repository\DnsRecordRepository;
-use App\Repository\DomainRepository;
+use App\Repository\DomainRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\TestCase;
@@ -27,7 +27,7 @@ final class DnsRecordApiControllerTest extends TestCase
         $customer = $this->customer(10);
         $domain = new Domain($customer, null, 'example.test');
         (new \ReflectionProperty($domain, 'id'))->setValue($domain, 2);
-        $domains = $this->createMock(DomainRepository::class);
+        $domains = $this->createMock(DomainRepositoryInterface::class);
         $domains->expects(self::once())->method('find')->with(2)->willReturn($domain);
         $manager = $this->createMock(EntityManagerInterface::class);
         $manager->expects(self::exactly(2))->method('persist')->willReturnCallback(static function (object $entity): void {
@@ -58,7 +58,7 @@ final class DnsRecordApiControllerTest extends TestCase
 
     public function testMalformedFieldsReturnValidationErrorsBeforeDatabaseWork(): void
     {
-        $domains = $this->createMock(DomainRepository::class);
+        $domains = $this->createMock(DomainRepositoryInterface::class);
         $domains->expects(self::never())->method('find');
         $manager = $this->createMock(EntityManagerInterface::class);
         $manager->expects(self::never())->method('persist');
@@ -77,7 +77,7 @@ final class DnsRecordApiControllerTest extends TestCase
     public function testValidatedFieldsDoNotBypassDomainOwnership(): void
     {
         $domain = new Domain($this->customer(20), null, 'other.test');
-        $domains = $this->createStub(DomainRepository::class);
+        $domains = $this->createStub(DomainRepositoryInterface::class);
         $domains->method('find')->willReturn($domain);
         $manager = $this->createMock(EntityManagerInterface::class);
         $manager->expects(self::never())->method('persist');
@@ -89,9 +89,9 @@ final class DnsRecordApiControllerTest extends TestCase
         self::assertSame(403, $response->getStatusCode());
     }
 
-    private function controller(DomainRepository $domains, EntityManagerInterface $manager): DnsRecordApiController
+    private function controller(DomainRepositoryInterface $domains, EntityManagerInterface $manager): DnsRecordApiController
     {
-        return new DnsRecordApiController(new DnsRecordRepository($this->createStub(ManagerRegistry::class)), $domains, $manager, $this->createStub(AuditLogger::class), new DnsRecordHelper(), $this->createStub(TranslatorInterface::class));
+        return new DnsRecordApiController(new DnsRecordRepository($this->createStub(ManagerRegistry::class)), $domains, $manager, $this->createStub(AuditLoggerInterface::class), new DnsRecordHelper(), $this->createStub(TranslatorInterface::class));
     }
 
     private function customer(int $id): User

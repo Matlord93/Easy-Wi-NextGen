@@ -79,7 +79,7 @@ final class CustomerShopController
         }
 
         try {
-            $this->provisioningService->provision($customer, $product, $months);
+            $rental = $this->provisioningService->provision($customer, $product, $months);
         } catch (\RuntimeException $exception) {
             return new Response($this->twig->render('customer/shop/_error.html.twig', [
                 'message' => $exception->getMessage(),
@@ -88,6 +88,7 @@ final class CustomerShopController
 
         return new Response('', Response::HTTP_NO_CONTENT, [
             'HX-Redirect' => '/dashboard',
+            'X-Rental-Id' => (string) $rental->getId(),
         ]);
     }
 
@@ -102,10 +103,11 @@ final class CustomerShopController
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
-        $this->provisioningService->extendRental($rental, $months);
+        $order = $this->provisioningService->extendRental($rental, $months);
 
         return new Response('', Response::HTTP_NO_CONTENT, [
             'HX-Redirect' => '/marketplace',
+            'X-Order-Id' => (string) $order->getId(),
         ]);
     }
 

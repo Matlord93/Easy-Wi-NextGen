@@ -9,7 +9,7 @@ use App\Module\Core\Application\Backup\BackupOperationHeartbeat;
 use App\Module\Core\Application\Backup\BackupRun;
 use App\Module\Core\Application\Backup\BackupStorageTarget;
 use App\Module\Core\Application\Backup\RemoteArchiveProof;
-use App\Module\Core\Application\SftpConnectionFactory;
+use App\Module\Core\Application\SftpConnectionFactoryInterface;
 use App\Module\Core\Application\SshHostKeyVerifier;
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SFTP;
@@ -17,7 +17,7 @@ use phpseclib3\Net\SFTP;
 /** SFTP is also the safe transport for SSH targets; no remote shell is involved. */
 final readonly class SftpBackupTargetWriter implements BackupArchiveStorageInterface
 {
-    public function __construct(private SftpConnectionFactory $connections, private SshHostKeyVerifier $hostKeys, private PrivateKeyFileReader $keys, private ?BackupOperationHeartbeat $lease = null)
+    public function __construct(private SftpConnectionFactoryInterface $connections, private SshHostKeyVerifier $hostKeys, private PrivateKeyFileReader $keys, private ?BackupOperationHeartbeat $lease = null)
     {
     }
 

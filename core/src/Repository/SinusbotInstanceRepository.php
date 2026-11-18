@@ -11,13 +11,14 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<SinusbotInstance>
  */
-class SinusbotInstanceRepository extends ServiceEntityRepository
+final class SinusbotInstanceRepository extends ServiceEntityRepository implements SinusbotInstanceRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, SinusbotInstance::class);
     }
 
+    #[\Override]
     public function countBotsUsedForInstance(SinusbotInstance $instance): int
     {
         return 0;

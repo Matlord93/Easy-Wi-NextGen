@@ -6,12 +6,12 @@ namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\DomainRepository;
+use App\Repository\DomainRepositoryInterface;
 use App\Repository\MailAliasRepositoryInterface;
 use App\Repository\MailPolicyRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -27,10 +27,10 @@ final class MailAliasApiController
 
     public function __construct(
         private readonly MailAliasRepositoryInterface $aliasRepository,
-        private readonly DomainRepository $domainRepository,
+        private readonly DomainRepositoryInterface $domainRepository,
         private readonly MailPolicyRepositoryInterface $mailPolicyRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly MailAliasLoopGuard $loopGuard,
         #[Autowire('%env(default::APP_MAIL_ALIAS_MAP_PATH)%')]
         private readonly ?string $aliasMapPath,

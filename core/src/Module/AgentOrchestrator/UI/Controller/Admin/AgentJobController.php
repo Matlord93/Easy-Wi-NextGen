@@ -10,7 +10,7 @@ use App\Infrastructure\Http\RequestActor;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentJobRepository;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
@@ -19,7 +19,7 @@ use Symfony\Component\Routing\Attribute\Route;
 final class AgentJobController
 {
     public function __construct(
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly AgentJobRepository $jobRepository,
         private readonly AgentJobDispatcher $jobDispatcher,
     ) {

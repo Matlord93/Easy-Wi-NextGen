@@ -9,7 +9,7 @@ use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 #[AsAlias(TokenGeneratorInterface::class)]
 final class TokenGenerator implements TokenGeneratorInterface
 {
-    public function __construct(private readonly EncryptionService $encryptionService)
+    public function __construct(private readonly EncryptionServiceInterface $encryptionService)
     {
     }
 

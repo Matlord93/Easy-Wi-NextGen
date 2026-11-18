@@ -14,6 +14,7 @@ final class VoiceQueryResult
         public readonly \DateTimeImmutable $checkedAt,
         public readonly ?string $reason,
         public readonly ?string $errorCode,
+        public readonly ?string $jobId = null,
     ) {
     }
 

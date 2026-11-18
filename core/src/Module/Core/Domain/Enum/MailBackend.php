@@ -17,12 +17,4 @@ enum MailBackend: string
 
         return self::tryFrom($candidate) ?? self::Local;
     }
-
-    /**
-     * @return list<string>
-     */
-    public static function values(): array
-    {
-        return array_map(static fn (self $backend): string => $backend->value, self::cases());
-    }
 }

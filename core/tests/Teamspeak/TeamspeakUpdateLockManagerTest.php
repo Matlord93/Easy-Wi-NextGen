@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Teamspeak;
 
-use App\Module\Teamspeak\Application\Update\TeamspeakUpdateLockManager;
+use App\Module\Voice\Application\Update\TeamspeakUpdateLockManager;
 use PHPUnit\Framework\TestCase;
 
 final class TeamspeakUpdateLockManagerTest extends TestCase

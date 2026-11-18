@@ -13,11 +13,11 @@ final class VirtualServerDtoFactory
 {
     public function createTs3(Ts3AdminCreateVirtualServerDto $dto): Ts3CreateVirtualServerDto
     {
-        return new Ts3CreateVirtualServerDto($dto->name, $dto->voicePort, $dto->filetransferPort);
+        return new Ts3CreateVirtualServerDto($dto->getName(), $dto->getVoicePort(), $dto->filetransferPort);
     }
 
     public function createTs6(Ts6AdminCreateVirtualServerDto $dto): Ts6CreateVirtualServerDto
     {
-        return new Ts6CreateVirtualServerDto($dto->name, $dto->slots, $dto->voicePort);
+        return new Ts6CreateVirtualServerDto($dto->getName(), $dto->slots, $dto->getVoicePort());
     }
 }

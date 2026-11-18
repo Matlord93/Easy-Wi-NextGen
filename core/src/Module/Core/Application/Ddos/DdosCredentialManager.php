@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Ddos;
 
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\DdosProviderCredential;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DdosProviderCredentialRepository;
@@ -15,8 +15,8 @@ final class DdosCredentialManager
 {
     public function __construct(
         private readonly DdosProviderCredentialRepository $credentialRepository,
-        private readonly EncryptionService $encryptionService,
-        private readonly AuditLogger $auditLogger,
+        private readonly EncryptionServiceInterface $encryptionService,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }

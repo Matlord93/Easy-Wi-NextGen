@@ -9,7 +9,7 @@ use App\Infrastructure\Config\JsonArray;
 use App\Module\Core\Application\Backup\Adapter\RestoreReport;
 use App\Module\Core\Application\Backup\BackupTemporaryDirectory;
 use App\Module\Core\Application\Backup\ModuleArchiveGatewayInterface;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Repository\MusicbotInstanceRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -22,7 +22,7 @@ final class MusicbotFullBackupOperations
         private readonly MusicbotInstanceRepositoryInterface $instances,
         private readonly MusicbotFullState $state,
         private readonly ModuleArchiveGatewayInterface $gateway,
-        private readonly SecretsCrypto $crypto,
+        private readonly SecretsCryptoInterface $crypto,
         private readonly EntityManagerInterface $entityManager,
         private readonly MusicbotArchiveStreams $streams = new MusicbotArchiveStreams(),
     ) {

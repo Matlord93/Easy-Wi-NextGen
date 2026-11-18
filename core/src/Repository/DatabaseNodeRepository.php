@@ -11,7 +11,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<DatabaseNode>
  */
-class DatabaseNodeRepository extends ServiceEntityRepository
+final class DatabaseNodeRepository extends ServiceEntityRepository implements DatabaseNodeRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -21,6 +21,7 @@ class DatabaseNodeRepository extends ServiceEntityRepository
     /**
      * @return DatabaseNode[]
      */
+    #[\Override]
     public function findActiveByEngine(?string $engine = null): array
     {
         $builder = $this->createQueryBuilder('node')

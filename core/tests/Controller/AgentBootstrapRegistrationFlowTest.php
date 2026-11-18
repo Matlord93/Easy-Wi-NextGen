@@ -6,9 +6,9 @@ namespace App\Tests\Controller;
 
 use App\Module\Core\Application\AgentCreatorInterface;
 use App\Module\Core\Application\AgentSignatureVerifier;
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\LimiterFactoryInterface;
 use App\Module\Core\Application\TokenGeneratorInterface;
 use App\Module\Core\Domain\Entity\Agent;
@@ -18,7 +18,7 @@ use App\Module\Nodes\UI\Controller\Agent\AgentBootstrapController;
 use App\Module\Nodes\UI\Controller\Agent\AgentRegistrationController;
 use App\Repository\AgentBootstrapTokenRepositoryInterface;
 use App\Repository\AgentRegistrationTokenRepositoryInterface;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -35,9 +35,9 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
         $bootstrapRepo = $this->createMock(AgentBootstrapTokenRepositoryInterface::class);
         $bootstrapRepo->expects($this->never())->method('findActiveByHash');
 
-        $agentRepo = $this->createStub(AgentRepository::class);
+        $agentRepo = $this->createStub(AgentRepositoryInterface::class);
         $tokenGenerator = $this->createStub(TokenGeneratorInterface::class);
-        $auditLogger = $this->createStub(AuditLogger::class);
+        $auditLogger = $this->createStub(AuditLoggerInterface::class);
 
         $limiter = $this->createStub(LimiterInterface::class);
         $limiter->method('consume')->willReturn(new RateLimit(1, new DateTimeImmutable(), true, 1));
@@ -105,7 +105,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
             ->with($bootstrapTokenHash)
             ->willReturn($bootstrapToken);
 
-        $agentRepo = $this->createStub(AgentRepository::class);
+        $agentRepo = $this->createStub(AgentRepositoryInterface::class);
         $agentRepo->method('find')->willReturn(null);
 
         $tokenGenerator = $this->createMock(TokenGeneratorInterface::class);
@@ -120,7 +120,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
                 'encrypted_token' => ['key_id' => 'v1', 'nonce' => 'n', 'ciphertext' => 'c'],
             ]);
 
-        $auditLogger = $this->createStub(AuditLogger::class);
+        $auditLogger = $this->createStub(AuditLoggerInterface::class);
         $auditLogger->method('log');
 
         $limiter = $this->createStub(LimiterInterface::class);
@@ -178,7 +178,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
             ->with($registerTokenHash)
             ->willReturn($registrationToken);
 
-        $encryptionService = $this->createStub(EncryptionService::class);
+        $encryptionService = $this->createStub(EncryptionServiceInterface::class);
         $encryptionService->method('encrypt')
             ->willReturn(['key_id' => 'v1', 'nonce' => 'n', 'ciphertext' => 'c']);
 
@@ -191,7 +191,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
                 return $createdAgent = new Agent($id, $secretPayload, $name);
             });
 
-        $appSettingsService = $this->createStub(AppSettingsService::class);
+        $appSettingsService = $this->createStub(AppSettingsServiceInterface::class);
 
         $registrationController = new AgentRegistrationController(
             $agentRepo,

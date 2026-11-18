@@ -5,10 +5,10 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\Job;
-use App\Repository\MailboxRepository;
-use App\Repository\MailDomainRepository;
+use App\Repository\MailboxRepositoryInterface;
+use App\Repository\MailDomainRepositoryInterface;
 use App\Repository\MailPolicyRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -18,7 +18,7 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route(path:'/api/v1/admin/mail/mailboxes')]
 final class AdminMailboxPolicyController
 {
-    public function __construct(private readonly MailboxRepository $mailboxRepository, private readonly MailPolicyRepositoryInterface $mailPolicyRepository, private readonly MailDomainRepository $mailDomainRepository, private readonly AuditLogger $auditLogger, private readonly EntityManagerInterface $entityManager) {}
+    public function __construct(private readonly MailboxRepositoryInterface $mailboxRepository, private readonly MailPolicyRepositoryInterface $mailPolicyRepository, private readonly MailDomainRepositoryInterface $mailDomainRepository, private readonly AuditLoggerInterface $auditLogger, private readonly EntityManagerInterface $entityManager) {}
 
     #[Route(path:'/{id}/policy', methods:['POST'])]
     public function update(Request $request, int $id): JsonResponse

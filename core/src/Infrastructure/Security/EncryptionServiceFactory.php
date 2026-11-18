@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Security;
 
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 
 final class EncryptionServiceFactory
 {
@@ -13,7 +14,7 @@ final class EncryptionServiceFactory
     ) {
     }
 
-    public function create(): EncryptionService
+    public function create(): EncryptionServiceInterface
     {
         $keyring = $this->keyLoader->loadKeyring();
 

@@ -52,7 +52,7 @@ final class DatabaseLogFilter
 
     /** @param list<string> $dropInfoEvents */
     public function __construct(
-        private readonly AppSettingsService $settingsService,
+        private readonly AppSettingsServiceInterface $settingsService,
         private readonly array $dropInfoEvents = [],
     ) {
     }

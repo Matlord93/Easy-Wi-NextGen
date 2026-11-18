@@ -12,7 +12,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<AuditLog>
  */
-class AuditLogRepository extends ServiceEntityRepository
+final class AuditLogRepository extends ServiceEntityRepository implements AuditLogRepositoryInterface
 {
     private const int PAYLOAD_PREVIEW_LENGTH = 4000;
 
@@ -21,6 +21,7 @@ class AuditLogRepository extends ServiceEntityRepository
         parent::__construct($registry, AuditLog::class);
     }
 
+    #[\Override]
     public function findLatestHash(): ?string
     {
         $result = ScalarQueryResult::nullableRow($this->createQueryBuilder('audit')
@@ -40,6 +41,7 @@ class AuditLogRepository extends ServiceEntityRepository
     /**
      * @return AuditLog[]
      */
+    #[\Override]
     public function findRecent(int $limit = 30, ?\App\Module\Core\Domain\Entity\User $actor = null): array
     {
         $builder = $this->createQueryBuilder('audit')
@@ -57,6 +59,7 @@ class AuditLogRepository extends ServiceEntityRepository
     /**
      * @return array<int, array<string, mixed>>
      */
+    #[\Override]
     public function findRecentSummaries(int $limit = 50): array
     {
         $connection = $this->getEntityManager()->getConnection();
@@ -89,6 +92,7 @@ class AuditLogRepository extends ServiceEntityRepository
     }
 
     /** @return array<int, array<string, mixed>> */
+    #[\Override]
     public function searchSummaries(?string $action, ?string $actorEmail, ?\DateTimeImmutable $since, int $limit = 100): array
     {
         $limit = max(1, min(10000, $limit));
@@ -119,6 +123,7 @@ class AuditLogRepository extends ServiceEntityRepository
     /**
      * @return array<int, array<string, mixed>>
      */
+    #[\Override]
     public function findRecentActivitySummaries(int $limit = 40): array
     {
         return $this->findRecentSummaries($limit);
@@ -126,6 +131,7 @@ class AuditLogRepository extends ServiceEntityRepository
 
 
     /** @param list<string> $actions */
+    #[\Override]
     public function deleteRoutineActionsOlderThan(array $actions, \DateTimeImmutable $cutoff): int
     {
         if ($actions === []) {
@@ -146,6 +152,7 @@ class AuditLogRepository extends ServiceEntityRepository
      * @param list<string> $actions
      * @return AuditLog[]
      */
+    #[\Override]
     public function findRecentByActions(array $actions, int $limit = 50): array
     {
         if ($actions === []) {

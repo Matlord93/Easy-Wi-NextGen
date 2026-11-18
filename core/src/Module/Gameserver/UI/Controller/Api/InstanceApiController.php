@@ -7,8 +7,8 @@ namespace App\Module\Gameserver\UI\Controller\Api;
 use App\Repository\QueryParameter;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
@@ -22,16 +22,16 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\GameServerInstallPathManager;
-use App\Module\Ports\Application\PortLeaseManager;
+use App\Module\Ports\Application\PortLeaseManagerInterface;
 use App\Module\Ports\Domain\Entity\PortAllocation;
 use App\Module\Ports\Domain\Entity\PortBlock;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
-use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
-use App\Repository\AgentRepository;
-use App\Repository\InstanceRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
+use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\InstanceScheduleRepository;
 use App\Repository\TemplateRepository;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -42,17 +42,17 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class InstanceApiController
 {
     public function __construct(
-        private readonly UserRepository $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly TemplateRepository $templateRepository,
-        private readonly AgentRepository $agentRepository,
-        private readonly InstanceRepository $instanceRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
-        private readonly PortBlockRepository $portBlockRepository,
-        private readonly PortPoolRepository $portPoolRepository,
-        private readonly PortLeaseManager $portLeaseManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly PortBlockRepositoryInterface $portBlockRepository,
+        private readonly PortPoolRepositoryInterface $portPoolRepository,
+        private readonly PortLeaseManagerInterface $portLeaseManager,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly EntityManagerInterface $entityManager,
         private readonly GameServerInstallPathManager $installPathManager,
         private readonly TranslatorInterface $translator,

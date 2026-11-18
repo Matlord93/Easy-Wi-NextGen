@@ -4,84 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\Voice\Application\Provider;
 
-use App\Module\Core\Domain\Entity\VoiceInstance;
-
-final class Teamspeak6Adapter implements VoiceProviderAdapter
+final class Teamspeak6Adapter extends AbstractTeamspeakAdapter
 {
-    public function __construct(private readonly Ts6ServerLookupInterface $lookup)
-    {
-    }
-
     #[\Override]
     public function supports(string $providerType): bool
     {
         return $providerType === 'ts6';
-    }
-
-    #[\Override]
-    public function query(VoiceInstance $instance): VoiceQueryResult
-    {
-        $result = $this->probeStatus($instance);
-
-        return new VoiceQueryResult(
-            $result['status'],
-            $result['players_online'],
-            $result['players_max'],
-            null,
-            new \DateTimeImmutable(),
-            $result['reason'] ?? null,
-            $result['error_code'] ?? null,
-        );
-    }
-
-    /**
-     * @return array{status: string, players_online: null, players_max: int|null, reason: null|string,
-     * error_code: null|string}
-     */
-    #[\Override]
-    public function probeStatus(VoiceInstance $instance): array
-    {
-        $server = $this->lookup->find($instance->getExternalId());
-        if ($server === null) {
-            return ['status' => 'unknown', 'players_online' => null, 'players_max' => null, 'reason' => 'Server not found.', 'error_code' => 'voice_instance_not_found'];
-        }
-
-        return ['status' => $server['status'], 'players_online' => null, 'players_max' => $server['slots'], 'reason' => null, 'error_code' => null];
-    }
-
-    /** @return array{accepted: bool, reason: null|string, error_code: null|string} */
-    #[\Override]
-    public function performAction(VoiceInstance $instance, string $action): array
-    {
-        if (!in_array($action, ['start', 'stop', 'restart'], true)) {
-            return ['accepted' => false, 'reason' => 'Action invalid.', 'error_code' => 'voice_action_invalid'];
-        }
-
-        return ['accepted' => true, 'reason' => null, 'error_code' => null];
-    }
-
-    /** @return array{host: null|string, port: int|null} */
-    #[\Override]
-    public function getConnectInfo(VoiceInstance $instance): array
-    {
-        $server = $this->lookup->find($instance->getExternalId());
-        $nodeHost = $instance->getNode()->getHost();
-        $nodeHost = (str_starts_with($nodeHost, '127.') || $nodeHost === '::1' || $nodeHost === 'localhost') ? null : $nodeHost;
-
-        if ($server === null) {
-            return ['host' => $nodeHost, 'port' => null];
-        }
-        return [
-            'host' => $server['public_host'] ?? $server['node_public_ip'] ?? $nodeHost,
-            'port' => $server['voice_port'] ?? null,
-        ];
-    }
-
-    /** @return array{online: null, max: int|null} */
-    #[\Override]
-    public function getPlayers(VoiceInstance $instance): array
-    {
-        $server = $this->lookup->find($instance->getExternalId());
-        return ['online' => null, 'max' => $server['slots'] ?? null];
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Repository\SinusbotInstanceRepository;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -167,13 +167,13 @@ class SinusbotInstance
         $this->touch();
     }
 
-    public function setSinusbotPassword(?string $password, SecretsCrypto $crypto): void
+    public function setSinusbotPassword(?string $password, SecretsCryptoInterface $crypto): void
     {
         $this->sinusbotPasswordEncrypted = $password !== null ? $crypto->encrypt($password) : null;
         $this->touch();
     }
 
-    public function getSinusbotPassword(?SecretsCrypto $crypto): ?string
+    public function getSinusbotPassword(?SecretsCryptoInterface $crypto): ?string
     {
         if ($crypto === null || $this->sinusbotPasswordEncrypted === null) {
             return null;

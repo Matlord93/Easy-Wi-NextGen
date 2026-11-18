@@ -10,7 +10,7 @@ use App\Infrastructure\Config\ScalarValue;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\GameTemplateSeeder;
 use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\Template;
@@ -31,7 +31,7 @@ final class AdminPluginCatalogController
         private readonly GamePluginRepository $pluginRepository,
         private readonly TemplateRepository $templateRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly GameTemplateSeeder $templateSeeder,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

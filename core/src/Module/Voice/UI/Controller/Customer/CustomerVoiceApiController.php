@@ -9,12 +9,12 @@ use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\SecretsCrypto;
-use App\Module\Core\Application\Ts3\Ts3ViewerService;
-use App\Module\Core\Application\Ts3\Ts3VirtualServerService;
-use App\Module\Core\Application\Ts6\Ts6ViewerService;
-use App\Module\Core\Application\Ts6\Ts6VirtualServerService;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\SecretsCryptoInterface;
+use App\Module\Voice\Application\Ts3\Ts3ViewerService;
+use App\Module\Voice\Application\Ts3\Ts3VirtualServerService;
+use App\Module\Voice\Application\Ts6\Ts6ViewerService;
+use App\Module\Voice\Application\Ts6\Ts6VirtualServerService;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Ts3VirtualServer;
 use App\Module\Core\Domain\Entity\Ts6VirtualServer;
@@ -25,10 +25,11 @@ use App\Module\Core\Dto\Ts3\ViewerDto as Ts3ViewerDto;
 use App\Module\Core\Dto\Ts6\ViewerDto as Ts6ViewerDto;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
-use App\Module\Teamspeak\Application\Query\ServerQueryLimiterInterface;
+use App\Module\Voice\Application\Query\ServerQueryLimiterInterface;
 use App\Module\Voice\Application\Provider\VoiceProviderRegistry;
 use App\Module\Voice\Application\VoiceProbeGuard;
-use App\Repository\JobRepository;
+use App\Module\Voice\Application\TeamspeakServerOperationsInterface;
+use App\Repository\JobRepositoryInterface;
 use App\Repository\Ts3TokenRepository;
 use App\Repository\Ts3ViewerRepository;
 use App\Repository\Ts3VirtualServerRepository;
@@ -50,7 +51,8 @@ final class CustomerVoiceApiController
 {
     public function __construct(
         private readonly VoiceInstanceRepository $repository,
-        private readonly JobRepository $jobRepository,
+        private readonly TeamspeakServerOperationsInterface $serverOperations,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly VoiceProviderRegistry $providers,
         private readonly VoiceProbeGuard $probeGuard,
         private readonly EntityManagerInterface $entityManager,
@@ -65,8 +67,8 @@ final class CustomerVoiceApiController
         private readonly Ts6VirtualServerService $ts6Service,
         private readonly Ts3ViewerService $ts3ViewerService,
         private readonly Ts6ViewerService $ts6ViewerService,
-        private readonly SecretsCrypto $crypto,
-        private readonly AuditLogger $auditLogger,
+        private readonly SecretsCryptoInterface $crypto,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly ServerQueryLimiterInterface $queryLimiter,
         private readonly CacheInterface $cache,
         private readonly TranslatorInterface $translator,
@@ -139,6 +141,11 @@ final class CustomerVoiceApiController
                 $result = ['status' => 'unknown', 'players_online' => null, 'players_max' => null, 'reason' => 'Provider unsupported.', 'error_code' => 'voice_provider_unsupported'];
             }
 
+            $probeJobId = $result['job_id'] ?? null;
+            if (is_string($probeJobId) || $result['status'] === 'pending') {
+                return $this->responseEnvelopeFactory->success($request, $probeJobId, $probeJobId === null ? 'Probe delayed.' : 'Probe queued.', 202, ['status' => 'pending', 'retry_after' => $probeJobId === null ? 10 : 3]);
+            }
+
             $rawStatus = strtolower(($result['status'] ?? 'unknown'));
             $normalizedStatus = match ($rawStatus) {
                 'running', 'online', 'started', 'up' => 'online',
@@ -152,6 +159,7 @@ final class CustomerVoiceApiController
                 is_numeric($result['players_max'] ?? null) ? (int) $result['players_max'] : $instance->getPlayersMax(),
                 $result['reason'] ?? null,
                 $result['error_code'] ?? null,
+                $result['checked_at'] ?? null,
             );
             $this->probeGuard->recordProbeResult($instance, $normalizedStatus, $result['error_code'] ?? null);
             $this->entityManager->flush();
@@ -218,19 +226,20 @@ final class CustomerVoiceApiController
 
             $validation = $adapter->performAction($instance, $action);
             if (!($validation['accepted'] ?? false)) {
+                if (($validation['error_code'] ?? null) === 'voice_action_in_progress') {
+                    return $this->responseEnvelopeFactory->error($request, 'Another action is already in progress.', 'voice_action_in_progress', 409, 10, ['job_id' => $validation['job_id'] ?? null]);
+                }
                 return $this->responseEnvelopeFactory->error($request, ($validation['reason'] ?? 'Action rejected.'), ($validation['error_code'] ?? 'voice_action_rejected'), 400);
             }
 
-            $job = new Job('voice.action.' . $action, [
-                'voice_instance_id' => (string) $instance->getId(),
-                'provider_type' => $instance->getNode()->getProviderType(),
-                'external_id' => $instance->getExternalId(),
-                'node_id' => (string) $instance->getNode()->getId(),
-            ]);
-            $this->entityManager->persist($job);
+            $jobId = $validation['job_id'] ?? null;
+            if (!is_string($jobId) || $jobId === '') {
+                return $this->responseEnvelopeFactory->error($request, 'Provider did not queue an action.', 'voice_action_failed', 502);
+            }
+            $this->auditLogger->log($customer, 'voice.' . $instance->getNode()->getProviderType() . '.' . $action, ['voice_instance_id' => $instance->getId(), 'job_id' => $jobId]);
             $this->entityManager->flush();
 
-            return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Action queued.');
+            return $this->responseEnvelopeFactory->success($request, $jobId, 'Action queued.', 202);
         } finally {
             $this->releaseInstanceLock($lockHandle);
         }
@@ -1120,6 +1129,13 @@ final class CustomerVoiceApiController
 
         $activeProbe = $this->findActiveProbeJob((string) $instance->getId());
         $activeAction = $this->findActiveActionJob((string) $instance->getId());
+        if (in_array($instance->getNode()->getProviderType(), ['ts3', 'ts6'], true)) {
+            try {
+                $activeAction = $this->serverOperations->activeAction($this->serverOperations->resolve($instance)) ?? $activeAction;
+            } catch (\RuntimeException) {
+                // An inaccessible binding must not disclose another server's jobs.
+            }
+        }
 
         return [
             'id' => $instance->getId(),
@@ -1262,6 +1278,14 @@ final class CustomerVoiceApiController
         $instance = $this->repository->find($id);
         if ($instance === null || $instance->getCustomer()->getId() !== $customer->getId()) {
             return null;
+        }
+
+        if (in_array($instance->getNode()->getProviderType(), ['ts3', 'ts6'], true)) {
+            try {
+                $this->serverOperations->resolve($instance);
+            } catch (\RuntimeException) {
+                return null;
+            }
         }
 
         return $instance;

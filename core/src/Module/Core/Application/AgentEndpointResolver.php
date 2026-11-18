@@ -64,18 +64,6 @@ final class AgentEndpointResolver implements AgentEndpointResolverInterface
         throw new AgentConfigurationException('Agent-Konfiguration unvollständig: Service-URL fehlt.');
     }
 
-    #[\Override]
-    public function isLoopback(Agent $agent): bool
-    {
-        $url = trim($agent->getServiceBaseUrl());
-        $host = $url !== '' ? (parse_url($url, PHP_URL_HOST) ?? '') : '';
-        if (in_array($host, self::LOOPBACK, true)) {
-            return true;
-        }
-        $ip = trim((string) $agent->getLastHeartbeatIp());
-        return in_array($ip, self::LOOPBACK, true);
-    }
-
     private function defaultPort(): int
     {
         return $this->defaultServicePort > 0 ? $this->defaultServicePort : 7456;

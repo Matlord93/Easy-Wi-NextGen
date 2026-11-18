@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Domain\Entity;
 
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -34,7 +34,7 @@ class ProxmoxCluster
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
-    public function __construct(string $name, ProxmoxConnection $connection, SecretsCrypto $crypto)
+    public function __construct(string $name, ProxmoxConnection $connection, SecretsCryptoInterface $crypto)
     {
         $this->createdAt = new \DateTimeImmutable();
         $this->name = self::validatedName($name);
@@ -44,7 +44,7 @@ class ProxmoxCluster
         $this->encryptedToken = $crypto->encrypt($connection->tokenSecret);
     }
 
-    public function configure(string $name, string $baseUrl, string $tokenId, #[\SensitiveParameter] string $secret, SecretsCrypto $crypto, ?bool $verifyTls = null): void
+    public function configure(string $name, string $baseUrl, string $tokenId, #[\SensitiveParameter] string $secret, SecretsCryptoInterface $crypto, ?bool $verifyTls = null): void
     {
         $name = self::validatedName($name);
         if ('' === $secret && ($this->baseUrl !== rtrim(trim($baseUrl), '/') || $this->tokenId !== trim($tokenId))) {
@@ -70,7 +70,7 @@ class ProxmoxCluster
         return $name;
     }
 
-    public function connection(SecretsCrypto $crypto): ProxmoxConnection
+    public function connection(SecretsCryptoInterface $crypto): ProxmoxConnection
     {
         if (!$this->enabled) {
             throw new \RuntimeException('This Proxmox connection is disabled.');

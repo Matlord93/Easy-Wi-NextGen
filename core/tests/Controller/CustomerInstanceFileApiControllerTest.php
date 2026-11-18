@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceFileApiController;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -17,7 +17,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
 {
     public function testListUnauthorizedReturnsErrorEnvelope(): void
     {
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('isCustomerDataManagerEnabled')->willReturn(true);
 
         $controller = $this->newControllerWithSettings($settings);
@@ -36,7 +36,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
 
     public function testContentUnauthorizedReturnsErrorEnvelope(): void
     {
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('isCustomerDataManagerEnabled')->willReturn(true);
 
         $controller = $this->newControllerWithSettings($settings);
@@ -55,7 +55,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
 
     public function testFileMetadataKeepsOptionalFlagsAndHidesTechnicalDetails(): void
     {
-        $controller = $this->newControllerWithSettings($this->createStub(AppSettingsService::class));
+        $controller = $this->newControllerWithSettings($this->createStub(AppSettingsServiceInterface::class));
         $method = new \ReflectionMethod($controller, 'normalizeEntry');
         $entry = ['name' => 'server.cfg', 'size' => '1024', 'mode' => '0644', 'modified_at' => '2026-01-01',
             'is_dir' => false, 'is_symlink' => true, 'metadata_available' => false,
@@ -74,7 +74,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
 
     public function testMalformedMetadataFieldsUseSerializableDefaults(): void
     {
-        $controller = $this->newControllerWithSettings($this->createStub(AppSettingsService::class));
+        $controller = $this->newControllerWithSettings($this->createStub(AppSettingsServiceInterface::class));
         $result = (new \ReflectionMethod($controller, 'normalizeEntry'))->invoke(
             $controller,
             ['name' => [], 'size' => [], 'mode' => [], 'modified_at' => [], 'error_code' => []]
@@ -88,7 +88,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
 
     public function testDiagnosticsAcceptsOptionalListingFieldsAndRedactsWarningPaths(): void
     {
-        $controller = $this->newControllerWithSettings($this->createStub(AppSettingsService::class));
+        $controller = $this->newControllerWithSettings($this->createStub(AppSettingsServiceInterface::class));
         $method = new \ReflectionMethod($controller, 'runDiagnosticsProbe');
         $minimal = $method->invoke($controller, 'agent', static fn (): array =>
             ['root_path' => '/private/root', 'path' => '', 'entries' => []], false);
@@ -108,7 +108,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
 
     public function testJsonEncodingFailureStillReturnsAnErrorEnvelope(): void
     {
-        $controller = $this->newControllerWithSettings($this->createStub(AppSettingsService::class));
+        $controller = $this->newControllerWithSettings($this->createStub(AppSettingsServiceInterface::class));
         $response = (new \ReflectionMethod($controller, 'jsonResponse'))->invoke(
             $controller,
             Request::create('/api/instances/77/files'),
@@ -118,7 +118,7 @@ final class CustomerInstanceFileApiControllerTest extends TestCase
         self::assertSame('files_json_encode_failed', json_decode((string) $response->getContent(), true, flags: JSON_THROW_ON_ERROR)['error_code']);
     }
 
-    private function newControllerWithSettings(AppSettingsService $settings): CustomerInstanceFileApiController
+    private function newControllerWithSettings(AppSettingsServiceInterface $settings): CustomerInstanceFileApiController
     {
         $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('trans')->willReturnCallback(static fn (string|\Stringable $id): string => (string) $id);

@@ -637,10 +637,14 @@
     };
 
     // ── Overview ──
-    const loadDetail = async () => {
+    const loadDetail = async (probe = null) => {
         try {
             const data = await apiFetch(d.urlDetail);
-            const inst   = data.instance || {};
+            const inst = { ...(data.instance || {}) };
+            if (probe) {
+                Object.assign(inst, { status: probe.status, players_online: probe.players, players_max: probe.max,
+                    reason: probe.reason, error_code: probe.error_code, checked_at: probe.checked_at, stale: false });
+            }
             const connect = data.connect  || {};
             const token  = data.active_token;
             const viewer = data.viewer;
@@ -1124,8 +1128,15 @@
     const sendAction = async (action) => {
         setGlobalBusy(true); clearError();
         try{
-            await apiFetch(action==='probe'?d.urlProbe:`${d.urlActions}/${action}`,{method:'POST'});
-            await loadDetail();
+            let result = await apiFetch(action==='probe'?d.urlProbe:`${d.urlActions}/${action}`,{method:'POST'});
+            if (action === 'probe') {
+                for (let attempt = 0; attempt < 4 && result.status === 'pending'; attempt++) {
+                    const delay = Math.min(30, Math.max(1, Number(result.retry_after) || 3)) * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    result = await apiFetch(d.urlProbe, {method:'POST'});
+                }
+            }
+            await loadDetail(result.probe || null);
         }catch(err){showError(err.message);}
         finally{setGlobalBusy(false);}
     };
@@ -1465,7 +1476,7 @@
     loadDetail().then(async ()=>{
         // auto-probe once when checkedAt is missing or stale so GEPRÜFT shows immediately
         if(document.getElementById('vs-probe-badge')?.dataset?.stale==='1'){
-            try{ await fetch(d.urlProbe,{method:'POST',headers:{'Accept':'application/json'}}); await loadDetail(); }catch(_){}
+            await sendAction('probe');
         }
     }).catch(()=>{});
 })();

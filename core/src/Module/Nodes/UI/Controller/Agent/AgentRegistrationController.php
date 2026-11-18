@@ -7,11 +7,11 @@ namespace App\Module\Nodes\UI\Controller\Agent;
 use App\Module\Core\Application\AgentConfigurationException;
 use App\Module\Core\Application\AgentCreatorInterface;
 use App\Module\Core\Application\AgentSignatureVerifier;
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Repository\AgentRegistrationTokenRepositoryInterface;
-use App\Repository\AgentRepository;
+use App\Repository\AgentRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -27,14 +27,14 @@ final class AgentRegistrationController
     private const ENCRYPTION_CONFIG_ERROR = 'Encryption key configuration is invalid: %s Ensure /etc/easywi/secret.key is readable and contains a base64 key (JSON with active_key_id/keys or "v1:<base64>").';
 
     public function __construct(
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
         private readonly AgentRegistrationTokenRepositoryInterface $registrationTokenRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
         private readonly AgentCreatorInterface $agentCreator,
-        private readonly AuditLogger $auditLogger,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AuditLoggerInterface $auditLogger,
+        private readonly AppSettingsServiceInterface $appSettingsService,
     ) {
     }
 

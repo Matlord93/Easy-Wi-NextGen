@@ -31,7 +31,7 @@ final class FileServiceClient
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly int $timeoutSeconds,
         private readonly int $defaultServicePort,
         private readonly string $defaultServiceScheme,

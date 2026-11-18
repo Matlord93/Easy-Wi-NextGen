@@ -10,17 +10,17 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Musicbot\Application\Dto\PluginManifest;
 use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlugin;
-use App\Repository\MusicbotPluginRepository;
+use App\Repository\MusicbotPluginRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class MusicbotPluginService
 {
     public function __construct(
-        private readonly MusicbotPluginRepository $pluginRepository,
+        private readonly MusicbotPluginRepositoryInterface $pluginRepository,
         private readonly PluginRegistryService $registryService,
         private readonly PluginConfigService $configService,
         private readonly EntityManagerInterface $entityManager,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
     ) {
     }
 

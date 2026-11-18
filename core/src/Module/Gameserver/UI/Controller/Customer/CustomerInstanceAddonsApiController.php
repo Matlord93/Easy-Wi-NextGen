@@ -17,8 +17,8 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\GithubReleaseAssetUrlResolver;
 use App\Module\Gameserver\Application\InstanceAddonResolver;
-use App\Repository\InstanceRepository;
-use App\Repository\JobRepository;
+use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -33,8 +33,8 @@ use App\Module\Core\Attribute\RequiresModule;
 final class CustomerInstanceAddonsApiController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly InstanceAddonResolver $instanceAddonResolver,
         private readonly MessageBusInterface $messageBus,

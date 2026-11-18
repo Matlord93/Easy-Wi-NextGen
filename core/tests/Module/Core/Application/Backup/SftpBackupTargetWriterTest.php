@@ -8,7 +8,7 @@ use App\Infrastructure\Security\PrivateKeyFileReader;
 use App\Module\Core\Application\Backup\BackupRun;
 use App\Module\Core\Application\Backup\BackupStorageTarget;
 use App\Module\Core\Application\Backup\Target\SftpBackupTargetWriter;
-use App\Module\Core\Application\SftpConnectionFactory;
+use App\Module\Core\Application\SftpConnectionFactoryInterface;
 use App\Module\Core\Application\SshHostKeyVerifier;
 use phpseclib3\Net\SFTP;
 use PHPUnit\Framework\TestCase;
@@ -139,7 +139,7 @@ final class SftpBackupTargetWriterTest extends TestCase
             return true;
         });
         $connection->method('chmod')->willReturn(true);
-        $factory = $this->createStub(SftpConnectionFactory::class);
+        $factory = $this->createStub(SftpConnectionFactoryInterface::class);
         $factory->method('create')->willReturn($connection);
 
         return new SftpBackupTargetWriter($factory, new SshHostKeyVerifier(), new PrivateKeyFileReader());

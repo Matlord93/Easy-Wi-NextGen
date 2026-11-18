@@ -17,7 +17,7 @@ use Psr\Log\LoggerInterface;
  * @psalm-type SettingValue = null|bool|int|float|string|array<array-key, mixed>
  * @psalm-type Settings = array<string, SettingValue>
  */
-class AppSettingsService implements ConsoleCommandSettings
+final class AppSettingsService implements ConsoleCommandSettings, AppSettingsServiceInterface
 {
     public const string KEY_SITE_TITLE = 'site_title';
     public const string KEY_BRANDING_NAME = 'branding_name';
@@ -97,6 +97,7 @@ class AppSettingsService implements ConsoleCommandSettings
     public const string KEY_PRIVACY_GDPR_LAST_STATUS = 'privacy_gdpr_last_status';
     public const string KEY_PRIVACY_GDPR_LAST_ERROR = 'privacy_gdpr_last_error';
     public const string KEY_DATABASE_LOGGING_STORE_ROUTINE = 'database_logging_store_routine';
+    public const string KEY_JOB_HISTORY_MODE = 'job_history_mode';
     public const string KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS = 'database_logging_routine_retention_days';
     public const string KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS = 'database_logging_error_retention_days';
     public const string KEY_SCHEDULER_LAST_HEARTBEAT_AT = 'scheduler_last_heartbeat_at';
@@ -211,6 +212,7 @@ TWIG;
         self::KEY_PRIVACY_GDPR_LAST_STATUS => null,
         self::KEY_PRIVACY_GDPR_LAST_ERROR => null,
         self::KEY_DATABASE_LOGGING_STORE_ROUTINE => false,
+        self::KEY_JOB_HISTORY_MODE => 'all',
         self::KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS => 30,
         self::KEY_DATABASE_LOGGING_ERROR_RETENTION_DAYS => 180,
         self::KEY_SCHEDULER_LAST_HEARTBEAT_AT => null,
@@ -243,7 +245,7 @@ TWIG;
     public function __construct(
         private readonly AppSettingRepository $repository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -251,6 +253,7 @@ TWIG;
     /**
      * @return Settings
      */
+    #[\Override]
     public function getSettings(): array
     {
         if ($this->cachedSettings !== null) {
@@ -279,15 +282,28 @@ TWIG;
         return $this->cachedSettings;
     }
 
+    #[\Override]
+    public function reset(): void
+    {
+        $this->cachedSettings = null;
+        // Re-read settings changed by another request without detaching jobs or
+        // domain entities that the next scheduler pass still needs to process.
+        foreach ($this->entityManager->getUnitOfWork()->getIdentityMap()[AppSetting::class] ?? [] as $setting) {
+            $this->entityManager->detach($setting);
+        }
+    }
+
     /**
      * @param array<string, mixed> $input
      *
      * @return Settings
      */
+    #[\Override]
     public function updateSettings(array $input, bool $preserveSecrets = true): array
     {
         $current = $this->getSettings();
         $merged = $current;
+        $requestedKeys = [];
 
         foreach (array_keys(self::DEFAULTS) as $key) {
             if (!array_key_exists($key, $input)) {
@@ -302,10 +318,17 @@ TWIG;
             }
 
             $merged[$key] = self::settingValue($value);
+            $requestedKeys[$key] = true;
         }
 
         $normalized = $this->normalizeSettings($merged);
-        $this->persistSettings($normalized);
+        $changed = [];
+        foreach ($normalized as $key => $value) {
+            if (isset($requestedKeys[$key]) || ($current[$key] ?? null) !== $value) {
+                $changed[$key] = $value;
+            }
+        }
+        $this->persistSettings($changed);
         $this->cachedSettings = $normalized;
 
         return $normalized;
@@ -314,6 +337,7 @@ TWIG;
     /**
      * Persistiert alle bekannten Default-Keys idempotent in die Datenbank (SoT).
      */
+    #[\Override]
     public function ensureRuntimeDefaultsPersisted(): void
     {
         $settings = $this->getSettings();
@@ -326,6 +350,7 @@ TWIG;
         $this->cachedSettings = $settings;
     }
 
+    #[\Override]
     public function getSiteTitle(): string
     {
         $settings = $this->getSettings();
@@ -334,6 +359,7 @@ TWIG;
         return is_string($value) && $value !== '' ? $value : self::DEFAULTS[self::KEY_SITE_TITLE];
     }
 
+    #[\Override]
     public function getBrandingName(): string
     {
         $settings = $this->getSettings();
@@ -342,6 +368,7 @@ TWIG;
         return is_string($value) && $value !== '' ? $value : $this->getSiteTitle();
     }
 
+    #[\Override]
     public function getSupportEmail(): ?string
     {
         $settings = $this->getSettings();
@@ -355,6 +382,7 @@ TWIG;
         return $fallback !== '' ? $fallback : null;
     }
 
+    #[\Override]
     public function getMailFromName(): string
     {
         $settings = $this->getSettings();
@@ -372,6 +400,7 @@ TWIG;
         return self::DEFAULTS[self::KEY_SITE_TITLE];
     }
 
+    #[\Override]
     public function getMailFromAddress(): string
     {
         $settings = $this->getSettings();
@@ -389,6 +418,7 @@ TWIG;
         return 'no-reply@example.com';
     }
 
+    #[\Override]
     public function getMailReplyTo(): ?string
     {
         $settings = $this->getSettings();
@@ -406,6 +436,7 @@ TWIG;
         return null;
     }
 
+    #[\Override]
     public function getMailDefaultLocale(): string
     {
         $settings = $this->getSettings();
@@ -418,6 +449,7 @@ TWIG;
         return self::DEFAULTS[self::KEY_MAIL_DEFAULT_LOCALE];
     }
 
+    #[\Override]
     public function getAgentRegistrationToken(): string
     {
         $settings = $this->getSettings();
@@ -444,6 +476,7 @@ TWIG;
         throw new \RuntimeException('Agent registration token could not be initialized.');
     }
 
+    #[\Override]
     public function hasAgentRegistrationTokenInDb(): bool
     {
         $settings = $this->getSettings();
@@ -452,6 +485,7 @@ TWIG;
         return is_string($value) && trim($value) !== '';
     }
 
+    #[\Override]
     public function getAgentRegistrationTokenMasked(): string
     {
         $settings = $this->getSettings();
@@ -468,6 +502,7 @@ TWIG;
         return substr($value, 0, 4) . '…' . substr($value, -4);
     }
 
+    #[\Override]
     public function rotateAgentRegistrationToken(): void
     {
         $this->updateSettings([
@@ -475,6 +510,7 @@ TWIG;
         ], false);
     }
 
+    #[\Override]
     public function getGameserverDefaultSlots(): int
     {
         $settings = $this->getSettings();
@@ -483,6 +519,7 @@ TWIG;
         return is_numeric($value) ? max(1, (int) $value) : self::DEFAULTS[self::KEY_GAMESERVER_DEFAULT_SLOTS];
     }
 
+    #[\Override]
     public function getGameserverMinSlots(): int
     {
         $settings = $this->getSettings();
@@ -491,6 +528,7 @@ TWIG;
         return is_numeric($value) ? max(1, (int) $value) : self::DEFAULTS[self::KEY_GAMESERVER_MIN_SLOTS];
     }
 
+    #[\Override]
     public function getGameserverMaxSlots(): int
     {
         $settings = $this->getSettings();
@@ -499,6 +537,7 @@ TWIG;
         return is_numeric($value) ? max(1, (int) $value) : self::DEFAULTS[self::KEY_GAMESERVER_MAX_SLOTS];
     }
 
+    #[\Override]
     public function isGameserverStartStopAllowed(): bool
     {
         $settings = $this->getSettings();
@@ -507,6 +546,7 @@ TWIG;
         return (bool) $value;
     }
 
+    #[\Override]
     public function isCustomerDataManagerEnabled(): bool
     {
         $settings = $this->getSettings();
@@ -515,6 +555,7 @@ TWIG;
         return (bool) $value;
     }
 
+    #[\Override]
     public function isCustomerFilePushEnabled(): bool
     {
         $settings = $this->getSettings();
@@ -523,6 +564,7 @@ TWIG;
         return (bool) $value;
     }
 
+    #[\Override]
     public function getCustomerConsoleLabel(): ?string
     {
         $settings = $this->getSettings();
@@ -551,6 +593,7 @@ TWIG;
         return array_values(array_filter(array_map('trim', $parts), static fn (string $entry) => $entry !== ''));
     }
 
+    #[\Override]
     public function getInstanceBaseDir(): string
     {
         $settings = $this->getSettings();
@@ -568,6 +611,7 @@ TWIG;
         return self::DEFAULTS[self::KEY_INSTANCE_BASE_DIR];
     }
 
+    #[\Override]
     public function getSftpHost(): ?string
     {
         $settings = $this->getSettings();
@@ -580,6 +624,7 @@ TWIG;
         return null;
     }
 
+    #[\Override]
     public function getSftpPort(): int
     {
         $settings = $this->getSettings();
@@ -592,6 +637,7 @@ TWIG;
         return self::DEFAULTS[self::KEY_SFTP_PORT];
     }
 
+    #[\Override]
     public function getSftpUsername(): ?string
     {
         $settings = $this->getSettings();
@@ -604,6 +650,7 @@ TWIG;
         return null;
     }
 
+    #[\Override]
     public function getSftpPassword(): ?string
     {
         $settings = $this->getSettings();
@@ -616,6 +663,7 @@ TWIG;
         return null;
     }
 
+    #[\Override]
     public function getSftpPrivateKey(): ?string
     {
         $settings = $this->getSettings();
@@ -628,6 +676,7 @@ TWIG;
         return null;
     }
 
+    #[\Override]
     public function getSftpPrivateKeyPath(): ?string
     {
         $settings = $this->getSettings();
@@ -640,18 +689,7 @@ TWIG;
         return null;
     }
 
-    public function getSftpPrivateKeyPassphrase(): ?string
-    {
-        $settings = $this->getSettings();
-        $value = $settings[self::KEY_SFTP_PRIVATE_KEY_PASSPHRASE] ?? null;
-
-        if (is_string($value) && $value !== '') {
-            return $value;
-        }
-
-        return null;
-    }
-
+    #[\Override]
     public function getInvoiceLayout(): string
     {
         $settings = $this->getSettings();
@@ -664,6 +702,7 @@ TWIG;
         return \App\Module\Core\Application\Billing\InvoiceDesign::layout(\App\Module\Core\Application\Billing\InvoiceDesign::defaults());
     }
 
+    #[\Override]
     public function getSessionIdleTimeoutMinutes(): int
     {
         $settings = $this->getSettings();
@@ -672,6 +711,7 @@ TWIG;
         return is_numeric($value) ? max(5, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_SESSION_IDLE_MINUTES];
     }
 
+    #[\Override]
     public function getSessionAbsoluteTimeoutMinutes(): int
     {
         $settings = $this->getSettings();
@@ -680,6 +720,7 @@ TWIG;
         return is_numeric($value) ? max(15, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_SESSION_ABSOLUTE_MINUTES];
     }
 
+    #[\Override]
     public function getMaxConcurrentSessions(): int
     {
         $settings = $this->getSettings();
@@ -748,6 +789,10 @@ TWIG;
 
             if ($key === self::KEY_MAIL_BACKEND) {
                 $value = MailBackend::normalize($value)->value;
+            }
+
+            if ($key === self::KEY_JOB_HISTORY_MODE) {
+                $value = in_array($value, ['all', 'customers', 'errors'], true) ? $value : 'all';
             }
 
             if ($key === self::KEY_MAIL_DEFAULT_LOCALE) {
@@ -833,31 +878,37 @@ TWIG;
         return $normalized;
     }
 
+    #[\Override]
     public function isRegistrationEnabled(): bool
     {
         return (bool) ($this->getSettings()[self::KEY_REGISTRATION_ENABLED] ?? false);
     }
 
+    #[\Override]
     public function isAntiAbusePowEnabledForContact(): bool
     {
         return (bool) ($this->getSettings()[self::KEY_ANTI_ABUSE_ENABLE_POW_CONTACT] ?? true);
     }
 
+    #[\Override]
     public function isAntiAbusePowEnabledForRegistration(): bool
     {
         return (bool) ($this->getSettings()[self::KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION] ?? true);
     }
 
+    #[\Override]
     public function isAntiAbuseCaptchaEnabledForRegistration(): bool
     {
         return (bool) ($this->getSettings()[self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION] ?? false);
     }
 
+    #[\Override]
     public function isAntiAbuseCaptchaEnabledForContact(): bool
     {
         return (bool) ($this->getSettings()[self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT] ?? false);
     }
 
+    #[\Override]
     public function getAntiAbuseMinSubmitSeconds(): int
     {
         $value = $this->getSettings()[self::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS] ?? 2;
@@ -865,6 +916,7 @@ TWIG;
         return is_numeric($value) ? (int) $value : 2;
     }
 
+    #[\Override]
     public function getAntiAbusePowDifficulty(): int
     {
         $value = $this->getSettings()[self::KEY_ANTI_ABUSE_POW_DIFFICULTY] ?? 4;
@@ -872,6 +924,7 @@ TWIG;
         return is_numeric($value) ? (int) $value : 4;
     }
 
+    #[\Override]
     public function getAntiAbuseDailyIpLimit(): int
     {
         $value = $this->getSettings()[self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT] ?? 20;
@@ -880,11 +933,13 @@ TWIG;
     }
 
 
+    #[\Override]
     public function isPrivacyGdprJobsEnabled(): bool
     {
         return (bool) ($this->getSettings()[self::KEY_PRIVACY_GDPR_JOBS_ENABLED] ?? false);
     }
 
+    #[\Override]
     public function getPrivacyGdprJobsInterval(): string
     {
         $value = $this->getSettings()[self::KEY_PRIVACY_GDPR_JOBS_INTERVAL] ?? self::DEFAULTS[self::KEY_PRIVACY_GDPR_JOBS_INTERVAL];
@@ -892,11 +947,13 @@ TWIG;
         return is_string($value) && $value !== '' ? $value : self::DEFAULTS[self::KEY_PRIVACY_GDPR_JOBS_INTERVAL];
     }
 
+    #[\Override]
     public function setPrivacyGdprJobsEnabled(bool $enabled): void
     {
         $this->updateSettings([self::KEY_PRIVACY_GDPR_JOBS_ENABLED => $enabled]);
     }
 
+    #[\Override]
     public function markPrivacyGdprJobsRun(string $status, ?string $error = null, ?\DateTimeImmutable $now = null): void
     {
         $now ??= new \DateTimeImmutable();
@@ -907,11 +964,13 @@ TWIG;
         ]);
     }
 
+    #[\Override]
     public function shouldStoreRoutineDatabaseLogs(): bool
     {
         return (bool) ($this->getSettings()[self::KEY_DATABASE_LOGGING_STORE_ROUTINE] ?? false);
     }
 
+    #[\Override]
     public function getDatabaseLoggingRoutineRetentionDays(): int
     {
         $value = $this->getSettings()[self::KEY_DATABASE_LOGGING_ROUTINE_RETENTION_DAYS] ?? 30;
@@ -919,6 +978,7 @@ TWIG;
         return max(1, is_numeric($value) ? (int) $value : 30);
     }
 
+    #[\Override]
     public function markSchedulerHeartbeat(string $status, ?\DateTimeImmutable $now = null): void
     {
         $now ??= new \DateTimeImmutable();

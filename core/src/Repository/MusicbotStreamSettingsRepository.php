@@ -11,13 +11,14 @@ use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<MusicbotStreamSettings> */
-class MusicbotStreamSettingsRepository extends ServiceEntityRepository
+final class MusicbotStreamSettingsRepository extends ServiceEntityRepository implements MusicbotStreamSettingsRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, MusicbotStreamSettings::class);
     }
 
+    #[\Override]
     public function findByInstance(MusicbotInstance $instance): ?MusicbotStreamSettings
     {
         return $this->findOneBy(['instance' => $instance]);

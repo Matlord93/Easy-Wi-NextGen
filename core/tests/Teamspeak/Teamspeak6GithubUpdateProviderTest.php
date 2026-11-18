@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Teamspeak;
 
-use App\Module\Teamspeak\Application\Update\Teamspeak6GithubUpdateProvider;
+use App\Module\Voice\Application\Update\Teamspeak6GithubUpdateProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\HttpClient\ChunkInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;

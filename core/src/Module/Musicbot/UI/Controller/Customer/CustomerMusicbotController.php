@@ -13,7 +13,7 @@ use App\Infrastructure\Http\RequestActor;
 use App\Infrastructure\Http\FlashMessages;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -26,7 +26,7 @@ use App\Module\Musicbot\Application\MusicbotPlaylistService;
 use App\Module\Musicbot\Application\MusicbotPluginLogService;
 use App\Module\Musicbot\Application\MusicbotPluginService;
 use App\Module\Musicbot\Application\MusicbotQueueService;
-use App\Module\Musicbot\Application\MusicbotQuotaService;
+use App\Module\Musicbot\Application\MusicbotQuotaServiceInterface;
 use App\Module\Musicbot\Application\MusicbotPayloadLogSummarizer;
 use App\Module\Musicbot\Application\MusicbotRuntimeEventService;
 use App\Module\Musicbot\Application\MusicbotRuntimeStatusNormalizer;
@@ -42,10 +42,10 @@ use App\Module\Musicbot\Domain\Enum\MusicbotPlaylistVisibility;
 use App\Module\Musicbot\Domain\Enum\MusicbotRepeatMode;
 use App\Module\Musicbot\Domain\Entity\MusicbotQueueItem;
 use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
-use App\Repository\AgentRepository;
-use App\Repository\MusicbotConnectionRepository;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\MusicbotConnectionRepositoryInterface;
 use App\Repository\MusicbotInstanceRepository;
-use App\Repository\MusicbotPlaylistRepository;
+use App\Repository\MusicbotPlaylistRepositoryInterface;
 use App\Repository\MusicbotQueueItemQueryRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -64,9 +64,9 @@ final class CustomerMusicbotController
 
     public function __construct(
         private readonly MusicbotInstanceRepository $instanceRepository,
-        private readonly MusicbotConnectionRepository $connectionRepository,
+        private readonly MusicbotConnectionRepositoryInterface $connectionRepository,
         private readonly MusicbotQueueItemQueryRepositoryInterface $queueItemRepository,
-        private readonly MusicbotPlaylistRepository $playlistRepository,
+        private readonly MusicbotPlaylistRepositoryInterface $playlistRepository,
         private readonly MusicbotTrackService $trackService,
         private readonly MusicbotPlaylistService $playlistService,
         private readonly MusicbotAutoDjService $autoDjService,
@@ -79,16 +79,16 @@ final class CustomerMusicbotController
         private readonly MusicbotYoutubeResolverService $youtubeResolver,
         private readonly MusicbotYoutubeService $youtubeService,
         private readonly AgentJobDispatcher $jobDispatcher,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
         private readonly MusicbotInstanceService $instanceService,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly MusicbotSecretConfigService $secretConfigService,
         private readonly MusicbotRuntimeStatusNormalizer $runtimeStatusNormalizer,
         private readonly MusicbotConfigApplyPayloadBuilder $configApplyPayloadBuilder,
-        private readonly AgentRepository $agentRepository,
+        private readonly AgentRepositoryInterface $agentRepository,
     ) {
     }
 

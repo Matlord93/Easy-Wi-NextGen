@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Application;
 
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -16,9 +17,9 @@ use App\Module\Musicbot\Domain\Entity\MusicbotInstance;
 use App\Module\Musicbot\Domain\Entity\MusicbotPlugin;
 use App\Module\Musicbot\Domain\Entity\MusicbotStreamSettings;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
-use App\Repository\MusicbotConnectionRepository;
-use App\Repository\MusicbotPluginRepository;
-use App\Repository\MusicbotStreamSettingsRepository;
+use App\Repository\MusicbotConnectionRepositoryInterface;
+use App\Repository\MusicbotPluginRepositoryInterface;
+use App\Repository\MusicbotStreamSettingsRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -29,7 +30,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class MusicbotConfigPersistenceTest extends TestCase
 {
-    private SecretsCrypto $crypto;
+    private SecretsCryptoInterface $crypto;
     private MusicbotSecretConfigService $secretService;
     private MusicbotInstance $instance;
     private User $customer;
@@ -540,13 +541,13 @@ final class MusicbotConfigPersistenceTest extends TestCase
      */
     private function buildRuntimeConfigBuilder(array $connections, ?MusicbotStreamSettings $streamSettings, array $plugins): MusicbotRuntimeConfigBuilder
     {
-        $connectionRepo = $this->createStub(MusicbotConnectionRepository::class);
+        $connectionRepo = $this->createStub(MusicbotConnectionRepositoryInterface::class);
         $connectionRepo->method('findBy')->willReturn($connections);
 
-        $streamRepo = $this->createStub(MusicbotStreamSettingsRepository::class);
+        $streamRepo = $this->createStub(MusicbotStreamSettingsRepositoryInterface::class);
         $streamRepo->method('findByInstance')->willReturn($streamSettings);
 
-        $pluginRepo = $this->createStub(MusicbotPluginRepository::class);
+        $pluginRepo = $this->createStub(MusicbotPluginRepositoryInterface::class);
         $pluginRepo->method('findBy')->willReturn($plugins);
 
         return new MusicbotRuntimeConfigBuilder($connectionRepo, $streamRepo, $pluginRepo, $this->secretService);

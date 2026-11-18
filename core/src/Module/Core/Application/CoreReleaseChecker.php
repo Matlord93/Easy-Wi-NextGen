@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 
-use Psr\Cache\CacheItemPoolInterface;
 
 final class CoreReleaseChecker
 {
-    private const CACHE_KEY = 'core.latest_release_version';
     private const CHECKSUMS_ASSET = 'checksums-core.txt';
     private const SIGNATURE_ASSET = 'checksums-core.txt.asc';
     private const STATIC_CORE_ASSETS = ['easywi-core.tar.gz', 'easywi-core.zip'];
@@ -21,9 +19,7 @@ final class CoreReleaseChecker
     public const CHANNEL_ALPHA = GithubReleaseResolver::CHANNEL_ALPHA;
 
     public function __construct(
-        private readonly CacheItemPoolInterface $cache,
         private readonly string $repository,
-        private readonly int $cacheTtlSeconds = 300,
         private readonly string $channel = self::CHANNEL_STABLE,
         private readonly ?GithubReleaseResolver $releaseResolver = null,
     ) {
@@ -39,46 +35,17 @@ final class CoreReleaseChecker
         return $this->resolver()->normalizeChannel($this->channel);
     }
 
-    public function getLatestVersion(bool $force = false): ?string
-    {
-        return $this->getLatestVersionForChannel($this->channel, $force);
-    }
-
-    public function getLatestVersionForChannel(string $channel, bool $force = false): ?string
-    {
-        if (trim($this->repository) === '') {
-            return null;
-        }
-
-        $channel = $this->resolver()->normalizeChannel($channel);
-        $cacheKey = sprintf('%s.%s.%s', self::CACHE_KEY, hash('sha256', $this->repository), $channel);
-        $item = $this->cache->getItem($cacheKey);
-        $cached = self::cacheText($item->get());
-        if (!$force && $item->isHit() && is_string($cached) && $cached !== '') {
-            return $cached;
-        }
-
-        $latest = $this->resolver()->getLatestVersion($this->repository, $channel, 'core', $force);
-        if ($latest !== null) {
-            $item->set($latest);
-            $item->expiresAfter($this->cacheTtlSeconds);
-            $this->cache->save($item);
-        }
-
-        return $latest;
-    }
-
     /**
      * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
      */
     public function getReleasePackageForChannel(string $channel, ?string $targetVersion = null, bool $force = false): ?array
     {
-        if (trim($this->repository) === '') {
+        if (trim($this->getRepository()) === '') {
             return null;
         }
 
         return $this->resolver()->getLatestAssetMatching(
-            $this->repository,
+            $this->getRepository(),
             $channel,
             self::coreAssetMatcher(),
             self::CHECKSUMS_ASSET,
@@ -91,7 +58,7 @@ final class CoreReleaseChecker
 
     public function describeReleasePackageSelectionFailure(string $channel, ?string $targetVersion = null, bool $force = false): string
     {
-        if (trim($this->repository) === '') {
+        if (trim($this->getRepository()) === '') {
             return 'Kein GitHub Repository für Core-Updates konfiguriert.';
         }
 
@@ -104,18 +71,6 @@ final class CoreReleaseChecker
             'core',
             $force,
         );
-    }
-
-    public function isUpdateAvailable(?string $currentVersion, ?string $latestVersion = null): ?bool
-    {
-        $current = $this->resolver()->normalizeVersion($currentVersion);
-        $latest = $this->resolver()->normalizeVersion($latestVersion ?? $this->getLatestVersion());
-
-        if ($current === null || $latest === null) {
-            return null;
-        }
-
-        return version_compare($current, $latest, '<');
     }
 
     /** @return string[] */
@@ -183,7 +138,7 @@ final class CoreReleaseChecker
     /** @return array<string, mixed> */
     public function getCacheStatus(?string $channel = null): array
     {
-        return $this->resolver()->getCacheStatus($this->repository, $channel ?? $this->channel, 'core');
+        return $this->resolver()->getCacheStatus($this->repository, $channel ?? $this->getChannel(), 'core');
     }
 
     /** @return array<string, string> */
@@ -203,10 +158,5 @@ final class CoreReleaseChecker
         }
 
         throw new \LogicException('GithubReleaseResolver service is not configured.');
-    }
-
-    private static function cacheText(mixed $value): ?string
-    {
-        return is_string($value) ? $value : null;
     }
 }

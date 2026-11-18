@@ -18,10 +18,10 @@ use App\Module\Musicbot\Domain\Entity\MusicbotTeamspeakBackendConfig;
 use App\Module\Musicbot\Domain\Enum\MusicbotPlatform;
 use App\Module\Musicbot\Domain\Enum\MusicbotStreamAccessMode;
 use App\Module\Musicbot\Domain\Enum\MusicbotTeamspeakBackendStatus;
-use App\Repository\MusicbotConnectionRepository;
-use App\Repository\MusicbotPluginRepository;
-use App\Repository\MusicbotStreamSettingsRepository;
-use App\Repository\MusicbotTeamspeakBackendConfigRepository;
+use App\Repository\MusicbotConnectionRepositoryInterface;
+use App\Repository\MusicbotPluginRepositoryInterface;
+use App\Repository\MusicbotStreamSettingsRepositoryInterface;
+use App\Repository\MusicbotTeamspeakBackendConfigRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -384,16 +384,16 @@ final class MusicbotRuntimeConfigBuilderTest extends TestCase
     /** @param MusicbotConnection[] $connections @param MusicbotPlugin[] $plugins */
     private function buildService(array $connections, ?MusicbotStreamSettings $streamSettings, array $plugins, ?MusicbotTeamspeakBackendConfig $teamspeakBackendConfig = null): MusicbotRuntimeConfigBuilder
     {
-        $connectionRepo = $this->createStub(MusicbotConnectionRepository::class);
+        $connectionRepo = $this->createStub(MusicbotConnectionRepositoryInterface::class);
         $connectionRepo->method('findBy')->willReturn($connections);
 
-        $streamRepo = $this->createStub(MusicbotStreamSettingsRepository::class);
+        $streamRepo = $this->createStub(MusicbotStreamSettingsRepositoryInterface::class);
         $streamRepo->method('findByInstance')->willReturn($streamSettings);
 
-        $pluginRepo = $this->createStub(MusicbotPluginRepository::class);
+        $pluginRepo = $this->createStub(MusicbotPluginRepositoryInterface::class);
         $pluginRepo->method('findBy')->willReturn($plugins);
 
-        $teamspeakBackendRepo = $this->createStub(MusicbotTeamspeakBackendConfigRepository::class);
+        $teamspeakBackendRepo = $this->createStub(MusicbotTeamspeakBackendConfigRepositoryInterface::class);
         $teamspeakBackendRepo->method('findOneByNode')->willReturn($teamspeakBackendConfig);
 
         return new MusicbotRuntimeConfigBuilder($connectionRepo, $streamRepo, $pluginRepo, $this->secretService, $teamspeakBackendRepo);

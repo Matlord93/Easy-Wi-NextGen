@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Message\InstanceActionMessage;
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\Agent;
@@ -32,9 +32,9 @@ use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\BackupTargetRepository;
 use App\Repository\GamePluginRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\JobLogRepository;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use App\Repository\TemplateRepository;
 use App\Repository\MinecraftVersionCatalogRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -51,9 +51,9 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
     public function testReinstallPayloadUsesBuilderAndDisablesAutostart(): void
     {
         $instance = $this->buildInstance();
-        $instanceRepository = $this->createStub(InstanceRepository::class);
+        $instanceRepository = $this->createStub(InstanceRepositoryInterface::class);
         $instanceRepository->method('find')->willReturn($instance);
-        $jobRepository = $this->createStub(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepositoryInterface::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(null);
 
         $catalogRepo = new class () implements MinecraftVersionCatalogRepositoryInterface {
@@ -93,7 +93,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             }
         };
         $templateResolver = new TemplateInstallResolver(new MinecraftCatalogService($catalogRepo));
-        $appSettings = $this->createStub(AppSettingsService::class);
+        $appSettings = $this->createStub(AppSettingsServiceInterface::class);
         $portBlockFinder = new class () implements PortBlockFinderInterface {
             public function findByInstance(Instance $instance): ?\App\Module\Ports\Domain\Entity\PortBlock
             {
@@ -138,7 +138,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->createStub(EntityManagerInterface::class),
             $messageBus,
             new ResponseEnvelopeFactory(),
-            $this->createStub(EncryptionService::class),
+            $this->createStub(EncryptionServiceInterface::class),
             $this->createStub(TranslatorInterface::class),
             null,
             null,
@@ -174,9 +174,9 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
     {
         $instance = $this->buildInstance();
 
-        $instanceRepository = $this->createStub(InstanceRepository::class);
+        $instanceRepository = $this->createStub(InstanceRepositoryInterface::class);
         $instanceRepository->method('find')->willReturn($instance);
-        $jobRepository = $this->createStub(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepositoryInterface::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(null);
 
         $catalogRepo = $this->newInstanceWithoutConstructor(\App\Repository\MinecraftVersionCatalogRepository::class);
@@ -188,7 +188,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             }
         };
         $payloadBuilder = new InstanceJobPayloadBuilder($templateResolver, $portBlockFinder, $this->newInstanceWithoutConstructor(\App\Repository\TemplateRepository::class));
-        $appSettings = $this->createStub(AppSettingsService::class);
+        $appSettings = $this->createStub(AppSettingsServiceInterface::class);
 
         $messageBus = $this->createStub(MessageBusInterface::class);
         $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), $this->createStub(TranslatorInterface::class));
@@ -220,7 +220,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->createStub(EntityManagerInterface::class),
             $messageBus,
             new ResponseEnvelopeFactory(),
-            $this->createStub(EncryptionService::class),
+            $this->createStub(EncryptionServiceInterface::class),
             $this->createStub(TranslatorInterface::class),
             null,
             null,
@@ -241,14 +241,14 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
     public function testReinstallReturnsConflictWhenLifecycleJobActive(): void
     {
         $instance = $this->buildInstance();
-        $instanceRepository = $this->createStub(InstanceRepository::class);
+        $instanceRepository = $this->createStub(InstanceRepositoryInterface::class);
         $instanceRepository->method('find')->willReturn($instance);
 
-        $jobRepository = $this->createStub(JobRepository::class);
+        $jobRepository = $this->createStub(JobRepositoryInterface::class);
         $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(new \App\Module\Core\Domain\Entity\Job('instance.backup.create', []));
 
         $payloadBuilder = $this->newInstanceWithoutConstructor(InstanceJobPayloadBuilder::class);
-        $appSettings = $this->createStub(AppSettingsService::class);
+        $appSettings = $this->createStub(AppSettingsServiceInterface::class);
 
         $controller = new CustomerInstanceActionApiController(
             $instanceRepository,
@@ -276,7 +276,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->createStub(EntityManagerInterface::class),
             $this->createStub(MessageBusInterface::class),
             new ResponseEnvelopeFactory(),
-            $this->createStub(EncryptionService::class),
+            $this->createStub(EncryptionServiceInterface::class),
             $this->createStub(TranslatorInterface::class),
             null,
             null,

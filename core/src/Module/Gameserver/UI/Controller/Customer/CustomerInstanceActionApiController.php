@@ -11,9 +11,10 @@ use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 use App\Message\InstanceActionMessage;
 use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DiskEnforcementService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\BackupTarget;
@@ -40,9 +41,9 @@ use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\BackupTargetRepository;
 use App\Repository\GamePluginRepository;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\JobLogRepository;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use App\Repository\TemplateRepository;
 use Cron\CronExpression;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -67,19 +68,19 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class CustomerInstanceActionApiController
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly BackupRepository $backupRepository,
         private readonly BackupTargetRepository $backupTargetRepository,
         private readonly GamePluginRepository $gamePluginRepository,
-        private readonly JobRepository $jobRepository,
+        private readonly JobRepositoryInterface $jobRepository,
         private readonly JobLogRepository $jobLogRepository,
         private readonly DiskEnforcementService $diskEnforcementService,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly ConsoleCommandValidator $consoleCommandValidator,
         private readonly GameServerPathResolver $gameServerPathResolver,
         private readonly SetupChecker $setupChecker,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly MinecraftCatalogService $minecraftCatalogService,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly TemplateRepository $templateRepository,
@@ -88,7 +89,7 @@ final class CustomerInstanceActionApiController
         private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
         private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
-        private readonly EncryptionService $encryptionService,
+        private readonly EncryptionServiceInterface $encryptionService,
         private readonly TranslatorInterface $translator,
         private readonly ?AgentGameServerClientInterface $agentGameServerClient = null,
         private readonly ?ConsoleStreamDiagnostics $consoleStreamDiagnostics = null,

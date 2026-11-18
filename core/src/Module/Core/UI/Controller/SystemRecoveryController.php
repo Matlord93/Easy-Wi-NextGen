@@ -83,7 +83,10 @@ final class SystemRecoveryController
         if ($jobId === null || $jobId === '') {
             throw new \UnexpectedValueException('Created recovery job has no identifier.');
         }
-        $this->updateJobService->triggerRunner($jobId);
+        if (!$this->updateJobService->triggerRunner($jobId)) {
+            $this->updateJobService->markJobFailedToStart($jobId, 'Recovery migration runner could not be started.');
+            return new RedirectResponse('/system/recovery/database?notice=job_failed', Response::HTTP_SEE_OTHER);
+        }
 
         return new RedirectResponse('/system/recovery/database?notice=job_created', Response::HTTP_SEE_OTHER);
     }

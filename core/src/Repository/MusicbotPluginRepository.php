@@ -11,7 +11,7 @@ use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<MusicbotPlugin> */
-class MusicbotPluginRepository extends ServiceEntityRepository
+final class MusicbotPluginRepository extends ServiceEntityRepository implements MusicbotPluginRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -19,16 +19,19 @@ class MusicbotPluginRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotPlugin[] */
+    #[\Override]
     public function findByCustomer(User $customer): array
     {
         return $this->findBy(['customer' => $customer], ['createdAt' => 'DESC']);
     }
 
+    #[\Override]
     public function findOneForCustomer(int $id, User $customer): ?MusicbotPlugin
     {
         return $this->findOneBy(['id' => $id, 'customer' => $customer]);
     }
 
+    #[\Override]
     public function findOneByIdentifierForInstance(string $identifier, MusicbotInstance $instance, User $customer): ?MusicbotPlugin
     {
         return $this->findOneBy(['identifier' => $identifier, 'instance' => $instance, 'customer' => $customer]);

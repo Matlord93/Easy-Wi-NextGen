@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Module\Musicbot\Application\MusicbotRadioPlaylistResolver;
+use App\Module\Musicbot\Application\MusicbotRadioPlaylistResolverInterface;
 use App\Module\Musicbot\Application\MusicbotWebradioUrlValidator;
 use PHPUnit\Framework\TestCase;
 
@@ -338,7 +339,7 @@ final class MusicbotWebradioSupportRegressionTest extends TestCase
     // Helper
     // -------------------------------------------------------------------------
 
-    private function makeResolver(): MusicbotRadioPlaylistResolver
+    private function makeResolver(): MusicbotRadioPlaylistResolverInterface
     {
         return new MusicbotRadioPlaylistResolver(new MusicbotWebradioUrlValidator());
     }

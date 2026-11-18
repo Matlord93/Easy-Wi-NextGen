@@ -12,13 +12,13 @@ use App\Infrastructure\Http\FlashMessages;
 use App\Module\Core\Application\AgentConfigurationException;
 use App\Module\Core\Application\Sinusbot\AgentBadResponseException;
 use App\Module\Core\Application\Sinusbot\AgentUnavailableException;
-use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisioner;
+use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisionerInterface;
 use App\Module\Core\Domain\Entity\SinusbotInstance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\SinusbotInstanceRepository;
-use App\Repository\SinusbotNodeRepository;
-use App\Repository\UserRepository;
+use App\Repository\SinusbotInstanceRepositoryInterface;
+use App\Repository\SinusbotNodeRepositoryInterface;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -34,11 +34,11 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminSinusbotInstanceController
 {
     public function __construct(
-        private readonly SinusbotInstanceRepository $instanceRepository,
-        private readonly SinusbotNodeRepository $nodeRepository,
-        private readonly UserRepository $userRepository,
+        private readonly SinusbotInstanceRepositoryInterface $instanceRepository,
+        private readonly SinusbotNodeRepositoryInterface $nodeRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly SinusbotInstanceProvisioner $provisioner,
+        private readonly SinusbotInstanceProvisionerInterface $provisioner,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly TranslatorInterface $translator,
     ) {
@@ -71,7 +71,7 @@ final class AdminSinusbotInstanceController
         }
 
         try {
-            $this->provisioner->createInstanceForCustomer(
+            $createdInstance = $this->provisioner->createInstanceForCustomer(
                 $customer,
                 $node,
                 $quota,
@@ -90,7 +90,9 @@ final class AdminSinusbotInstanceController
 
         FlashMessages::add($request, 'success', $this->translator->trans('admin_sinusbot_instance_created'));
 
-        return $this->redirectToNode($nodeId);
+        $response = $this->redirectToNode($nodeId);
+        $response->headers->set('X-Sinusbot-Instance-Id', (string) $createdInstance->getId());
+        return $response;
     }
 
     #[Route(path: '/{id}/start', name: 'admin_sinusbot_instances_start', methods: ['POST'])]

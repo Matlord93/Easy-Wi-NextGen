@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Scheduler;
 
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\PrivacyGdprBackgroundJobRunnerInterface;
 use Cron\CronExpression;
 use Psr\Log\LoggerInterface;
@@ -15,7 +16,7 @@ final class PrivacyGdprScheduleHandler implements ScheduleHandlerInterface
     public const SCHEDULE_ID = 'privacy_gdpr_background';
 
     public function __construct(
-        private readonly AppSettingsService $settingsService,
+        private readonly AppSettingsServiceInterface $settingsService,
         private readonly PrivacyGdprBackgroundJobRunnerInterface $backgroundJobService,
         private readonly LoggerInterface $logger,
     ) {
@@ -95,6 +96,7 @@ final class PrivacyGdprScheduleHandler implements ScheduleHandlerInterface
             $result = $this->backgroundJobService->run(25, 100, $now);
             $this->settingsService->markPrivacyGdprJobsRun('success', null, $now);
 
+            $this->logger->info('privacy_gdpr.background_jobs_completed', ['counts' => $result->counts]);
             return ScheduleExecutionResult::success($result->message);
         } catch (\Throwable $exception) {
             $this->settingsService->markPrivacyGdprJobsRun('failed', $exception->getMessage(), $now);

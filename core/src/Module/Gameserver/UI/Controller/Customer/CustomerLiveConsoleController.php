@@ -7,11 +7,11 @@ namespace App\Module\Gameserver\UI\Controller\Customer;
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Attribute\RequiresModule;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Application\Console\LiveConsoleAccess;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use App\Repository\UserSessionRepository;
 use App\Security\SessionAuthenticator;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -23,9 +23,9 @@ use Symfony\Component\Routing\Attribute\Route;
 final readonly class CustomerLiveConsoleController
 {
     public function __construct(
-        private InstanceRepository $instances,
+        private InstanceRepositoryInterface $instances,
         private UserSessionRepository $sessions,
-        private AppSettingsService $settings,
+        private AppSettingsServiceInterface $settings,
         private LiveConsoleAccess $access,
         #[Autowire(service: 'limiter.instance_console_commands')]
         private \Symfony\Component\RateLimiter\RateLimiterFactory $connections,

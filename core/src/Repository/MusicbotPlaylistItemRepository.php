@@ -11,7 +11,7 @@ use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<MusicbotPlaylistItem> */
-class MusicbotPlaylistItemRepository extends ServiceEntityRepository
+final class MusicbotPlaylistItemRepository extends ServiceEntityRepository implements MusicbotPlaylistItemRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -19,11 +19,13 @@ class MusicbotPlaylistItemRepository extends ServiceEntityRepository
     }
 
     /** @return MusicbotPlaylistItem[] */
+    #[\Override]
     public function findByPlaylistOrdered(MusicbotPlaylist $playlist): array
     {
         return $this->findBy(['playlist' => $playlist], ['position' => 'ASC', 'id' => 'ASC']);
     }
 
+    #[\Override]
     public function findOneForCustomer(int $id, User $customer): ?MusicbotPlaylistItem
     {
         return EntityQueryResult::one($this->createQueryBuilder('playlistItem')

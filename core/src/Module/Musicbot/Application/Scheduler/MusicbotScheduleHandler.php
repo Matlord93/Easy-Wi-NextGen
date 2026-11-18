@@ -9,12 +9,12 @@ use App\Module\Core\Application\Scheduler\ScheduleExecutionResult;
 use App\Module\Core\Application\Scheduler\ScheduleHandlerInterface;
 use App\Module\Musicbot\Application\MusicbotScheduleService;
 use App\Module\Musicbot\Domain\Entity\MusicbotSchedule;
-use App\Repository\MusicbotScheduleRepository;
+use App\Repository\MusicbotScheduleRepositoryInterface;
 
 final class MusicbotScheduleHandler implements ScheduleHandlerInterface
 {
     public function __construct(
-        private readonly MusicbotScheduleRepository $repository,
+        private readonly MusicbotScheduleRepositoryInterface $repository,
         private readonly MusicbotScheduleService $scheduleService,
     ) {
     }

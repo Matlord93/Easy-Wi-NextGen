@@ -11,6 +11,7 @@ use App\Module\Ports\Application\GamePortPoolPolicy;
 use App\Module\Ports\Application\NodePortAvailability;
 use App\Module\Ports\Application\PortCheckUnavailable;
 use App\Module\Ports\Application\PortLeaseManager;
+use App\Module\Ports\Application\PortLeaseManagerInterface;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Domain\Entity\PortPool;
 use Doctrine\ORM\EntityManagerInterface;
@@ -34,7 +35,7 @@ final class GamePortAllocationTest extends AbstractWebTestCase
         return [$instance, $pool, $em];
     }
 
-    private function manager(EntityManagerInterface $em, callable $reply): PortLeaseManager
+    private function manager(EntityManagerInterface $em, callable $reply): PortLeaseManagerInterface
     {
         $client = $this->createStub(AgentGameServerClientInterface::class);
         $client->method('checkFreePortsForNode')->willReturnCallback($reply);

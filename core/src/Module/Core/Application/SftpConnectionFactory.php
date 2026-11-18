@@ -6,8 +6,9 @@ namespace App\Module\Core\Application;
 
 use phpseclib3\Net\SFTP;
 
-class SftpConnectionFactory
+final class SftpConnectionFactory implements SftpConnectionFactoryInterface
 {
+    #[\Override]
     public function create(string $host, int $port): SFTP
     {
         return new SFTP($host, $port, 10);

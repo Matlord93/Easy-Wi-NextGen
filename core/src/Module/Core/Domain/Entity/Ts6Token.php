@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Repository\Ts6TokenRepository;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -64,12 +64,12 @@ class Ts6Token
         return $this->tokenEncrypted;
     }
 
-    public function setToken(string $token, SecretsCrypto $crypto): void
+    public function setToken(string $token, SecretsCryptoInterface $crypto): void
     {
         $this->tokenEncrypted = $crypto->encrypt($token);
     }
 
-    public function getToken(SecretsCrypto $crypto): string
+    public function getToken(SecretsCryptoInterface $crypto): string
     {
         return $crypto->decrypt($this->tokenEncrypted);
     }

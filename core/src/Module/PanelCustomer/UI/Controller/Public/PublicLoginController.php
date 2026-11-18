@@ -6,11 +6,11 @@ namespace App\Module\PanelCustomer\UI\Controller\Public;
 
 use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\ThemeResolver;
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Setup\Application\InstallerService;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use App\Security\IdentifierHasher;
 use App\Security\LoginCredentialVerifier;
 use App\Security\LoginFinalizer;
@@ -28,17 +28,17 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class PublicLoginController
 {
     public function __construct(
-        private readonly UserRepository $users,
+        private readonly UserRepositoryInterface $users,
         private readonly LoginCredentialVerifier $credentialVerifier,
         private readonly LoginFinalizer $loginFinalizer,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly SiteResolver $siteResolver,
         private readonly InstallerService $installerService,
         private readonly TwoFactorPolicy $twoFactorPolicy,
         private readonly PostLoginRedirectResolver $redirectResolver,
         private readonly CmsMaintenanceService $maintenanceService,
         private readonly ThemeResolver $themeResolver,
-        private readonly AppSettingsService $appSettings,
+        private readonly AppSettingsServiceInterface $appSettings,
         private readonly IdentifierHasher $identifierHasher,
         #[Autowire(service: 'limiter.public_login_ip')]
         private readonly RateLimiterFactory $loginIpLimiter,

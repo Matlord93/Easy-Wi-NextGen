@@ -41,6 +41,19 @@ final class UpdateJobServiceTriggerRunnerTest extends TestCase
         self::assertFalse($service->triggerRunner('job-3'));
     }
 
+    public function testFailedRecoveryRunnerCanBeRecordedInsteadOfLeavingAPendingJob(): void
+    {
+        $service = $this->createService('/path/does/not/exist-core');
+        $job = $service->createJob('migrate', 'recovery-fixture');
+        self::assertIsString($job['id']);
+        self::assertFalse($service->triggerRunner($job['id']));
+        $service->markJobFailedToStart($job['id'], 'Recovery migration runner could not be started.');
+        $failed = $service->getJob($job['id']);
+        self::assertSame('failed', $failed['status']);
+        self::assertSame(1, $failed['exitCode']);
+        self::assertNotEmpty($failed['finishedAt']);
+    }
+
     private function createService(?string $coreDir = null): UpdateJobService
     {
         $coreDir ??= $this->createCoreDir();

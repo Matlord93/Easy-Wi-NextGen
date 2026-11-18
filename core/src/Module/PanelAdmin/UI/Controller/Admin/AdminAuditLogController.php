@@ -7,7 +7,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\AuditLogRepository;
+use App\Repository\AuditLogRepositoryInterface;
 use App\Module\Core\Application\AuditLogCsvExporter;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,7 +19,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AdminAuditLogController
 {
     public function __construct(
-        private readonly AuditLogRepository $auditLogRepository,
+        private readonly AuditLogRepositoryInterface $auditLogRepository,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
         private readonly AuditLogCsvExporter $csvExporter,

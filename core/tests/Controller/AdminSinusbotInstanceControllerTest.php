@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisioner;
+use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisionerInterface;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\UI\Controller\Admin\AdminSinusbotInstanceController;
-use App\Repository\SinusbotInstanceRepository;
-use App\Repository\SinusbotNodeRepository;
-use App\Repository\UserRepository;
+use App\Repository\SinusbotInstanceRepositoryInterface;
+use App\Repository\SinusbotNodeRepositoryInterface;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -30,17 +30,17 @@ final class AdminSinusbotInstanceControllerTest extends TestCase
         $node = $this->createStub(SinusbotNode::class);
         $node->method('getId')->willReturn(1);
 
-        $instanceRepo = $this->createStub(SinusbotInstanceRepository::class);
+        $instanceRepo = $this->createStub(SinusbotInstanceRepositoryInterface::class);
 
-        $nodeRepo = $this->createMock(SinusbotNodeRepository::class);
+        $nodeRepo = $this->createMock(SinusbotNodeRepositoryInterface::class);
         $nodeRepo->expects(self::once())->method('find')->with(1)->willReturn($node);
 
-        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo = $this->createMock(UserRepositoryInterface::class);
         $userRepo->expects(self::once())->method('find')->with(2)->willReturn($customer);
 
         $entityManager = $this->createStub(EntityManagerInterface::class);
 
-        $provisioner = $this->createMock(SinusbotInstanceProvisioner::class);
+        $provisioner = $this->createMock(SinusbotInstanceProvisionerInterface::class);
         $provisioner->expects($this->once())
             ->method('createInstanceForCustomer')
             ->with($customer, $node, 5, 'botuser');
@@ -83,18 +83,18 @@ final class AdminSinusbotInstanceControllerTest extends TestCase
         $node = $this->createStub(SinusbotNode::class);
         $node->method('getId')->willReturn(1);
 
-        $instanceRepo = $this->createMock(SinusbotInstanceRepository::class);
+        $instanceRepo = $this->createMock(SinusbotInstanceRepositoryInterface::class);
         $instanceRepo->expects($this->never())->method('findOneBy');
 
-        $nodeRepo = $this->createMock(SinusbotNodeRepository::class);
+        $nodeRepo = $this->createMock(SinusbotNodeRepositoryInterface::class);
         $nodeRepo->expects(self::once())->method('find')->with(1)->willReturn($node);
 
-        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo = $this->createMock(UserRepositoryInterface::class);
         $userRepo->expects(self::once())->method('find')->with(2)->willReturn($customer);
 
         $entityManager = $this->createStub(EntityManagerInterface::class);
 
-        $provisioner = $this->createMock(SinusbotInstanceProvisioner::class);
+        $provisioner = $this->createMock(SinusbotInstanceProvisionerInterface::class);
         $provisioner->expects($this->once())
             ->method('createInstanceForCustomer')
             ->with($customer, $node, 3, null);

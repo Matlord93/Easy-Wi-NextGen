@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Repository\UserSessionRepository;
 use App\Security\SessionAuthenticator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -18,7 +18,7 @@ final class LogoutController
 {
     public function __construct(
         private readonly UserSessionRepository $sessionRepository,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }

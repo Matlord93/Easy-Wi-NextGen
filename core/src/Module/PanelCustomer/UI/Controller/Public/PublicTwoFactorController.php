@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
 use App\Module\Cms\Application\ThemeResolver;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\User;
-use App\Repository\UserRepository;
+use App\Repository\UserRepositoryInterface;
 use App\Security\LoginFinalizer;
 use App\Security\PostLoginRedirectResolver;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,12 +30,12 @@ final class PublicTwoFactorController
     private const MAX_ATTEMPTS = 5;
 
     public function __construct(
-        private readonly UserRepository $users,
+        private readonly UserRepositoryInterface $users,
         private readonly TwoFactorService $twoFactorService,
-        private readonly SecretsCrypto $secretsCrypto,
+        private readonly SecretsCryptoInterface $secretsCrypto,
         private readonly LoginFinalizer $loginFinalizer,
         private readonly PostLoginRedirectResolver $redirectResolver,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly SiteResolver $siteResolver,
         private readonly ThemeResolver $themeResolver,

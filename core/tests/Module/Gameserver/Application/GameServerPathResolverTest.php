@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Module\Gameserver\Application;
 
-use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
@@ -65,7 +65,7 @@ final class GameServerPathResolverTest extends TestCase
 
     private function newFilesystemResolver(string $defaultBaseDir): InstanceFilesystemResolver
     {
-        $settings = $this->createStub(AppSettingsService::class);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
         $settings->method('getInstanceBaseDir')->willReturn($defaultBaseDir);
 
         return new InstanceFilesystemResolver($settings);

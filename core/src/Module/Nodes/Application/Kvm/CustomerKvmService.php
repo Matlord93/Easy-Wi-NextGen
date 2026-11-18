@@ -9,7 +9,7 @@ use App\Infrastructure\Config\JsonMap;
 use App\Repository\EntityQueryResult;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Nodes\Application\VmGuestAgentReport;
 use App\Module\Nodes\Domain\Entity\KvmGuestAssignment;
@@ -32,7 +32,7 @@ final readonly class CustomerKvmService
      *
      * @psalm-api
      */
-    public function __construct(private KvmPanelService $kvm, private EntityManagerInterface $em, private AuditLogger $audit, private KvmOperationLock $lock)
+    public function __construct(private KvmPanelService $kvm, private EntityManagerInterface $em, private AuditLoggerInterface $audit, private KvmOperationLock $lock)
     {
     }
 

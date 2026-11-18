@@ -7,7 +7,7 @@ namespace App\Module\Gameserver\Command;
 use App\Infrastructure\Config\JsonArray;
 use App\Module\Gameserver\Application\Query\QuerySmokeRunnerInterface;
 use App\Module\Gameserver\Application\Query\TemplateEngineFamilyResolver;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -19,7 +19,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class GameserverQuerySmokeCommand extends Command
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly QuerySmokeRunnerInterface $querySmokeService,
         private readonly TemplateEngineFamilyResolver $engineFamilyResolver,
     ) {

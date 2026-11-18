@@ -12,7 +12,7 @@ use App\Module\Gameserver\Application\Console\ConsoleCommandRequest;
 use App\Module\Gameserver\Application\Console\ConsoleUnavailableException;
 use App\Module\Gameserver\Application\Console\NodeEndpointMissingException;
 use App\Module\Gameserver\Infrastructure\Grpc\GrpcConsoleAgentGrpcClient;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -42,7 +42,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class ConsoleSmokeCommand extends Command
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly ConsoleAgentGrpcClientInterface $grpcClient,
     ) {
         parent::__construct();

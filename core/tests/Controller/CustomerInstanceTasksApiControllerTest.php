@@ -9,7 +9,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -40,7 +40,7 @@ final class CustomerInstanceTasksApiControllerTest extends TestCase
         $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($customer);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWithRepo($repo);
@@ -65,7 +65,7 @@ final class CustomerInstanceTasksApiControllerTest extends TestCase
         $instance->method('getCustomer')->willReturn($customer);
         $instance->method('getStatus')->willReturn(InstanceStatus::Running);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         $controller = $this->newControllerWithRepo($repo);
@@ -93,13 +93,13 @@ final class CustomerInstanceTasksApiControllerTest extends TestCase
         $instance = $this->createStub(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
 
-        $repo = $this->createMock(InstanceRepository::class);
+        $repo = $this->createMock(InstanceRepositoryInterface::class);
         $repo->expects(self::once())->method('find')->with(7)->willReturn($instance);
 
         return [$this->newControllerWithRepo($repo), $customer];
     }
 
-    private function newControllerWithRepo(InstanceRepository $repo): CustomerInstanceActionApiController
+    private function newControllerWithRepo(InstanceRepositoryInterface $repo): CustomerInstanceActionApiController
     {
         $reflection = new \ReflectionClass(CustomerInstanceActionApiController::class);
         /** @var CustomerInstanceActionApiController $controller */

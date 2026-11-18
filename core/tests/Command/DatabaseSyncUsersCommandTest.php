@@ -6,8 +6,8 @@ namespace App\Tests\Command;
 
 use App\Module\Core\Application\DatabaseNamingPolicyInterface;
 use App\Module\Core\Application\DatabaseNodeInspectorInterface;
-use App\Module\Core\Application\DatabaseProvisioningService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Command\DatabaseSyncUsersCommand;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
@@ -15,7 +15,7 @@ use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\DatabaseRepository;
+use App\Repository\DatabaseRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -29,10 +29,10 @@ final class DatabaseSyncUsersCommandTest extends TestCase
         $db->setUsername('');
         $db->setEncryptedPassword(null);
 
-        $repo = $this->createStub(DatabaseRepository::class);
+        $repo = $this->createStub(DatabaseRepositoryInterface::class);
         $repo->method('findBy')->willReturn([$db]);
 
-        $provisioning = $this->createStub(DatabaseProvisioningService::class);
+        $provisioning = $this->createStub(DatabaseProvisioningServiceInterface::class);
         $provisioning->method('buildCreateJobs')->willReturn([new Job('database.create', ['database_id' => '1'])]);
 
         $inspector = $this->createStub(DatabaseNodeInspectorInterface::class);
@@ -42,7 +42,7 @@ final class DatabaseSyncUsersCommandTest extends TestCase
             'grants_ok' => false,
         ]);
 
-        $encryption = $this->createStub(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionServiceInterface::class);
         $encryption->method('encrypt')->willReturn(['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
 
         $naming = $this->createStub(DatabaseNamingPolicyInterface::class);

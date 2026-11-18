@@ -16,7 +16,7 @@ use App\Module\Voice\Application\Provider\VoiceQueryResult;
 use App\Module\Voice\Application\VoiceProbeGuard;
 use App\Module\Voice\Application\VoiceRateLimitStateStoreInterface;
 use App\Module\Voice\UI\Controller\Customer\CustomerVoiceApiController;
-use App\Repository\JobRepository;
+use App\Repository\JobRepositoryInterface;
 use App\Repository\VoiceInstanceRepository;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -107,7 +107,7 @@ final class CustomerVoiceProbeCircuitTest extends TestCase
         $baseRepository->method('find')->willReturn($instance);
         $repository = new VoiceInstanceRepository($this->createStub(ManagerRegistry::class));
         (new \ReflectionProperty(ServiceEntityRepository::class, 'repository'))->setValue($repository, $baseRepository);
-        $jobs = $this->createStub(JobRepository::class);
+        $jobs = $this->createStub(JobRepositoryInterface::class);
         $jobs->method('findActiveByTypeAndPayloadField')->willReturn(null);
 
         $adapter = new class($status, $errorCode) implements VoiceProviderAdapter {
@@ -134,16 +134,16 @@ final class CustomerVoiceProbeCircuitTest extends TestCase
             {
                 return ['host' => '127.0.0.1', 'port' => 9987];
             }
-            public function getPlayers(VoiceInstance $instance): array
-            {
-                return ['online' => null, 'max' => null];
-            }
+
         };
 
+        $operations = $this->createStub(\App\Module\Voice\Application\TeamspeakServerOperationsInterface::class);
+        $operations->method('resolve')->willReturn((new \ReflectionClass(\App\Module\Core\Domain\Entity\Ts3VirtualServer::class))->newInstanceWithoutConstructor());
         $reflection = new \ReflectionClass(CustomerVoiceApiController::class);
         $controller = $reflection->newInstanceWithoutConstructor();
         foreach ([
             'repository' => $repository,
+            'serverOperations' => $operations,
             'jobRepository' => $jobs,
             'providers' => new VoiceProviderRegistry([$adapter]),
             'probeGuard' => $guard,

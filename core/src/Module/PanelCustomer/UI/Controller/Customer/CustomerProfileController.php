@@ -6,7 +6,7 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\CustomerProfile;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;
@@ -64,7 +64,7 @@ final class CustomerProfileController
         private readonly CustomerProfileRepository $profileRepository,
         private readonly InvoicePreferencesRepository $invoicePreferencesRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         #[Autowire('%kernel.environment%')]
         private readonly string $environment,
         #[Autowire('%app.payment_dummy_enabled%')]

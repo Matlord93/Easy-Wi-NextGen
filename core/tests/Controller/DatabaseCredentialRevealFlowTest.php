@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\DatabaseNamingPolicyInterface;
-use App\Module\Core\Application\DatabaseProvisioningService;
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\DatabaseProvisioningServiceInterface;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Database;
@@ -20,10 +20,10 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
 use App\Module\PanelCustomer\UI\Controller\Api\DatabaseApiController;
-use App\Repository\DatabaseNodeRepository;
-use App\Repository\DatabaseRepository;
-use App\Repository\JobRepository;
-use App\Repository\UserRepository;
+use App\Repository\DatabaseNodeRepositoryInterface;
+use App\Repository\DatabaseRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
+use App\Repository\UserRepositoryInterface;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -90,11 +90,11 @@ final class DatabaseCredentialRevealFlowTest extends TestCase
         $job = new Job('database.rotate_password', ['database_id' => '7']);
         new JobResult($job, JobResultStatus::Succeeded, []);
 
-        $dbRepo = $this->createStub(DatabaseRepository::class);
+        $dbRepo = $this->createStub(DatabaseRepositoryInterface::class);
         $dbRepo->method('find')->willReturn($database);
-        $nodeRepo = $this->createStub(DatabaseNodeRepository::class);
-        $userRepo = $this->createStub(UserRepository::class);
-        $jobRepo = $this->createStub(JobRepository::class);
+        $nodeRepo = $this->createStub(DatabaseNodeRepositoryInterface::class);
+        $userRepo = $this->createStub(UserRepositoryInterface::class);
+        $jobRepo = $this->createStub(JobRepositoryInterface::class);
         $jobRepo->method('find')->willReturn($job);
 
         $conn = $this->createStub(Connection::class);
@@ -105,11 +105,11 @@ final class DatabaseCredentialRevealFlowTest extends TestCase
         $em->method('find')->willReturn($database);
         $em->method('flush');
 
-        $audit = $this->createStub(AuditLogger::class);
-        $prov = $this->createStub(DatabaseProvisioningService::class);
+        $audit = $this->createStub(AuditLoggerInterface::class);
+        $prov = $this->createStub(DatabaseProvisioningServiceInterface::class);
         $naming = $this->createStub(DatabaseNamingPolicyInterface::class);
 
-        $encryption = $this->createStub(EncryptionService::class);
+        $encryption = $this->createStub(EncryptionServiceInterface::class);
         $encryption->method('decrypt')->willReturnMap([
             [['key_id'=>'k','nonce'=>'n','ciphertext'=>'c'], 'stable-pass'],
             [['key_id'=>'k2','nonce'=>'n2','ciphertext'=>'c2'], 'reveal-pass'],

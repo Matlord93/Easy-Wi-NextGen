@@ -16,7 +16,7 @@ final class LocalAntiAbuseService
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AbuseLogRepository $abuseLogRepository,
-        private readonly AppSettingsService $settings,
+        private readonly AppSettingsServiceInterface $settings,
         private readonly LoggerInterface $logger,
     ) {
     }

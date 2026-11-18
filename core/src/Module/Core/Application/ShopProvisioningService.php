@@ -20,8 +20,8 @@ final class ShopProvisioningService
 {
     public function __construct(
         private readonly DiskEnforcementService $diskEnforcementService,
-        private readonly AppSettingsService $appSettingsService,
-        private readonly AuditLogger $auditLogger,
+        private readonly AppSettingsServiceInterface $appSettingsService,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly GameServerInstallPathManager $installPathManager,
     ) {

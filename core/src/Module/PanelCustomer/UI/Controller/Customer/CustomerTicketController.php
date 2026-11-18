@@ -6,8 +6,8 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\MailService;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\Ticket;
@@ -65,10 +65,10 @@ final class CustomerTicketController
         private readonly TicketAttachmentRepository $ticketAttachmentRepository,
         #[Autowire(service: 'default.storage')] private readonly FilesystemOperator $storage,
         private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly NotificationService $notificationService,
         private readonly MailService $mailService,
-        private readonly AppSettingsService $appSettingsService,
+        private readonly AppSettingsServiceInterface $appSettingsService,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

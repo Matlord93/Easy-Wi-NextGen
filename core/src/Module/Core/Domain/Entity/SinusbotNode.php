@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Repository\SinusbotNodeRepository;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -158,13 +158,13 @@ class SinusbotNode
         return $this->agentApiTokenEncrypted;
     }
 
-    public function setAgentApiToken(string $token, SecretsCrypto $crypto): void
+    public function setAgentApiToken(string $token, SecretsCryptoInterface $crypto): void
     {
         $this->agentApiTokenEncrypted = $crypto->encrypt($token);
         $this->touch();
     }
 
-    public function getAgentApiToken(SecretsCrypto $crypto): string
+    public function getAgentApiToken(SecretsCryptoInterface $crypto): string
     {
         return $crypto->decrypt($this->agentApiTokenEncrypted);
     }
@@ -290,13 +290,13 @@ class SinusbotNode
         $this->touch();
     }
 
-    public function setAdminPassword(?string $password, SecretsCrypto $crypto): void
+    public function setAdminPassword(?string $password, SecretsCryptoInterface $crypto): void
     {
         $this->adminPasswordEncrypted = $password !== null ? $crypto->encrypt($password) : null;
         $this->touch();
     }
 
-    public function getAdminPassword(?SecretsCrypto $crypto): ?string
+    public function getAdminPassword(?SecretsCryptoInterface $crypto): ?string
     {
         if ($crypto === null || $this->adminPasswordEncrypted === null) {
             return null;

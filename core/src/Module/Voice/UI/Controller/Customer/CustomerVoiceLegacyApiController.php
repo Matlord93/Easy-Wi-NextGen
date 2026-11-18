@@ -10,12 +10,12 @@ use App\Infrastructure\Config\JsonMap;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\SecretsCrypto;
-use App\Module\Core\Application\Ts3\Ts3ViewerService;
-use App\Module\Core\Application\Ts3\Ts3VirtualServerService;
-use App\Module\Core\Application\Ts6\Ts6ViewerService;
-use App\Module\Core\Application\Ts6\Ts6VirtualServerService;
+use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\SecretsCryptoInterface;
+use App\Module\Voice\Application\Ts3\Ts3ViewerService;
+use App\Module\Voice\Application\Ts3\Ts3VirtualServerService;
+use App\Module\Voice\Application\Ts6\Ts6ViewerService;
+use App\Module\Voice\Application\Ts6\Ts6VirtualServerService;
 use App\Module\Core\Domain\Entity\Ts3VirtualServer;
 use App\Module\Core\Domain\Entity\Ts6VirtualServer;
 use App\Module\Core\Domain\Entity\User;
@@ -26,7 +26,9 @@ use App\Module\Core\Dto\Ts3\ViewerDto as Ts3ViewerDto;
 use App\Module\Core\Dto\Ts6\ViewerDto as Ts6ViewerDto;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactoryInterface;
-use App\Module\Teamspeak\Application\Query\ServerQueryLimiterInterface;
+use App\Module\Voice\Application\Query\ServerQueryLimiterInterface;
+use App\Module\Voice\Application\TeamspeakServerOperationsInterface;
+use App\Module\Voice\Application\VoiceActionConflict;
 use App\Repository\Ts3TokenRepository;
 use App\Repository\Ts3ViewerRepository;
 use App\Repository\Ts3VirtualServerRepository;
@@ -47,6 +49,7 @@ final class CustomerVoiceLegacyApiController
 {
     public function __construct(
         private readonly Ts3VirtualServerRepository $ts3Servers,
+        private readonly TeamspeakServerOperationsInterface $serverOperations,
         private readonly Ts6VirtualServerRepository $ts6Servers,
         private readonly Ts3TokenRepository $ts3Tokens,
         private readonly Ts6TokenRepository $ts6Tokens,
@@ -56,8 +59,8 @@ final class CustomerVoiceLegacyApiController
         private readonly Ts6VirtualServerService $ts6Service,
         private readonly Ts3ViewerService $ts3ViewerService,
         private readonly Ts6ViewerService $ts6ViewerService,
-        private readonly SecretsCrypto $crypto,
-        private readonly AuditLogger $auditLogger,
+        private readonly SecretsCryptoInterface $crypto,
+        private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly ResponseEnvelopeFactoryInterface $responseEnvelopeFactory,
         private readonly ServerQueryLimiterInterface $queryLimiter,
@@ -121,7 +124,11 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Server not found.', 'voice_server_not_found', 404);
         }
 
-        return new JsonResponse(['status' => 'ok', 'message' => $this->translator->trans('voice_legacy_probe_not_supported')]);
+        $result = $this->serverOperations->probe($server);
+        if ($result->status === 'pending') {
+            return $this->responseEnvelopeFactory->success($request, $result->jobId, $result->jobId === null ? 'Probe delayed.' : 'Probe queued.', 202, ['status' => 'pending', 'retry_after' => $result->jobId === null ? 10 : 3]);
+        }
+        return new JsonResponse(['status' => 'ok', 'instance' => $this->normalizeServer($server, $type), 'probe' => $result->toArray()]);
     }
 
     #[Route('/{type}/{id}/actions/{action}', name: 'customer_voice_legacy_action_v1', methods: ['POST'],
@@ -139,23 +146,12 @@ final class CustomerVoiceLegacyApiController
             return $this->responseEnvelopeFactory->error($request, 'Invalid action.', 'voice_action_invalid', 400);
         }
 
-        if ($type === 'ts3') {
-            assert($server instanceof Ts3VirtualServer);
-            $job = match ($action) {
-                'start' => $this->ts3Service->start($server),
-                'stop' => $this->ts3Service->stop($server),
-                'restart' => $this->ts3Service->restart($server),
-            };
-            $this->auditLogger->log($customer, 'voice.legacy.ts3.' . $action, ['server_id' => $id, 'job_id' => $job->getId()]);
-        } else {
-            assert($server instanceof Ts6VirtualServer);
-            $job = match ($action) {
-                'start' => $this->ts6Service->start($server),
-                'stop' => $this->ts6Service->stop($server),
-                'restart' => $this->ts6Service->restart($server),
-            };
-            $this->auditLogger->log($customer, 'voice.legacy.ts6.' . $action, ['server_id' => $id, 'job_id' => $job->getId()]);
+        try {
+            $job = $this->serverOperations->action($server, $action);
+        } catch (VoiceActionConflict $conflict) {
+            return $this->responseEnvelopeFactory->error($request, $conflict->getMessage(), 'voice_action_in_progress', 409, 10, ['job_id' => $conflict->jobId]);
         }
+        $this->auditLogger->log($customer, 'voice.legacy.' . $type . '.' . $action, ['server_id' => $id, 'job_id' => $job->getId()]);
 
         $this->entityManager->flush();
         return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Action queued.');
@@ -775,7 +771,7 @@ final class CustomerVoiceLegacyApiController
 
     /**
      * @return array{id: int|null, name: string, provider_type: string, status: string, players_online:
-     * null, players_max: int|null, connect: array{host: string, port: int|null}, actions_enabled: bool}
+     * null, players_max: int|null, connect: array{host: string, port: int|null}, actions_enabled: bool, checked_at: null, stale: bool}
      */
     private function normalizeServer(Ts3VirtualServer|Ts6VirtualServer $server, string $type): array
     {
@@ -785,7 +781,13 @@ final class CustomerVoiceLegacyApiController
             'id' => $server->getId(),
             'name' => $server->getName(),
             'provider_type' => $type,
-            'status' => $server->getStatus(),
+            'status' => match (strtolower($server->getStatus())) {
+                'running', 'online', 'started', 'up' => 'online',
+                'stopped', 'offline', 'down' => 'offline',
+                default => 'unknown',
+            },
+            'checked_at' => null,
+            'stale' => true,
             'players_online' => null,
             'players_max' => $server instanceof Ts6VirtualServer ? $server->getSlots() : null,
             'connect' => ['host' => $host, 'port' => $server->getVoicePort()],

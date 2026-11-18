@@ -6,7 +6,7 @@ namespace App\Module\Core\Command;
 
 use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Gameserver\Application\GameServerPathResolver;
-use App\Repository\InstanceRepository;
+use App\Repository\InstanceRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -22,7 +22,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class GameServerInstallPathMigrateCommand extends Command
 {
     public function __construct(
-        private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly InstanceFilesystemResolver $legacyFilesystemResolver,
         private readonly GameServerPathResolver $pathResolver,
         private readonly EntityManagerInterface $entityManager,

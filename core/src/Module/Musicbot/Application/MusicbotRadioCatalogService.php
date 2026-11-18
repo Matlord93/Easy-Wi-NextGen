@@ -9,23 +9,23 @@ use App\Module\Musicbot\Domain\Entity\MusicbotRadioFavorite;
 use App\Module\Musicbot\Domain\Entity\MusicbotRadioHistory;
 use App\Module\Musicbot\Domain\Entity\MusicbotRadioStation;
 use App\Module\Musicbot\Domain\Exception\MusicbotQuotaExceededException;
-use App\Repository\MusicbotRadioFavoriteRepository;
-use App\Repository\MusicbotRadioHistoryRepository;
-use App\Repository\MusicbotRadioStationRepository;
+use App\Repository\MusicbotRadioFavoriteRepositoryInterface;
+use App\Repository\MusicbotRadioHistoryRepositoryInterface;
+use App\Repository\MusicbotRadioStationRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
  * Manages the global webradio catalog, favorites and play history.
  */
-class MusicbotRadioCatalogService
+final class MusicbotRadioCatalogService implements MusicbotRadioCatalogServiceInterface
 {
     private const int HISTORY_KEEP_ROWS = 100;
 
     public function __construct(
-        private readonly MusicbotRadioStationRepository $stationRepository,
-        private readonly MusicbotRadioFavoriteRepository $favoriteRepository,
-        private readonly MusicbotRadioHistoryRepository $historyRepository,
-        private readonly MusicbotQuotaService $quotaService,
+        private readonly MusicbotRadioStationRepositoryInterface $stationRepository,
+        private readonly MusicbotRadioFavoriteRepositoryInterface $favoriteRepository,
+        private readonly MusicbotRadioHistoryRepositoryInterface $historyRepository,
+        private readonly MusicbotQuotaServiceInterface $quotaService,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -40,6 +40,7 @@ class MusicbotRadioCatalogService
      * @param array{query?: string, genre?: string, country?: string, language?: string, format?: string, min_bitrate?: int, max_bitrate?: int, active_only?: bool, limit?: int, offset?: int} $filters
      * @return array{stations: array<int, array<string, mixed>>, total: int, genres: string[], countries: string[]}
      */
+    #[\Override]
     public function search(User $customer, array $filters = []): array
     {
         $this->assertWebradioAllowed($customer);
@@ -56,6 +57,7 @@ class MusicbotRadioCatalogService
     }
 
     /** @return array<array-key, array<string, mixed>> */
+    #[\Override]
     public function getPopular(User $customer, int $limit = 20): array
     {
         $this->assertWebradioAllowed($customer);
@@ -67,6 +69,7 @@ class MusicbotRadioCatalogService
     }
 
     /** @return array<array-key, array<string, mixed>> */
+    #[\Override]
     public function getNewest(User $customer, int $limit = 20): array
     {
         $this->assertWebradioAllowed($customer);
@@ -81,6 +84,7 @@ class MusicbotRadioCatalogService
     // -------------------------------------------------------------------------
 
     /** @return array<array-key, array<string, mixed>> */
+    #[\Override]
     public function getFavorites(User $customer): array
     {
         $this->assertWebradioAllowed($customer);
@@ -90,6 +94,7 @@ class MusicbotRadioCatalogService
         return array_map(fn (MusicbotRadioFavorite $f): array => $this->normalize($f->getStation(), $favoriteIds), $favorites);
     }
 
+    #[\Override]
     public function addFavorite(User $customer, MusicbotRadioStation $station): void
     {
         $this->assertWebradioAllowed($customer);
@@ -100,6 +105,7 @@ class MusicbotRadioCatalogService
         $this->entityManager->persist($fav);
     }
 
+    #[\Override]
     public function removeFavorite(User $customer, MusicbotRadioStation $station): void
     {
         $this->assertWebradioAllowed($customer);
@@ -114,6 +120,7 @@ class MusicbotRadioCatalogService
     // -------------------------------------------------------------------------
 
     /** @return array<array-key, array<string, mixed>> */
+    #[\Override]
     public function getHistory(User $customer, int $limit = 20): array
     {
         $this->assertWebradioAllowed($customer);
@@ -126,6 +133,7 @@ class MusicbotRadioCatalogService
         ), $history);
     }
 
+    #[\Override]
     public function recordHistory(User $customer, MusicbotRadioStation $station, ?\App\Module\Musicbot\Domain\Entity\MusicbotInstance $instance = null): void
     {
         $entry = new MusicbotRadioHistory($customer, $station, $instance);
@@ -141,18 +149,21 @@ class MusicbotRadioCatalogService
     /**
      * Promote a customer-submitted private station to the global catalog.
      */
+    #[\Override]
     public function promoteToGlobal(MusicbotRadioStation $station): void
     {
         $station->setGlobal(true);
         $station->setActive(true);
     }
 
+    #[\Override]
     public function markInactive(MusicbotRadioStation $station): void
     {
         $station->setActive(false);
         $station->setLastCheckedAt(new \DateTimeImmutable());
     }
 
+    #[\Override]
     public function markActive(MusicbotRadioStation $station): void
     {
         $station->setActive(true);
@@ -160,12 +171,14 @@ class MusicbotRadioCatalogService
     }
 
     /** @return array<array-key, array<string, mixed>> */
+    #[\Override]
     public function getPendingCustomerStations(): array
     {
         return array_map(fn (MusicbotRadioStation $s): array => $this->normalize($s, []), $this->stationRepository->findPendingCustomerStations());
     }
 
     /** @return array<array-key, array<string, mixed>> */
+    #[\Override]
     public function getAllGlobal(bool $includeInactive = true): array
     {
         return array_map(fn (MusicbotRadioStation $s): array => $this->normalize($s, []), $this->stationRepository->findAllGlobal($includeInactive));
@@ -179,6 +192,7 @@ class MusicbotRadioCatalogService
      * @param int[] $favoriteIds
      * @return array{id:int|null,name:string,stream_url:string,is_favorite:bool,last_played_at:string|null,...<string,mixed>}
      */
+    #[\Override]
     public function normalize(MusicbotRadioStation $s, array $favoriteIds = []): array
     {
         return [

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\Ts3DatabaseMode;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\Teamspeak\UI\Controller\Api\Ts3InstanceApiController;
-use App\Repository\AgentRepository;
-use App\Repository\UserRepository;
+use App\Module\Voice\UI\Controller\Api\Ts3InstanceApiController;
+use App\Repository\AgentRepositoryInterface;
+use App\Repository\UserRepositoryInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -47,11 +47,11 @@ final class Ts3InstanceApiControllerTest extends TestCase
     {
         $customer = new User('customer@example.test', UserType::Customer);
         $node = new Agent('node-test', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
-        $users = $this->createMock(UserRepository::class);
+        $users = $this->createMock(UserRepositoryInterface::class);
         $users->expects(self::once())->method('find')->with(42)->willReturn($customer);
-        $agents = $this->createMock(AgentRepository::class);
+        $agents = $this->createMock(AgentRepositoryInterface::class);
         $agents->expects(self::once())->method('find')->with('node-test')->willReturn($node);
-        $encryption = $this->createMock(EncryptionService::class);
+        $encryption = $this->createMock(EncryptionServiceInterface::class);
         $encrypted = ['key_id' => 'key', 'nonce' => 'nonce', 'ciphertext' => 'ciphertext'];
         $encryption->expects(self::once())->method('encrypt')->with('database-secret')->willReturn($encrypted);
         $controller = (new \ReflectionClass(Ts3InstanceApiController::class))->newInstanceWithoutConstructor();

@@ -34,6 +34,12 @@
                         <div class="tkt-kpi {% if coreUpdate.updateAvailable %}tkt-kpi--open{% elseif coreUpdate.updateAvailable is same as(false) %}tkt-kpi--resolved{% endif %}">
                             <div class="tkt-kpi__label">{{ t('admin_dashboard_core_latest_version', page_locale()) }}</div>
                             <div class="tkt-kpi__value">{{ coreUpdate.latestVersion ?? '—' }}</div>
+                            {% if coreUpdate.packageSha256|default(null) %}
+                                <p class="mt-2 break-all text-xs text-slate-500">SHA-256: <code>{{ coreUpdate.packageSha256 }}</code></p>
+                            {% endif %}
+                            {% if coreUpdate.signatureUrl|default(null) %}
+                                <a class="text-sm underline" href="{{ coreUpdate.signatureUrl }}" rel="noopener noreferrer">Signaturdatei herunterladen</a>
+                            {% endif %}
                         </div>
 
                         {# Agent updates available #}
