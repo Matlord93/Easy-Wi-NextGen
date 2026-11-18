@@ -93,7 +93,7 @@ jobs:
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest scripts/tests/test_normalize_psalm_sarif.py -v
 
       - name: Verify Doctrine mapping with cold and cached Psalm workers
-        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/psalm/tests -p 'test_*.py' -v
+        run: PYTHONDONTWRITEBYTECODE=1 python3 tools/psalm/tests/test_doctrine_mapping.py -v
 
       - name: Run Psalm security scan (PHP)
         id: psalm
