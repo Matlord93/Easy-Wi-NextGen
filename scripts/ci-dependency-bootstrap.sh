@@ -82,6 +82,23 @@ composer_bootstrap() {
   composer install --working-dir="$REPO_ROOT/core" --no-interaction --prefer-dist --no-progress "${install_args[@]}"
 }
 
+download_go_modules() {
+  local attempt status=1 delay
+  for attempt in 1 2 3; do
+    if (cd "$REPO_ROOT/agent" && go mod download); then
+      return 0
+    else
+      status=$?
+    fi
+    if [[ "$attempt" -lt 3 ]]; then
+      delay=$((attempt * 2))
+      echo "Go module download failed (attempt $attempt/3, exit $status); retrying in ${delay}s." >&2
+      sleep "$delay"
+    fi
+  done
+  return "$status"
+}
+
 go_bootstrap() {
   require_cmd go
   require_cmd curl
@@ -112,15 +129,17 @@ MSG
   export GOPROXY="$proxy"
   export GONOSUMDB="${GONOSUMDB:-}"
   echo "Using GOPROXY=$GOPROXY"
-  if ! (cd "$REPO_ROOT/agent" && go mod download); then
+  if download_go_modules; then
+    (cd "$REPO_ROOT/agent" && go mod verify)
+  else
+    local status=$?
     cat >&2 <<MSG
 Go module download failed with GOPROXY=$GOPROXY.
 This is an environment/network policy issue for the dependency gate, not a Musicbot code failure.
 If proxy.golang.org or direct GitHub is blocked, set EASYWI_GOPROXY_MIRROR to an approved internal Go module mirror that contains github.com/gorilla/websocket@v1.5.3 and the remaining agent modules.
 MSG
-    exit 1
+    return "$status"
   fi
-  (cd "$REPO_ROOT/agent" && go mod verify)
 }
 
 case "${1:-}" in

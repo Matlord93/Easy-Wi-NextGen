@@ -3,12 +3,16 @@ name: Agent Mail Skeleton CI
 on:
   pull_request:
     paths:
+      - 'scripts/ci-dependency-bootstrap.sh'
+      - 'scripts/tests/test_ci_dependency_bootstrap.py'
       - 'agent/**'
       - '.github/workflows/agent-mail-skeleton-ci.yml'
       - '.github/actions/configure-go-build-cache/**'
   push:
     branches: [ main, Dev, Beta ]
     paths:
+      - 'scripts/ci-dependency-bootstrap.sh'
+      - 'scripts/tests/test_ci_dependency_bootstrap.py'
       - 'agent/**'
       - '.github/workflows/agent-mail-skeleton-ci.yml'
       - '.github/actions/configure-go-build-cache/**'
@@ -36,6 +40,22 @@ jobs:
 
       - name: Configure isolated Go build cache
         uses: ./.github/actions/configure-go-build-cache
+
+      - name: Cache Go module downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-gomod-${{ hashFiles('agent/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gomod-
+
+      - name: Verify dependency download retries
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s ../scripts/tests -p 'test_ci_dependency_bootstrap.py' -v
+
+      - name: Download and verify Go modules
+        run: bash ../scripts/ci-dependency-bootstrap.sh go
+        env:
+          EASYWI_GOPROXY_MIRROR: ${{ vars.EASYWI_GOPROXY_MIRROR || 'https://proxy.golang.org,direct' }}
 
       - name: Format check
         run: |

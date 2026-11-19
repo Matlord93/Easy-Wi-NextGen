@@ -3,6 +3,8 @@ name: agent-ci
 on:
   pull_request:
     paths:
+      - 'scripts/ci-dependency-bootstrap.sh'
+      - 'scripts/tests/test_ci_dependency_bootstrap.py'
       - 'scripts/ci-agent-test*'
       - 'scripts/tests/test_ci_agent_test_report.py'
       - 'agent/**'
@@ -15,6 +17,8 @@ on:
   push:
     branches: [ main, Dev, Beta ]
     paths:
+      - 'scripts/ci-dependency-bootstrap.sh'
+      - 'scripts/tests/test_ci_dependency_bootstrap.py'
       - 'scripts/ci-agent-test*'
       - 'scripts/tests/test_ci_agent_test_report.py'
       - 'agent/**'
