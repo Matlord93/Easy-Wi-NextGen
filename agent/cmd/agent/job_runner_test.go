@@ -173,3 +173,10 @@ func TestJobRunnerStreamLimiterCapsConcurrentStreams(t *testing.T) {
 	<-done
 	<-done
 }
+
+func TestBackupDeletionTakesExclusiveInstanceLock(t *testing.T) {
+	lock, mode, stream := resolveJobScheduling(jobs.Job{Type: "instance.backup.delete", Payload: map[string]any{"instance_id": "42"}})
+	if lock != "instance:42" || mode != jobLockWrite || stream {
+		t.Fatalf("backup deletion must wait for running backups/downloads/restores: %q %v %v", lock, mode, stream)
+	}
+}

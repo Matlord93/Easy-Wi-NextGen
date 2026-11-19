@@ -137,11 +137,13 @@ func canonicalRoleName(role string) string {
 
 func collectMetadata(cfg config.Config) map[string]any {
 	metadata := map[string]any{
-		"ts6_supported":             detectTS6Support(),
-		"kvm_managed":               kvmCapabilities(),
-		"platform_family":           runtime.GOOS,
-		"minecraft_managed_install": runtime.GOOS == "linux",
-		"os":                        runtime.GOOS,
+		"ts6_supported":                detectTS6Support(),
+		"rental_backup_delete_version": 1,
+		"kvm_managed":                  kvmCapabilities(),
+		"platform_family":              runtime.GOOS,
+		"minecraft_managed_install":    runtime.GOOS == "linux",
+		"instance_runtime_limits":      runtime.GOOS == "linux",
+		"os":                           runtime.GOOS,
 	}
 	bindIPs := normalizeBindIPs(cfg.BindIPAddresses)
 	if len(bindIPs) == 0 {

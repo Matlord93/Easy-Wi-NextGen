@@ -97,9 +97,14 @@ func ensureBungeeConfiguration(dir string, payload map[string]any) error {
 	if yamlMapValue(listener, "motd") == nil {
 		setYamlMapValue(listener, "motd", yamlScalar(tv["SERVER_NAME"]))
 	}
-	if yamlMapValue(listener, "max_players") == nil {
-		setYamlMapValue(listener, "max_players", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: tv["MAX_PLAYERS"]})
+	slots, err := parsePositiveInt(tv["MAX_PLAYERS"], "MAX_PLAYERS")
+	if err != nil {
+		return err
 	}
+	// Bungee's listener max_players is only a server-list value. The root
+	// player_limit must enforce the panel's actual desired player count too.
+	setYamlMapValue(listener, "max_players", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.Itoa(slots)})
+	setYamlMapValue(root, "player_limit", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.Itoa(slots)})
 	if yamlMapValue(root, "online_mode") == nil {
 		setYamlMapValue(root, "online_mode", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"})
 	}

@@ -249,6 +249,9 @@ func handleInstanceStart(job jobs.Job, logSender JobLogSender) (jobs.Result, fun
 		}, nil
 	}
 
+	if err := syncInstanceRuntimeLimits(serviceName, job.Payload); err != nil {
+		return failureResult(job.ID, err)
+	}
 	runtimeUpdates, err := applyInstanceRuntimeOverrides(job.Payload)
 	if err != nil {
 		return failureResult(job.ID, err)
@@ -353,6 +356,9 @@ func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, f
 		}, nil
 	}
 
+	if err := syncInstanceRuntimeLimits(serviceName, job.Payload); err != nil {
+		return failureResult(job.ID, err)
+	}
 	runtimeUpdates, err := applyInstanceRuntimeOverrides(job.Payload)
 	if err != nil {
 		return failureResult(job.ID, err)

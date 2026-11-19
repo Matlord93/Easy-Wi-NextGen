@@ -78,7 +78,7 @@ func kvmCapabilities() map[string]any {
 			missing = append(missing, b)
 		}
 	}
-	return map[string]any{"version": 1, "console_version": 1, "config_version": 1, "guest_agent_status_version": 1, "guest_network_info_version": 1, "guest_filesystem_usage_version": 1, "disk_grow_version": 1, "network_config_version": 1, "supported": runtime.GOOS == "linux" && runtime.GOARCH == "amd64", "missing_tools": missing, "acceleration": kvmAccelerationAvailable()}
+	return map[string]any{"version": 1, "console_version": 1, "config_version": 1, "guest_agent_status_version": 1, "guest_network_info_version": 1, "guest_filesystem_usage_version": 1, "disk_grow_version": 1, "network_config_version": 1, "retirement_version": 1, "supported": runtime.GOOS == "linux" && runtime.GOARCH == "amd64", "missing_tools": missing, "acceleration": kvmAccelerationAvailable()}
 }
 
 func newKVMEngine(ctx context.Context) (*kvmEngine, error) {
@@ -106,7 +106,7 @@ func newKVMEngine(ctx context.Context) (*kvmEngine, error) {
 		return nil, err
 	}
 	e := &kvmEngine{root: root, ctx: ctx}
-	for _, d := range []string{"templates", "images", "instances", "backups", "operations", "networks"} {
+	for _, d := range []string{"templates", "images", "instances", "backups", "operations", "networks", "retired"} {
 		mode := os.FileMode(0700)
 		if d == "instances" || d == "images" {
 			mode = 0755
@@ -224,6 +224,20 @@ func (e *kvmEngine) perform(action string, p map[string]any) (map[string]any, er
 	if !kvmUUID.MatchString(id) {
 		return nil, errors.New("invalid VM UUID")
 	}
+	if action == "vm.purge_backups" {
+		var retired kvmGuest
+		if payloadValue(p, "confirm") != "1" || kvmReadJSON(filepath.Join(e.root, "retired", id+".json"), &retired) != nil || retired.ID != id {
+			return nil, errors.New("retired VM proof required")
+		}
+		path := filepath.Join(e.root, "backups", id)
+		if _, err := os.Lstat(path); os.IsNotExist(err) {
+			return map[string]any{"vm_id": id, "backups_purged": true}, nil
+		}
+		if err := kvmSafeFile(path); err != nil {
+			return nil, err
+		}
+		return map[string]any{"vm_id": id, "backups_purged": true}, os.RemoveAll(path)
+	}
 	var g kvmGuest
 	if err := kvmReadJSON(e.guestFile(id, "manifest.json"), &g); err != nil {
 		return nil, errors.New("managed VM not found")
@@ -250,6 +264,21 @@ func (e *kvmEngine) perform(action string, p map[string]any) (map[string]any, er
 		return nil, err
 	}
 	switch action {
+	case "vm.delete":
+		if payloadValue(p, "confirm") != "1" {
+			return nil, errors.New("explicit VM retirement confirmation required")
+		}
+		dir := filepath.Join(e.root, "instances", id)
+		if err := kvmSafeFile(dir); err != nil {
+			return nil, err
+		}
+		if _, err := e.virsh("undefine", id, "--managed-save", "--snapshots-metadata"); err != nil {
+			return nil, err
+		}
+		if err := kvmWriteJSON(filepath.Join(e.root, "retired", id+".json"), g); err != nil {
+			return nil, err
+		}
+		return map[string]any{"vm_id": id, "deleted": true}, os.RemoveAll(dir)
 	case "vm.network":
 		return e.updateGuestNetwork(g, p)
 	case "vm.disk_grow":

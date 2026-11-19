@@ -20,15 +20,12 @@ func TestRoundcubeNotDuplicated(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip()
 	}
-	dir := t.TempDir()
-	_ = os.MkdirAll(filepath.Join(dir, "etc/nginx/sites-available"), 0o755)
-	vhost := filepath.Join("/etc/nginx/sites-available", "example.org")
-	_ = os.MkdirAll("/etc/nginx/sites-available", 0o755)
+	vhost := filepath.Join(t.TempDir(), "example.org")
 	orig := "server {\n listen 80;\n location ^~ /roundcube/ { alias /usr/share/roundcube/; }\n}\n"
 	if err := os.WriteFile(vhost, []byte(orig), 0o644); err != nil {
-		t.Skip("requires writable /etc")
+		t.Fatal(err)
 	}
-	updated, reloaded, already, err := enableRoundcubeForWebspace("example.org", "/roundcube", "/usr/share/roundcube")
+	updated, reloaded, already, err := enableRoundcubeInVhost(vhost, "/roundcube", "/usr/share/roundcube")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -49,13 +46,12 @@ func TestRoundcubeKeepsPhpSocketAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
-	_ = os.MkdirAll("/etc/nginx/sites-available", 0o755)
-	vhost := filepath.Join("/etc/nginx/sites-available", "example.net")
+	vhost := filepath.Join(t.TempDir(), "example.net")
 	orig := "server {\n listen 443 ssl http2;\n location ~ \\.php$ { fastcgi_pass unix:/run/easywi/php-fpm/custom.sock; }\n}\n"
 	if err := os.WriteFile(vhost, []byte(orig), 0o644); err != nil {
-		t.Skip("requires writable /etc")
+		t.Fatal(err)
 	}
-	_, _, _, err := enableRoundcubeForWebspace("example.net", "/webmail", "/usr/share/roundcube")
+	_, _, _, err := enableRoundcubeInVhost(vhost, "/webmail", "/usr/share/roundcube")
 	if err == nil {
 		t.Fatalf("expected nginx -t failure")
 	}

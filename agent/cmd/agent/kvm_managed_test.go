@@ -133,6 +133,11 @@ func (f *kvmFixture) run(ctx context.Context, binary string, args ...string) ([]
 			}
 		}
 		return nil, nil
+	case "undefine":
+		delete(f.domains, args[1])
+		delete(f.states, args[1])
+		f.writes = append(f.writes, verb)
+		return nil, nil
 	case "dumpxml":
 		data, ok := f.domains[args[1]]
 		if !ok {
@@ -588,5 +593,59 @@ func TestKVMManagedProvisionNeverReplacesExistingUUID(t *testing.T) {
 	r := f.create()
 	if r.status != "failed" || !strings.Contains(r.errorText, "already exists") || !reflect.DeepEqual(before, f.domains[kvmTestVM]) || len(f.writes) > 0 {
 		t.Fatal("existing domain was replaced")
+	}
+}
+
+func TestKVMRentalRetirementRequiresStoppedGuestAndExplicitConfirmation(t *testing.T) {
+	f := kvmNewFixture(t)
+	kvmAssertSuccess(t, f.create())
+	f.states[kvmTestVM] = "running"
+	if r := f.job("vm.delete", kvmTestOp, map[string]any{"vm_id": kvmTestVM, "confirm": "1"}); r.status == "success" {
+		t.Fatal("running VM was deleted")
+	}
+	f.states[kvmTestVM] = "shut off"
+	if r := f.job("vm.delete", kvmTestOp2, map[string]any{"vm_id": kvmTestVM}); r.status == "success" {
+		t.Fatal("VM was deleted without explicit confirmation")
+	}
+	if _, err := os.Stat(f.e.guestFile(kvmTestVM, "manifest.json")); err != nil {
+		t.Fatal("blocked deletion changed storage")
+	}
+}
+
+func TestKVMRentalRetirementKeepsBackupsUntilTheirSeparateRetentionExpires(t *testing.T) {
+	f := kvmNewFixture(t)
+	kvmAssertSuccess(t, f.create())
+	f.states[kvmTestVM] = "shut off"
+	backupDir := filepath.Join(f.e.root, "backups", kvmTestVM)
+	if err := os.MkdirAll(backupDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	archive := filepath.Join(backupDir, "archive.qcow2")
+	if err := os.WriteFile(archive, []byte("retained backup"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	kvmAssertSuccess(t, f.job("vm.delete", kvmTestOp, map[string]any{"vm_id": kvmTestVM, "confirm": "1"}))
+	if _, err := os.Stat(f.e.guestFile(kvmTestVM, "disk.qcow2")); !os.IsNotExist(err) {
+		t.Fatal("retired disk still exists")
+	}
+	if _, err := os.Stat(archive); err != nil {
+		t.Fatal("VM retirement deleted retained backups")
+	}
+	kvmAssertSuccess(t, f.job("vm.delete", kvmTestOp, map[string]any{"vm_id": kvmTestVM, "confirm": "1"}))
+	kvmAssertSuccess(t, f.job("vm.purge_backups", kvmTestOp2, map[string]any{"vm_id": kvmTestVM, "confirm": "1"}))
+	if _, err := os.Stat(archive); !os.IsNotExist(err) {
+		t.Fatal("expired backups were not deleted")
+	}
+}
+
+func TestKVMRentalRetirementCannotDeleteAnUnmanagedDomain(t *testing.T) {
+	f := kvmNewFixture(t)
+	f.states[kvmTestVM] = "shut off"
+	f.domains[kvmTestVM] = []byte("unmanaged")
+	if r := f.job("vm.delete", kvmTestOp, map[string]any{"vm_id": kvmTestVM, "confirm": "1"}); r.status == "success" {
+		t.Fatal("unmanaged domain was deleted")
+	}
+	if _, ok := f.domains[kvmTestVM]; !ok {
+		t.Fatal("unmanaged domain changed")
 	}
 }

@@ -21,7 +21,10 @@ func normalizeRoute(route string) string {
 }
 
 func enableRoundcubeForWebspace(domain, route, roundcubePath string) (bool, bool, bool, error) {
-	vhost := filepath.Join("/etc/nginx/sites-available", domain)
+	return enableRoundcubeInVhost(filepath.Join("/etc/nginx/sites-available", domain), route, roundcubePath)
+}
+
+func enableRoundcubeInVhost(vhost, route, roundcubePath string) (bool, bool, bool, error) {
 	orig, err := os.ReadFile(vhost)
 	if err != nil {
 		return false, false, false, err

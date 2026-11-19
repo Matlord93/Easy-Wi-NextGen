@@ -595,7 +595,7 @@ func resolveJobScheduling(job jobs.Job) (instanceLock string, lockMode jobLockMo
 	jobType, _ := normalizeJobType(job.Type)
 	if strings.HasPrefix(jobType, "instance.") {
 		switch jobType {
-		case "instance.start", "instance.stop", "instance.restart", "instance.create", "instance.delete", "instance.config.apply", "instance.reinstall", "instance.backup.restore", "instance.files.write", "instance.files.delete", "instance.files.mkdir":
+		case "instance.start", "instance.stop", "instance.restart", "instance.create", "instance.delete", "instance.config.apply", "instance.reinstall", "instance.backup.restore", "instance.backup.delete", "instance.files.write", "instance.files.delete", "instance.files.mkdir":
 			return instanceLock, jobLockWrite, false
 		case "instance.logs.tail":
 			return instanceLock, jobLockRead, true
@@ -815,6 +815,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleInstanceReinstall(job, logSender)
 	case "instance.backup.create":
 		return handleInstanceBackupCreate(job)
+	case "instance.backup.delete":
+		return handleInstanceBackupDelete(job)
 	case "instance.backup.restore":
 		return handleInstanceBackupRestore(job)
 	case "instance.addon.install":

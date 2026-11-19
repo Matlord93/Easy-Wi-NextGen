@@ -123,8 +123,20 @@ jobs:
       - name: Clear Go build cache
         run: go clean -cache
 
-      - name: Go test
-        run: go test ./...
+      - name: Verify agent test-report enforcement
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s ../scripts/tests -p 'test_ci_agent_test_report.py' -v
+
+      - name: Go test without skipped cases
+        id: agent_tests
+        run: python3 ../scripts/ci-agent-tests.py --report-dir "${RUNNER_TEMP}/agent-tests-${{ matrix.target_os }}"
+
+      - name: Upload agent test reports
+        if: always() && steps.agent_tests.outcome != 'skipped'
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-test-reports-${{ matrix.target_os }}
+          path: ${{ runner.temp }}/agent-tests-${{ matrix.target_os }}
+          if-no-files-found: error
 
       - name: Smoke test (agent startup + core connectivity + dummy job)
         run: go test ./cmd/agent -run TestAgentCoreConnectivitySmoke

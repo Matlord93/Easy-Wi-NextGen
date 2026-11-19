@@ -196,6 +196,14 @@ jobs:
           PHP_MEMORY_LIMIT: 768M
         run: php -d memory_limit=${PHP_MEMORY_LIMIT} bin/phpunit --do-not-record-test-run-history
 
+      - name: Set up Node.js for panel behavior tests
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Panel JavaScript behavior
+        run: node --test tests/javascript/*.test.cjs
+
       - name: PHPStan
         run: composer run phpstan
 

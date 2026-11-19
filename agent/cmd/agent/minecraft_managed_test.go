@@ -150,6 +150,40 @@ func TestManagedMinecraftBungeePreservesBackendsAndUsesProxyConfig(t *testing.T)
 	}
 }
 
+func TestManagedMinecraftBungeeEnforcesDesiredPlayerLimit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yml")
+	original := "player_limit: -1\nlisteners:\n- host: 0.0.0.0:25565\n  max_players: 999\n  motd: Custom proxy\nservers:\n  survival:\n    address: 10.0.0.5:25566\n"
+	if err := os.WriteFile(path, []byte(original), 0644); err != nil {
+		t.Fatal(err)
+	}
+	payload := makeMinecraftPayload("minecraft_bungeecord_all", map[string]any{"minecraft_managed": "true", "minecraft_channel": "bungeecord"})
+	if err := ensureMinecraftServerProperties(dir, payload); err != nil {
+		t.Fatal(err)
+	}
+	content := mustReadFile(t, path)
+	for _, want := range []string{"player_limit: 20", "max_players: 20", "10.0.0.5:25566", "Custom proxy"} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("missing %q in %s", want, content)
+		}
+	}
+	payload["env_vars"] = map[string]any{"MAX_PLAYERS": "12"}
+	if err := ensureMinecraftServerProperties(dir, payload); err != nil {
+		t.Fatal(err)
+	}
+	content = mustReadFile(t, path)
+	if !strings.Contains(content, "player_limit: 12") || !strings.Contains(content, "max_players: 12") {
+		t.Fatal(content)
+	}
+	payload["env_vars"] = map[string]any{"MAX_PLAYERS": "-1"}
+	if err := ensureMinecraftServerProperties(dir, payload); err == nil {
+		t.Fatal("unlimited slots accepted")
+	}
+	if unchanged := mustReadFile(t, path); unchanged != content {
+		t.Fatal("invalid limit changed the file")
+	}
+}
+
 func TestManagedMinecraftDownloadsVerifyChecksums(t *testing.T) {
 	body := []byte("trusted artifact")
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(body) }))

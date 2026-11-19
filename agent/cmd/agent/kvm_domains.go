@@ -365,6 +365,9 @@ func (e *kvmEngine) createGuest(p map[string]any) (map[string]any, error) {
 			}
 		}
 	}
+	if _, err := os.Lstat(filepath.Join(e.root, "retired", id+".json")); !os.IsNotExist(err) {
+		return nil, errors.New("retired VM UUID cannot be reused")
+	}
 	dir := filepath.Join(e.root, "instances", id)
 	if err := os.Mkdir(dir, 0755); err != nil {
 		return nil, errors.New("VM storage already exists or cannot be created; inspect existing files")
