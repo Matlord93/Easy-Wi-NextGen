@@ -116,6 +116,10 @@ func ensureParentExists(path string) error {
 }
 
 func writeFileAtomic(target string, reader io.Reader, perm os.FileMode) error {
+	return writeFileAtomicMode(target, reader, perm, false)
+}
+
+func writeFileAtomicMode(target string, reader io.Reader, perm os.FileMode, createOnly bool) error {
 	dir := filepath.Dir(target)
 	uid, gid, hasOwner := desiredOwnerForFile(target)
 	tmp, err := os.CreateTemp(dir, ".fileapi-*")
@@ -153,6 +157,14 @@ func writeFileAtomic(target string, reader io.Reader, perm os.FileMode) error {
 		if err := chownPath(tmp.Name(), uid, gid); err != nil && !os.IsPermission(err) {
 			return fmt.Errorf("chown temp file: %w", err)
 		}
+	}
+	if createOnly {
+		// Linking a completed file publishes it atomically and fails if any
+		// writer (including SFTP) created the target in the meantime.
+		if err := os.Link(tmp.Name(), target); err != nil {
+			return fmt.Errorf("publish new file: %w", err)
+		}
+		return nil
 	}
 	if err := os.Rename(tmp.Name(), target); err != nil {
 		return fmt.Errorf("rename temp file: %w", err)

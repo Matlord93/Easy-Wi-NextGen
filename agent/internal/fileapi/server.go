@@ -251,9 +251,10 @@ func (s *Server) handleContentRead(w http.ResponseWriter, r *http.Request, insta
 func (s *Server) handleContentWrite(w http.ResponseWriter, r *http.Request, instanceID string) {
 	err := s.locks.WithWriteLock(instanceID, func() error {
 		var payload struct {
-			Path    string `json:"path"`
-			Content string `json:"content"`
-			ETag    string `json:"etag"`
+			Path       string `json:"path"`
+			Content    string `json:"content"`
+			ETag       string `json:"etag"`
+			CreateOnly bool   `json:"create_only"`
 		}
 		if err := decodeJSON(r, &payload); err != nil {
 			respondError(r, w, http.StatusBadRequest, errorInvalidPath, "invalid json payload")
@@ -288,6 +289,29 @@ func (s *Server) handleContentWrite(w http.ResponseWriter, r *http.Request, inst
 			return nil
 		}
 
+		if payload.CreateOnly {
+			// The non-hash sentinel also makes older agents fail safely:
+			// their ordinary ETag check cannot overwrite an existing file.
+			if payload.ETag != "*" {
+				respondError(r, w, http.StatusBadRequest, errorEtagMismatch, "create_only requires etag *")
+				return nil
+			}
+			if err := ensureParentExists(target); err != nil {
+				respondPathError(r, w, err)
+				return nil
+			}
+			if err := writeFileAtomicMode(target, strings.NewReader(payload.Content), 0o640, true); err != nil {
+				if errors.Is(err, os.ErrExist) {
+					respondError(r, w, http.StatusConflict, errorEtagMismatch, "file already exists")
+				} else {
+					respondError(r, w, http.StatusInternalServerError, errorInternal, "create failed")
+				}
+				return nil
+			}
+			s.invalidateCache(rootPath)
+			respondJSON(w, http.StatusCreated, map[string]any{"path": cleanPath, "size": len(payload.Content), "saved": true, "new_etag": contentETag([]byte(payload.Content))})
+			return nil
+		}
 		currentContent, err := os.ReadFile(target)
 		if err != nil {
 			respondError(r, w, statusFromError(err), codeFromError(err), "read failed")
