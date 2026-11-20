@@ -41,11 +41,8 @@ final readonly class StructuredGameConfiguration
         if (null !== $game) {
             foreach ($this->schemas->findByGameDefinition($game) as $schema) {
                 $path = $schema->getFilePath();
-                $format = strtolower($schema->getFormat());
-                $format = match ($format) {
-                    'key_value','keyvalue' => 'properties', 'convar_lines' => 'convar', default => $format,
-                };
-                if (!self::relative($path) || !in_array($format, ['ini', 'properties', 'convar', 'json', 'jsonc', 'yaml', 'yml', 'xml', 'unreal', 'assignment', 'flat', 'fivem'], true)) {
+                $format = self::schemaFormat($schema->getFormat());
+                if (!self::relative($path) || null === $format) {
                     continue;
                 }
                 $format = GameSetupProfiles::format($instance->getTemplate()->getGameKey(), $path) ?? $format;
@@ -304,6 +301,18 @@ final readonly class StructuredGameConfiguration
         }
 
         return null;
+    }
+
+    private static function schemaFormat(string $format): ?string
+    {
+        $format = strtolower($format);
+
+        return match ($format) {
+            'key_value', 'keyvalue', 'properties' => 'properties',
+            'convar_lines', 'convar' => 'convar',
+            'ini', 'json', 'jsonc', 'yaml', 'yml', 'xml', 'unreal', 'assignment', 'flat', 'fivem' => $format,
+            default => null,
+        };
     }
 
     private static function relative(string $path): bool

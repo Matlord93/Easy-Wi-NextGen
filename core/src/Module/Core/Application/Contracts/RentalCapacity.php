@@ -12,6 +12,9 @@ use App\Module\Core\Domain\Enum\ShopProductKind;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 
+/**
+ * @psalm-type Readiness = array{state:string,orderable:bool,label:string,detail:string,target:?string,required:array<string,int>,available:array<string,int>,missing:array<string,int>}
+ */
 final class RentalCapacity implements \Symfony\Contracts\Service\ResetInterface
 {
     public function __construct(private readonly EntityManagerInterface $em)
@@ -135,7 +138,7 @@ final class RentalCapacity implements \Symfony\Contracts\Service\ResetInterface
      *
      * @param array<string,int|string|bool>|null $quote selected variant resources, when available
      *
-     * @return array{state:string,orderable:bool,label:string,detail:string,target:?string,required:array<string,int>,available:array<string,int>,missing:array<string,int>}
+     * @return Readiness
      */
     public function inspect(ShopProduct $product, ?array $quote = null): array
     {

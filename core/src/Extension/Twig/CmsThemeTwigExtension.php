@@ -40,7 +40,13 @@ final class CmsThemeTwigExtension extends AbstractExtension
     #[\Override]
     public function getFilters(): array
     {
-        return [new TwigFilter('cms_trans', [$this->messages, 'trans'])];
+        return [new TwigFilter('cms_trans', [$this, 'translate'])];
+    }
+
+    /** @param array<string, scalar|\Stringable|null> $parameters */
+    public function translate(string $key, array $parameters = [], ?string $locale = null): string
+    {
+        return $this->messages->trans($key, $parameters, $locale);
     }
 
     /** @return array<string, mixed> */

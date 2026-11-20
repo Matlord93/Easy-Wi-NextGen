@@ -195,7 +195,7 @@ final readonly class CustomerGameConfigurationController
         } catch (RemoteFileException $exception) {
             $host = VRisingHostConfiguration::canInitialize($instance, $path);
             $gameRules = VRisingGameConfiguration::canInitialize($instance, $path);
-            $canInitialize = $request->isMethod('GET') && 404 === $exception->getStatusCode() && isset($path, $definitions[$path]) && ($host || $gameRules || (SourceServerSetup::supports($instance->getTemplate()) && 'server.cfg' === strtolower(basename($path))));
+            $canInitialize = $request->isMethod('GET') && 404 === $exception->getStatusCode() && isset($definitions[$path]) && ($host || $gameRules || (SourceServerSetup::supports($instance->getTemplate()) && 'server.cfg' === strtolower(basename($path))));
             $message = $request->isMethod('POST') && in_array($exception->getStatusCode(), [400, 404, 405], true) ? 'Die Datei konnte nicht angelegt werden. Bitte den Agenten aktualisieren und den Konfigurationspfad prüfen.' : ($canInitialize ? 'Diese Konfigurationsdatei ist noch nicht vorhanden. Du kannst eine Standardkonfiguration anlegen.' : (409 === $exception->getStatusCode() ? 'Die Datei wurde inzwischen geändert oder ist bereits vorhanden. Bitte neu analysieren.' : 'Die Konfigurationsdatei ist am Agenten gerade nicht erreichbar. Bitte erneut versuchen.'));
 
             if ($canInitialize && $host) {
