@@ -63,7 +63,9 @@ final class VRisingGameConfigurationTest extends TestCase
         // Steam app 1829350, depot 1829351, manifest 250813270647323596.
         $content = file_get_contents(__DIR__.'/../Fixtures/gameserver/vrising-native-server-game-settings.json');
         self::assertIsString($content);
-        self::assertSame('51fd36070eb35814c7487b85903332892ef314a533059d54ec50469f14147b51', hash('sha256', $content));
+        // Some repository copies normalize CRLF during import. Compare the
+        // LF form while still hashing the BOM and every other byte.
+        self::assertSame('4b24e9c37371bb8b357c3c687ea89e3d7d64b8b57d9bec360523f091082dfcf7', hash('sha256', str_replace("\r\n", "\n", $content)));
         $configuration = $this->configuration();
         $instance = $this->instance();
         $native = GameConfigDocument::values($content, 'jsonc');
