@@ -1,103 +1,36 @@
 {% extends 'admin/base.html.twig' %}
-
-{% set pageTitle = t('admin_cms_media_title', page_locale()) %}
 {% set activeNav = 'cms-media' %}
-
-{% set locale = page_locale() %}
-
+{% trans_default_domain 'panel_modules' %}
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
-
-    <section class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:16px;">
-                    <div>
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot"></span>
-                            CMS
-                        </div>
-                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_cms_media_title', locale) }}</h1>
-                        <p class="tkt-hero__sub">{{ t('admin_cms_media_intro', locale) }}</p>
-                    </div>
-                    <div style="display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:10px;">
-                        <div class="tkt-kpi">
-                            <div class="tkt-kpi__label">{{ t('admin_cms_media_total_kpi', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ assets|length }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="pm-workspace" data-panel-tabs="cms-media" data-panel-active="{{ errors ? 'create' : 'overview' }}">
+    <header class="pm-page-head"><div><h1>{{ 'workspace_cms_library_title'|trans }}</h1><p>{{ 'workspace_cms_library_description'|trans }}</p></div><a class="ui-button ui-button--primary" href="#pm-cms-media-create" data-panel-reveal="create">+ {{ 'workspace_cms_library_upload'|trans }}</a></header>
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'cms-media',panelTabs:{overview:'workspace_inventory',create:'workspace_cms_library_upload'}} %}
+    {% if saved %}<p class="ng-alert ng-alert--success" role="status">{{ 'workspace_cms_library_saved'|trans }}</p>{% endif %}
+    <section class="cust-panel" data-panel-section="overview">
+        <div class="cust-panel__head"><h2 class="cust-panel__title">{{ 'workspace_cms_library_title'|trans }} <span class="ui-badge ui-badge--neutral">{{ assets|length }} {{ 'workspace_cms_library_loaded'|trans }}</span></h2></div>
+        <div class="ng-data-card__body"><form method="get" action="{{ path('admin_cms_media_index') }}" class="flex flex-wrap items-end gap-3"><label class="form-field"><span class="form-label">{{ 'workspace_cms_media_search'|trans }}</span><input class="form-input" type="search" name="q" maxlength="100" value="{{ search }}" placeholder="{{ 'workspace_cms_media_search_hint'|trans }}"></label><button class="ui-button ui-button--ghost" type="submit">{{ 'workspace_cms_media_search'|trans }}</button></form><p class="text-sm">{{ 'workspace_cms_library_page_scope'|trans }}</p></div>
+        <div class="cust-ws-table-wrap"><table class="cust-table"><thead><tr><th>{{ 'workspace_cms_library_preview'|trans }}</th><th>{{ 'workspace_cms_library_metadata'|trans }}</th><th>{{ 'workspace_cms_library_file'|trans }}</th><th>{{ 'actions'|trans }}</th></tr></thead><tbody>
+            {% for row in assets %}{% set asset = row.asset %}<tr data-media-id="{{ asset.id }}">
+                <td>{% if row.preview %}<img src="{{ row.preview.raster ? path('admin_cms_media_thumbnail', {id: row.preview.id, variant: 'list'}) : row.preview.path }}" alt="" loading="lazy" decoding="async" width="72" height="54" style="width:72px;height:54px;object-fit:contain;border-radius:5px">{% else %}<span class="ui-badge ui-badge--neutral">{{ 'workspace_cms_library_file'|trans }}</span>{% endif %}</td>
+                <td><a class="pm-server-name" href="{{ path('admin_cms_media_edit',{id:asset.id,q:search,page:current_page}) }}">{{ asset.title ?? '–' }}</a><div class="text-sm" style="overflow-wrap:anywhere;max-width:24rem">{{ asset.alt ?? '–' }}</div></td>
+                <td style="overflow-wrap:anywhere;max-width:24rem"><code>{{ asset.path }}</code><div class="text-sm">{{ asset.mime ?? '–' }}{% if asset.size is not null %} · {{ asset.size|number_format(0,',','.') }} B{% endif %}</div></td>
+                <td><div class="flex flex-wrap gap-2"><a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_cms_media_edit',{id:asset.id,q:search,page:current_page}) }}">{{ 'edit'|trans }}</a><form method="post" action="{{ path('admin_cms_media_delete',{id:asset.id,q:search,page:current_page}) }}" data-media-delete><input type="hidden" name="_token" value="{{ csrf_token('cms_media_delete_' ~ asset.id) }}"><button type="submit" class="ui-button ui-button--danger ui-button--sm">{{ 'workspace_cms_library_delete'|trans }}</button></form></div></td>
+            </tr>{% else %}<tr><td colspan="4" class="cust-table__empty">{{ 'workspace_cms_library_empty'|trans }}</td></tr>{% endfor %}
+        </tbody></table></div>
+        <nav class="ng-data-card__body flex flex-wrap items-center gap-3" aria-label="{{ 'workspace_cms_media_pages'|trans }}">{% if current_page > 1 %}<a class="ui-button ui-button--ghost" href="{{ path('admin_cms_media_index',{q:search,page:current_page-1}) }}">{{ 'workspace_cms_media_previous'|trans }}</a>{% endif %}<span>{{ 'workspace_cms_media_page'|trans({'%page%':current_page}) }}</span>{% if has_next %}<a class="ui-button ui-button--ghost" href="{{ path('admin_cms_media_index',{q:search,page:current_page+1}) }}">{{ 'workspace_cms_media_next'|trans }}</a>{% endif %}</nav>
     </section>
-
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('admin_cms_media_upload', locale) }}</h2>
-            </div>
-        </div>
+    <section class="cust-panel" data-panel-section="create">
+        <div class="cust-panel__head"><h2 class="cust-panel__title">{{ 'workspace_cms_library_upload'|trans }}</h2></div>
         <div class="ng-data-card__body">
-            <form method="post" action="/admin/cms/media" enctype="multipart/form-data" style="display:grid;gap:0.75rem;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
-                <div class="form-field" style="grid-column:span 2;">
-                    <label class="form-label">{{ t('admin_cms_media_file_label', locale) }}</label>
-                    <input type="file" name="file" class="form-input" required />
-                </div>
-                <div class="form-field">
-                    <label class="form-label">{{ t('admin_cms_media_title_label', locale) }}</label>
-                    <input name="title" placeholder="{{ t('admin_cms_media_title_label', locale) }}" class="form-input" />
-                </div>
-                <div class="form-field">
-                    <label class="form-label">{{ t('admin_cms_media_alt_label', locale) }}</label>
-                    <input name="alt" placeholder="{{ t('admin_cms_media_alt_label', locale) }}" class="form-input" />
-                </div>
-                <div>
-                    <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_cms_media_upload', locale) }}</button>
-                </div>
+            {% if errors %}<div class="ng-alert ng-alert--danger" role="alert">{% for error in errors %}<p>{{ error|trans }}</p>{% endfor %}<p>{{ 'workspace_cms_library_reselect'|trans }}</p></div>{% endif %}
+            <form method="post" action="{{ path('admin_cms_media_upload',{q:search,page:current_page}) }}" enctype="multipart/form-data" class="flex flex-col gap-4" data-media-upload>
+                <input type="hidden" name="_token" value="{{ csrf_token('cms_media_upload') }}">
+                <label class="form-field"><span class="form-label">{{ 'workspace_cms_library_file'|trans }}</span><input type="file" name="file" class="form-input" required></label>
+                <label class="form-field"><span class="form-label">{{ 'workspace_cms_library_name'|trans }}</span><input name="title" class="form-input" maxlength="180" value="{{ upload_title }}"></label>
+                <label class="form-field"><span class="form-label">{{ 'workspace_cms_library_alt'|trans }}</span><input name="alt" class="form-input" maxlength="180" value="{{ upload_alt }}"></label>
+                <div><button type="submit" class="ui-button ui-button--primary">{{ 'workspace_cms_library_upload'|trans }}</button></div>
             </form>
         </div>
-    </div>
-
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('admin_cms_media_title', locale) }}</h2>
-            </div>
-        </div>
-        <div class="ng-data-card__body--flush">
-            <div class="cust-ws-table-wrap">
-                <table class="cust-table">
-                    <thead>
-                        <tr>
-                            <th>{{ t('admin_cms_media_title_alt', locale) }}</th>
-                            <th>{{ t('admin_cms_media_path', locale) }}</th>
-                            <th>{{ t('admin_cms_media_title_col', locale) }}</th>
-                            <th>{{ t('admin_cms_media_actions', locale) }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for asset in assets %}
-                            <tr>
-                                <td>
-                                    {% if asset.path %}
-                                        <img src="{{ asset.path }}" alt="" style="height:3rem;width:3rem;border-radius:0.375rem;object-fit:cover;" />
-                                    {% endif %}
-                                </td>
-                                <td><code style="font-size:0.75rem;">{{ asset.path }}</code></td>
-                                <td>{{ asset.title ?: '-' }} / {{ asset.alt ?: '-' }}</td>
-                                <td>
-                                    <form method="post" action="/admin/cms/media/{{ asset.id }}/delete">
-                                        <button class="ui-button ui-button--danger ui-button--sm">{{ t('admin_cms_media_delete', locale) }}</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        {% else %}
-                            <tr><td colspan="4" class="cust-table__empty">{{ t('admin_cms_media_empty', locale) }}</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+    </section>
 </div>
 {% endblock %}

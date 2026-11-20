@@ -43,7 +43,8 @@
     "symfony/process": "^8.1",
     "dompdf/dompdf": "^3.1",
     "horstoeko/zugferd": "^1.0.135",
-    "symfony/lock": "8.1.*"
+    "symfony/lock": "8.1.*",
+    "ext-gd": "*"
   },
   "require-dev": {
     "friendsofphp/php-cs-fixer": "^3.68",

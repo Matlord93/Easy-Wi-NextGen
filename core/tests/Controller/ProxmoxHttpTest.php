@@ -162,6 +162,8 @@ final class ProxmoxHttpTest extends AbstractWebTestCase
     public function testCustomerPageAndRefreshExposeGuestFilesystemButNeverNodeMetrics(): void
     {
         $client = $this->client(false);
+        // Keep cache assertions independent of provider samples left by another test run.
+        self::getContainer()->set(\App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent::class, new \App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()));
         $this->fixture->guests[0]['status'] = 'running';
         $this->fixture->configs[101] = ['agent' => 'enabled=1'];
         $this->fixture->guestFilesystems = [['name' => 'sda1', 'mountpoint' => '/', 'type' => 'ext4', 'used-bytes' => 250, 'total-bytes' => 1000, 'private' => 'secret-filesystem-data']];

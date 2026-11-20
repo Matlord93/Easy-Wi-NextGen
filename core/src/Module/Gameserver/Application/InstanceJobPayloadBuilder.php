@@ -144,11 +144,12 @@ final class InstanceJobPayloadBuilder
             'node_id' => $instance->getNode()->getId(),
             'agent_id' => $instance->getNode()->getId(),
             'cpu_limit' => (string) $instance->getCpuLimit(),
-            'ram_limit' => (string) $instance->getRamLimit(),
+            'ram_limit' => (string) GameserverMemoryBudget::runtimeMiB($instance->getRamLimit(), (string) ($template->getInstallResolver()['type'] ?? '')),
+            'booked_ram_mib' => (string) $instance->getRamLimit(),
             'disk_limit' => (string) $instance->getDiskLimit(),
             'install_command' => $this->templateInstallResolver->resolveInstallCommand($instance),
             'update_command' => $this->templateInstallResolver->resolveUpdateCommand($instance),
-            'start_params' => $template->getStartParams(),
+            'start_params' => \App\Module\Gameserver\Application\Configuration\GameSetupProfiles::startupParameters($instance),
             'required_ports' => implode(',', array_column(MinecraftPortPlan::forInstance($instance), 'name')),
             'env_vars' => $this->buildEnvVars($instance),
             'secrets' => $this->buildSecretPlaceholders($instance),
@@ -163,6 +164,9 @@ final class InstanceJobPayloadBuilder
         }
 
         $payload = array_merge($payload, $this->buildPortPayload($instance));
+        if (SevenDaysToDiePorts::usesDefaultConfig($template)) {
+            $payload['seven_days_to_die_managed_ports'] = 'true';
+        }
 
         $payload['autostart'] = 'false';
 
@@ -333,7 +337,7 @@ final class InstanceJobPayloadBuilder
 
         return [
             'ports' => $ports,
-            'port_reservations' => MinecraftPortPlan::withBedrockSignaling($instance->getTemplate(), $reservations),
+            'port_reservations' => SevenDaysToDiePorts::withTcpServices($instance->getTemplate(), MinecraftPortPlan::withBedrockSignaling($instance->getTemplate(), $reservations)),
         ];
     }
 
@@ -351,6 +355,12 @@ final class InstanceJobPayloadBuilder
                 continue;
             }
             $vars[$key] = ScalarValue::text($entry['value'] ?? '');
+        }
+
+        foreach (\App\Module\Gameserver\Application\Configuration\GameSetupProfiles::startupDefaults($instance) as $key => $value) {
+            // Use the same effective native defaults as the setup form and
+            // argument builder, including explicit administrator literals.
+            $vars[$key] = $value;
         }
 
         $setupVarKeys = [];
@@ -408,11 +418,22 @@ final class InstanceJobPayloadBuilder
         }
 
         if ($this->minecraftCatalogService->channelFromResolver($instance) !== null) {
-            // Leave native JVM overhead below the systemd memory ceiling.
-            $heap = max(128, (int) floor((float) $instance->getRamLimit() * 0.75));
-            $vars['JAVA_XMX'] = $heap.'M';
-            $vars['JAVA_XMS'] = min(512, $heap).'M';
+            // Full heap requires an agent that updates existing service limits
+            // before publishing new start parameters. Keep native headroom on
+            // agents installed before that capability was introduced.
+            $fullHeap = ($instance->getNode()->getMetadata()['instance_runtime_limits'] ?? false) === true;
+            $heap = $fullHeap ? $instance->getRamLimit() : max(128, (int) floor((float) $instance->getRamLimit() * 0.75));
+            if (GameserverMemoryBudget::isJava((string) ($instance->getTemplate()->getInstallResolver()['type'] ?? ''))) {
+                $vars['JAVA_XMX'] = $heap.'M';
+                $vars['JAVA_XMS'] = min(512, $heap).'M';
+            }
             $vars['MAX_PLAYERS'] = (string) ($instance->getCurrentSlots());
+        }
+
+        foreach (['MAX_PLAYERS','MAXPLAYERS','SLOTS','SV_MAXPLAYERS'] as $slotKey) {
+            if (isset($vars[$slotKey]) || str_contains($instance->getTemplate()->getStartParams(), '{{'.$slotKey.'}}')) {
+                $vars[$slotKey] = (string) $instance->getCurrentSlots();
+            }
         }
 
         $normalized = [];

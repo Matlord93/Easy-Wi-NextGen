@@ -30,7 +30,7 @@ final class WebinterfaceUpdateActivationTest extends TestCase
 
     private function app(string $path, string $version): void
     {
-        foreach (['public', 'bin', 'var/log', 'srv/update/jobs', 'uploads', 'storage'] as $dir) {
+        foreach (['public', 'bin', 'var/log', 'srv/update/jobs', 'uploads', 'storage', 'website/public'] as $dir) {
             mkdir($path.'/'.$dir, 0775, true);
         }
         file_put_contents($path.'/VERSION', $version);
@@ -141,10 +141,12 @@ final class WebinterfaceUpdateActivationTest extends TestCase
         $source = $this->directory.'/package';
         $this->app($active, '1.0.0');
         $this->app($source, '2.0.0');
+        file_put_contents($active.'/website/public/index.php', '<?php echo "own CMS";');
         $url = $this->startServer($active.'/public');
         self::assertSame('1.0.0', file_get_contents($url));
         self::assertTrue($this->deploy($this->service($active), $source), file_get_contents($this->directory.'/update.log'));
         self::assertSame('2.0.0', file_get_contents($url));
+        self::assertSame('<?php echo "own CMS";', file_get_contents($active.'/website/public/index.php'));
         self::assertFalse(is_link($this->directory.'/current'));
         self::assertDirectoryDoesNotExist($this->directory.'/unused');
     }
@@ -188,6 +190,7 @@ final class WebinterfaceUpdateActivationTest extends TestCase
         symlink($old, $this->directory.'/current');
         file_put_contents($old.'/srv/update/jobs/job.json', 'running');
         file_put_contents($old.'/uploads/world.txt', 'keep');
+        file_put_contents($old.'/website/public/index.php', '<?php echo "own CMS";');
         $url = $this->startServer($this->directory.'/current/public');
         self::assertSame('1.0.0', file_get_contents($url));
         self::assertTrue($this->deploy($this->service($old), $source), file_get_contents($this->directory.'/update.log'));
@@ -198,6 +201,8 @@ final class WebinterfaceUpdateActivationTest extends TestCase
         file_put_contents($old.'/srv/update/jobs/job.json', 'success');
         self::assertSame('success', file_get_contents($new.'/srv/update/jobs/job.json'));
         self::assertSame('keep', file_get_contents($new.'/uploads/world.txt'));
+        self::assertSame(realpath($old.'/website'), realpath($new.'/website'));
+        self::assertSame('<?php echo "own CMS";', file_get_contents($new.'/website/public/index.php'));
         self::assertFileDoesNotExist($new.'/var/update-maintenance.flag');
     }
 

@@ -3,7 +3,7 @@
 {% set locale = page_locale() %}
 
 {% block content %}
-<div class="cust-page">
+<div class="cust-page pm-tab-layout" data-panel-tabs="webspace">
 
     {# ── Flash messages ── #}
     {% if flashSuccess is defined and flashSuccess %}
@@ -18,72 +18,42 @@
         <div class="cust-hero__inner">
             <div>
                 <div class="cust-hero__label">{{ t('customer_webspace_kicker', locale) }}</div>
-                <h1 class="cust-hero__title">{{ t('customer_webspace_manage_title', locale) }}</h1>
+                <h1 class="cust-hero__title">{{ selectedDomain ? selectedDomain.name : t('customer_webspace_manage_title', locale) }}</h1>
                 <p class="cust-hero__desc">{{ t('customer_webspace_manage_description', locale) }}</p>
             </div>
         </div>
     </div>
 
-    {# ── Domain selector ── #}
-    <div class="cust-panel">
-        <div class="cust-panel__head">
-            <div>
-                <h3 class="cust-panel__title">{{ t('customer_webspace_manage_select_title', locale) }}</h3>
-                <p class="cust-panel__sub">{{ t('customer_webspace_manage_select_description', locale) }}</p>
-            </div>
-        </div>
-        <div class="cust-panel__body">
-            <form method="get" action="/webspace/manage" style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;">
-                <div style="flex:1;min-width:220px;">
-                    <label class="form-label">{{ t('customer_webspace_manage_domain_label', locale) }}</label>
-                    <select name="domain_id" class="form-input" required>
-                        <option value="">{{ t('customer_webspace_manage_domain_placeholder', locale) }}</option>
-                        {% for domain in domains %}
-                            <option value="{{ domain.id }}" {% if selectedDomain and selectedDomain.id == domain.id %}selected{% endif %}>{{ domain.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <button type="submit" class="ui-button ui-button--primary">
-                    {{ t('customer_webspace_manage_select_action', locale) }}
-                </button>
-            </form>
-        </div>
-    </div>
-
+    {% if domains|length > 1 or not selectedDomain %}<form method="get" action="/webspace/manage" class="pm-domain-selector"><label for="workspace-domain">{{ t('customer_webspace_manage_domain_label',locale) }}</label><select id="workspace-domain" name="domain_id" class="form-input" required><option value="">{{ t('customer_webspace_manage_domain_placeholder',locale) }}</option>{% for domain in domains %}<option value="{{ domain.id }}"{% if selectedDomain and selectedDomain.id == domain.id %} selected{% endif %}>{{ domain.name }}</option>{% endfor %}</select><button type="submit" class="ui-button ui-button--ghost">{{ t('customer_webspace_manage_select_action',locale) }}</button></form>{% endif %}
     {% if selectedDomain and webspace %}
+        {% include 'components/panel/_tabs.html.twig' with {panelKey:'webspace',panelTabs:{overview:'overview',domains:'domains_ssl',files:'files',php:'PHP',automation:'automation',backups:'backups',logs:'logs'}} %}
 
-        {# ── Overview ── #}
-        <div class="cust-panel">
-            <div class="cust-panel__head">
-                <div>
-                    <h3 class="cust-panel__title">{{ t('customer_webspace_manage_overview_title', locale) }}</h3>
-                    <p class="cust-panel__sub">{{ t('customer_webspace_manage_overview_description', locale) }}</p>
-                </div>
-                <span class="ui-badge ui-badge--info">{{ selectedDomain.name }}</span>
+        <section data-panel-section="overview" class="pm-webspace-overview">
+            <div class="pm-stats pm-resource-stats">
+                {% include 'components/panel/_stat.html.twig' with {value: webspace.disk_limit_bytes > 0 ? (webspace.disk_limit_bytes / 1073741824)|number_format(1, ',', '.') ~ ' GiB' : '—', label: 'workspace_storage_limit'|trans({},'panel_modules')} %}
+                {% include 'components/panel/_stat.html.twig' with {value: selectedDomain.ssl_status in ['active','expires_soon'] ? 'workspace_ssl_active'|trans({},'panel_modules') : selectedDomain.ssl_status, label: selectedDomain.ssl_expires_at ? selectedDomain.ssl_expires_at|date('d.m.Y') : 'SSL'} %}
+                {% include 'components/panel/_stat.html.twig' with {value: webspace.php_version, label: 'PHP'} %}
             </div>
-            <div class="cust-panel__body">
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-                    <div style="padding:14px;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-                        <p style="font-size:11px;text-transform:uppercase;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_webroot_label', locale) }}</p>
-                        <p style="margin:6px 0 0;font-weight:700;color:var(--ng-text);font-size:13px;">{{ webspace.path }}</p>
-                        <p style="margin:4px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_webroot_hint', locale) }}</p>
-                    </div>
-                    <div style="padding:14px;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-                        <p style="font-size:11px;text-transform:uppercase;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_docroot_label', locale) }}</p>
-                        <p style="margin:6px 0 0;font-weight:700;color:var(--ng-text);font-size:13px;">{{ webspace.docroot }}</p>
-                        <p style="margin:4px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_docroot_hint', locale) }}</p>
-                    </div>
-                    <div style="padding:14px;border-radius:8px;border:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-                        <p style="font-size:11px;text-transform:uppercase;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_php_label', locale) }}</p>
-                        <p style="margin:6px 0 0;font-weight:700;color:var(--ng-text);font-size:13px;">{{ webspace.php_version }}</p>
-                        <p style="margin:4px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_webspace_manage_subdomain_hint', locale) }}</p>
-                    </div>
-                </div>
+            <div class="pm-webspace-grid">
+                <section class="cust-panel">
+                    <div class="cust-panel__head"><h2 class="cust-panel__title">{{ 'domains_ssl'|trans({},'panel_modules') }}</h2><a href="#pm-webspace-domains">{{ 'management'|trans({},'panel_modules') }}</a></div>
+                    <div class="cust-panel__body"><dl class="pm-keyvalues">
+                    {% for domain in webspaceDomains %}<div><dt>{{ domain.name == webspace.domain ? 'workspace_primary_domain'|trans({},'panel_modules') : 'domains_ssl'|trans({},'panel_modules') }}</dt><dd><span class="ui-badge ui-badge--{{ domain.status == 'active' ? 'success' : 'neutral' }}">{{ domain.name }}</span></dd></div>{% endfor %}
+                    </dl></div>
+                </section>
+                <section class="cust-panel">
+                    <div class="cust-panel__head"><h2 class="cust-panel__title">{{ 'workspace_application'|trans({},'panel_modules') }}</h2><a href="#pm-webspace-php">PHP</a></div>
+                    <div class="cust-panel__body"><dl class="pm-keyvalues"><div><dt>PHP</dt><dd>{{ webspace.php_version }}</dd></div><div><dt>{{ t('customer_webspace_manage_webroot_label',locale) }}</dt><dd><code>{{ webspace.path }}</code></dd></div><div><dt>{{ t('customer_webspace_manage_docroot_label',locale) }}</dt><dd><code>{{ webspace.docroot }}</code></dd></div></dl></div>
+                </section>
             </div>
-        </div>
+            <section class="cust-panel">
+                <div class="cust-panel__head"><h2 class="cust-panel__title">{{ 'automation'|trans({},'panel_modules') }}</h2></div>
+                <div class="cust-panel__body"><dl class="pm-keyvalues"><div><dt><a href="#pm-webspace-automation">Cronjobs</a></dt><dd>{{ webspace.cron_tasks|trim ? 'workspace_configured'|trans({},'panel_modules') : 'workspace_not_configured'|trans({},'panel_modules') }}</dd></div><div><dt><a href="#pm-webspace-automation">Git</a></dt><dd>{{ webspace.git_repo_url ? 'workspace_configured'|trans({},'panel_modules') : 'workspace_not_configured'|trans({},'panel_modules') }}</dd></div></dl></div>
+            </section>
+        </section>
 
         {# ── Domains & SSL table ── #}
-        <div id="ssl" class="cust-panel">
+        <div id="ssl" class="cust-panel" data-panel-section="domains">
             <div class="cust-panel__head">
                 <div>
                     <h3 class="cust-panel__title">Domains & SSL</h3>
@@ -186,7 +156,7 @@
 
         {# ── Homepage + Subdomains ── #}
         <div class="cust-grid-2">
-            <div class="cust-form-card">
+            <div class="cust-form-card" data-panel-section="domains">
                 <div class="cust-form-card__head">
                     <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_homepage_title', locale) }}</h3>
                     <p class="cust-form-card__sub">{{ t('customer_webspace_manage_homepage_description', locale) }}</p>
@@ -206,7 +176,7 @@
                 </form>
             </div>
 
-            <div class="cust-panel">
+            <div class="cust-panel" data-panel-section="domains">
                 <div class="cust-panel__head">
                     <div>
                         <h3 class="cust-panel__title">{{ t('customer_webspace_manage_subdomains_title', locale) }}</h3>
@@ -248,7 +218,8 @@
 
         {# ── Docroot + PHP ── #}
         <div class="cust-grid-2">
-            <div class="cust-form-card">
+            <div class="cust-form-card" data-panel-section="files">
+                <div class="cust-panel__body"><a class="ui-button ui-button--primary" href="{{ path('customer_files',{webspace:webspace.id}) }}">{{ 'files'|trans({},'panel_modules') }}</a></div>
                 <div class="cust-form-card__head">
                     <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_docroot_title', locale) }}</h3>
                     <p class="cust-form-card__sub">{{ t('customer_webspace_manage_docroot_description', locale) }}</p>
@@ -266,7 +237,7 @@
                 </form>
             </div>
 
-            <div class="cust-form-card">
+            <div class="cust-form-card" data-panel-section="php">
                 <div class="cust-form-card__head">
                     <h3 id="php" class="cust-form-card__title">{{ t('customer_webspace_manage_php_settings_title', locale) }}</h3>
                     <p class="cust-form-card__sub">{{ t('customer_webspace_manage_php_settings_description', locale) }}</p>
@@ -285,7 +256,7 @@
 
         {# ── Cron + Git ── #}
         <div class="cust-grid-2">
-            <div class="cust-form-card">
+            <div class="cust-form-card" data-panel-section="automation">
                 <div class="cust-form-card__head">
                     <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_cron_title', locale) }}</h3>
                     <p class="cust-form-card__sub">{{ t('customer_webspace_manage_cron_description', locale) }}</p>
@@ -300,7 +271,7 @@
                 </form>
             </div>
 
-            <div class="cust-form-card">
+            <div class="cust-form-card" data-panel-section="automation">
                 <div class="cust-form-card__head">
                     <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_git_title', locale) }}</h3>
                     <p class="cust-form-card__sub">{{ t('customer_webspace_manage_git_description', locale) }}</p>
@@ -333,7 +304,7 @@
 
         {# ── Backup + SSL ── #}
         <div class="cust-grid-2">
-            <div class="cust-form-card">
+            <div class="cust-form-card" data-panel-section="backups">
                 <div class="cust-form-card__head">
                     <h3 id="backups" class="cust-form-card__title">{{ t('customer_webspace_manage_backup_title', locale) }}</h3>
                     <p class="cust-form-card__sub">{{ t('customer_webspace_manage_backup_description', locale) }}</p>
@@ -362,7 +333,7 @@
                 </div>
             </div>
 
-            <div class="cust-form-card">
+            <div class="cust-form-card" data-panel-section="domains">
                 <div class="cust-form-card__head">
                     <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_ssl_title', locale) }}</h3>
                     <p class="cust-form-card__sub">{{ t('customer_webspace_manage_ssl_description', locale) }}</p>
@@ -405,7 +376,7 @@
 
         {# ── Logs + Roundcube ── #}
         <div class="cust-grid-2">
-            <div class="cust-panel">
+            <div class="cust-panel" data-panel-section="logs">
                 <div class="cust-panel__head">
                     <h3 id="logs" class="cust-panel__title">{{ t('customer_webspace_manage_logs_title', locale) }}</h3>
                     <p class="cust-panel__sub">{{ t('customer_webspace_manage_logs_description', locale) }}</p>
@@ -418,7 +389,7 @@
                 </div>
             </div>
 
-            <div class="cust-form-card">
+            <div class="cust-form-card" data-panel-section="automation">
                 <div class="cust-form-card__head">
                     <h3 class="cust-form-card__title">{{ t('customer_webspace_manage_roundcube_title', locale) }}</h3>
                     <p class="cust-form-card__sub">{{ t('customer_webspace_manage_roundcube_description', locale) }}</p>

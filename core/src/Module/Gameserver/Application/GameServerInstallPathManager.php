@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
+use App\Module\Core\Application\InstanceBaseDirectory;
 use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Core\Domain\Entity\Instance;
 use Psr\Log\LoggerInterface;
@@ -19,10 +20,14 @@ final class GameServerInstallPathManager
     public function ensureInstallPath(Instance $instance): void
     {
         $path = trim((string) $instance->getInstallPath());
-        if ($path !== '') {
+        if ('' !== $path) {
             return;
         }
 
+        $baseDir = $instance->getInstanceBaseDir();
+        if (null !== $baseDir) {
+            $instance->setInstanceBaseDir(InstanceBaseDirectory::normalize($baseDir));
+        }
         $path = $this->legacyFilesystemResolver->resolveInstanceDir($instance);
         $instance->setInstallPath($path);
 
@@ -31,6 +36,5 @@ final class GameServerInstallPathManager
             'install_path' => $path,
             'legacy' => true,
         ]);
-
     }
 }

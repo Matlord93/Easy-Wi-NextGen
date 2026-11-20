@@ -130,6 +130,9 @@ final class CustomerMailController
         }
 
         if ($domain !== null) {
+            if ($this->mailDomainRepository->findOneByDomain($domain)?->getNode()->getAgent() === null && $domain->getWebspace() === null) {
+                $errors[] = $this->translator->trans('mail_setup_required', [], 'panel_modules');
+            }
             $address = sprintf('%s@%s', $localPart, $domain->getName());
             if ($this->mailboxRepository->findOneByAddress($address) !== null) {
                 $errors[] = 'Mailbox address already exists.';
@@ -638,7 +641,7 @@ final class CustomerMailController
     {
         $domain = $mailbox->getDomain();
         $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
-        $agentId = $mailDomain?->getNode()->getId();
+        $agentId = $mailDomain?->getNode()->getAgent()?->getId();
         if ($agentId === null) {
             $agentId = $domain->getWebspace()?->getNode()?->getId();
         }
@@ -652,7 +655,7 @@ final class CustomerMailController
             'local_part' => $mailbox->getLocalPart(),
             'address' => $mailbox->getAddress(),
             'customer_id' => (string) $mailbox->getCustomer()->getId(),
-            'agent_id' => (string) $agentId,
+            'agent_id' => $agentId,
             'mail_enabled' => 'true',
             'mail_backend' => 'local',
             'smtp_enabled' => $this->resolveSmtpEnabled($domain),
@@ -682,7 +685,7 @@ final class CustomerMailController
     {
         $domain = $alias->getDomain();
         $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
-        $agentId = $mailDomain?->getNode()->getId();
+        $agentId = $mailDomain?->getNode()->getAgent()?->getId();
         if ($agentId === null) {
             $agentId = $domain->getWebspace()?->getNode()?->getId();
         }
@@ -696,7 +699,7 @@ final class CustomerMailController
             'local_part' => $alias->getLocalPart(),
             'address' => $alias->getAddress(),
             'customer_id' => (string) $alias->getCustomer()->getId(),
-            'agent_id' => (string) $agentId,
+            'agent_id' => $agentId,
             'mail_enabled' => 'true',
             'mail_backend' => 'local',
             'smtp_enabled' => $this->resolveSmtpEnabled($domain),

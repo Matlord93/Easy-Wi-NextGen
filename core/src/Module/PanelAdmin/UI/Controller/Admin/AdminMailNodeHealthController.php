@@ -203,6 +203,10 @@ final class AdminMailNodeHealthController
 
     private function resolveAgentIdForMailNode(MailNode $mailNode): ?string
     {
+        $assignedAgent = $mailNode->getAgent();
+        if ($assignedAgent !== null) {
+            return $assignedAgent->getId();
+        }
         $mailDomains = $this->mailDomainRepository->findBy(['node' => $mailNode]);
         foreach ($mailDomains as $mailDomain) {
             $webspace = $mailDomain->getDomain()->getWebspace();

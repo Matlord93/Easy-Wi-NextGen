@@ -317,6 +317,10 @@ TWIG;
                 }
             }
 
+            if ($key === self::KEY_INSTANCE_BASE_DIR && is_string($value) && trim($value) !== '') {
+                $value = InstanceBaseDirectory::normalize($value);
+            }
+
             $merged[$key] = self::settingValue($value);
             $requestedKeys[$key] = true;
         }

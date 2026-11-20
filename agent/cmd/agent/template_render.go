@@ -112,7 +112,7 @@ func maskSensitiveValues(input string, values map[string]string) string {
 
 func isSensitiveKey(key string) bool {
 	normalized := strings.ToUpper(key)
-	indicators := []string{"PASSWORD", "TOKEN", "SECRET", "KEY", "RCON"}
+	indicators := []string{"PASSWORD", "TOKEN", "SECRET", "KEY", "RCON", "GSLT"}
 	for _, indicator := range indicators {
 		if strings.Contains(normalized, indicator) {
 			return true

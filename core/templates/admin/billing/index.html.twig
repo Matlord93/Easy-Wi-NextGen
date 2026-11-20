@@ -7,81 +7,22 @@
 
 {% block content %}
 <a href="{{ path('admin_billing_design') }}" class="ui-button ui-button--ghost">{{ 'billing.design'|trans({}, 'billing') }}</a>
-<div style="display:flex;flex-direction:column;gap:20px;">
+<div class="pm-workspace" data-panel-tabs="admin-billing">
 <a href="{{ path('admin_billing_settings') }}" class="ui-button ui-button--ghost">{{ 'billing.settings'|trans({}, 'billing') }}</a>
 
-    {# ── Hero with KPI ── #}
-    <section class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero" style="background:linear-gradient(135deg,#031a14 0%,#052916 50%,#07101f 100%);">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:16px;">
-                    <div>
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot" style="background:#34d399;"></span>
-                            {{ t('admin_billing_workbench_label', locale) }}
-                        </div>
-                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_billing_heading', locale) }}</h1>
-                        <p class="tkt-hero__sub">{{ t('admin_billing_intro', locale) }}</p>
-                    </div>
-                    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
-                        <div class="tkt-kpi tkt-kpi--open">
-                            <div class="tkt-kpi__label">{{ t('admin_billing_open_invoices', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.open }}</div>
-                        </div>
-                        <div class="tkt-kpi" style="border-color:rgba(252,165,165,.25);background:rgba(252,165,165,.07);">
-                            <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_billing_past_due', locale) }}</div>
-                            <div class="tkt-kpi__value" style="color:var(--aw-status-danger, #fca5a5);">{{ summary.past_due }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--resolved">
-                            <div class="tkt-kpi__label">{{ t('admin_billing_paid', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.paid }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {# ── Action bar ── #}
-        <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:12px;padding:16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-            <a href="/admin/billing/invoices/new" class="tkt-oldest">
-                <div style="display:flex;align-items:center;gap:14px;min-width:0;">
-                    <div class="tkt-oldest__icon">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    </div>
-                    <div style="min-width:0;">
-                        <div class="tkt-oldest__label">{{ t('admin_billing_create_invoice', locale) }}</div>
-                        <div class="tkt-oldest__subject">{{ t('admin_billing_recent_invoices_intro', locale) }}</div>
-                    </div>
-                </div>
-                <div class="tkt-oldest__btn">
-                    {{ t('admin_billing_create_invoice', locale) }}
-                    <svg style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-                </div>
-            </a>
-            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
-                <form method="post" action="/admin/billing/dunning" style="display:contents;"><input type="hidden" name="_token" value="{{ csrf_token('billing') }}">
-                    <button type="submit" class="tkt-qa">
-                        <div class="tkt-qa__icon" style="background:var(--ng-surface);color:var(--ng-text-muted);">⚡</div>
-                        <div class="tkt-qa__title">{{ t('admin_billing_run_dunning', locale) }}</div>
-                        <div class="tkt-qa__sub">{{ t('admin_billing_requires_dunning', locale) }}</div>
-                    </button>
-                </form>
-                <a href="/admin/billing/export?type=invoices" class="tkt-qa">
-                    <div class="tkt-qa__icon" style="background:var(--ng-surface);color:var(--ng-text-muted);">↓</div>
-                    <div class="tkt-qa__title">{{ t('admin_billing_export_invoices', locale) }}</div>
-                    <div class="tkt-qa__sub">{{ t('admin_billing_last_30_days', locale) }}</div>
-                </a>
-                <a href="/admin/billing/export?type=payments" class="tkt-qa">
-                    <div class="tkt-qa__icon" style="background:var(--ng-surface);color:var(--ng-text-muted);">↓</div>
-                    <div class="tkt-qa__title">{{ t('admin_billing_export_payments', locale) }}</div>
-                    <div class="tkt-qa__sub">{{ t('admin_billing_awaiting_payment', locale) }}</div>
-                </a>
-            </div>
-        </div>
-    </section>
+    <header class="pm-page-head"><div><h1>{{ t('admin_billing_heading',locale) }}</h1><p>{{ t('admin_billing_intro',locale) }}</p></div><div class="pm-page-head__actions">
+        <a class="ui-button ui-button--primary" href="/admin/billing/invoices/new">+ {{ t('admin_billing_create_invoice',locale) }}</a>
+        <details class="pm-actions-menu"><summary>{{ 'workspace_billing_actions'|trans({},'panel_modules') }}</summary><div>
+            <form method="post" action="/admin/billing/dunning"><input type="hidden" name="_token" value="{{ csrf_token('billing') }}"><button type="submit" class="ui-button ui-button--ghost">{{ t('admin_billing_run_dunning',locale) }}</button></form>
+            <a class="ui-button ui-button--ghost" href="/admin/billing/export?type=invoices">{{ t('admin_billing_export_invoices',locale) }}</a>
+            <a class="ui-button ui-button--ghost" href="/admin/billing/export?type=payments">{{ t('admin_billing_export_payments',locale) }}</a>
+        </div></details>
+    </div></header>
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'admin-billing',panelTabs:{overview:'workspace_invoices',credits:'workspace_credit_notes'}} %}
+    <div class="pm-stats">{% for label,value in {admin_billing_open_invoices:summary.open,admin_billing_past_due:summary.past_due,admin_billing_paid:summary.paid} %}{% include 'components/panel/_stat.html.twig' with {value:value,label:t(label,locale)} only %}{% endfor %}</div>
 
     {# ── Recent Invoices ── #}
-    <section class="ng-card" style="overflow:hidden;">
+    <section class="ng-card" style="overflow:hidden;" data-panel-section="overview">
         <div class="tkt-filter-bar">
             <div class="tkt-filter-bar__top">
                 <div>
@@ -158,7 +99,7 @@
     </section>
 
     {# ── Credit Notes ── #}
-    <section class="ng-card" style="overflow:hidden;">
+    <section class="ng-card" data-panel-section="credits" style="overflow:hidden;">
         <div class="tkt-filter-bar">
             <div class="tkt-filter-bar__top">
                 <div>

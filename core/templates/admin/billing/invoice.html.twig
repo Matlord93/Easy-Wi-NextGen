@@ -2,51 +2,23 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div style="display:flex;flex-direction:column;gap:20px;">
+<div class="pm-workspace" data-panel-tabs="admin-invoice">
 
   {% for error in archive_errors %}<div class="ng-alert ng-alert--danger">{{ error }}</div>{% endfor %}
-  <a href="{{ path('admin_billing_invoice_pdf', {id: invoice.id}) }}" class="ui-button ui-button--primary">{{ 'billing.download_pdf'|trans({}, 'billing') }}</a>
-  <a href="{{ path('admin_billing_electronic', {id: invoice.id}) }}" class="ui-button ui-button--ghost">{{ 'billing.einvoice'|trans({}, 'billing') }}</a>
-  <section class="ng-card" style="overflow:hidden;">
-    <div class="tkt-hero">
-      <div class="tkt-hero__inner">
-        <div>
-          <div class="tkt-hero__pill"><span class="tkt-hero__pill-dot"></span> {{ t('admin_billing_invoice_back', locale) }}</div>
-          <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_billing_invoice_heading', locale)|replace({'%number%': invoice.number}) }}</h1>
-          <p class="tkt-hero__sub">{{ t('admin_billing_invoice_meta', locale)|replace({'%customer%': invoice.customer, '%date%': invoice.created_at|date('Y-m-d')}) }}</p>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px;">
-          <div class="tkt-kpi">
-            <div class="tkt-kpi__label">{{ t('admin_billing_invoice_amount_due', locale) }}</div>
-            <div class="tkt-kpi__value">{{ invoice.amount_due / 100 }} {{ invoice.currency }}</div>
-          </div>
-          <div class="tkt-kpi">
-            <div class="tkt-kpi__label">{{ t('admin_billing_invoice_due_date', locale) }}</div>
-            <div class="tkt-kpi__value">{{ invoice.due_date|date('Y-m-d') }}</div>
-          </div>
-          <div class="tkt-kpi">
-            <div class="tkt-kpi__label">{{ t('admin_billing_table_status', locale) }}</div>
-            <div class="tkt-kpi__value" style="margin-top:6px;">
-              {% if invoice.status == 'paid' %}
-                <span class="ui-badge ui-badge--success">{{ t('admin_billing_status_paid', locale) }}</span>
-              {% elseif invoice.status == 'past_due' %}
-                <span class="ui-badge ui-badge--warning">{{ t('admin_billing_status_past_due', locale) }}</span>
-              {% elseif invoice.status == 'open' %}
-                <span class="ui-badge ui-badge--info">{{ t('admin_billing_status_open', locale) }}</span>
-              {% else %}
-                <span class="ui-badge ui-badge--neutral">{{ invoice.status|replace({'_': ' '})|title }}</span>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-      <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/billing">{{ t('admin_billing_invoice_back', locale) }}</a>
-    </div>
-  </section>
-
-  <div class="ng-data-card">
+  <header class="pm-page-head"><div><h1>{{ t('admin_billing_invoice_heading',locale)|replace({'%number%':invoice.number ?: '#' ~ invoice.id}) }}</h1><p>{{ t('admin_billing_invoice_meta',locale)|replace({'%customer%':invoice.customer,'%date%':invoice.created_at|date('Y-m-d')}) }}</p></div><div class="pm-page-head__actions">
+    <a class="ui-button ui-button--primary" href="{{ path('admin_billing_invoice_pdf',{id:invoice.id}) }}">{{ 'billing.download_pdf'|trans({},'billing') }}</a>
+    <a class="ui-button ui-button--ghost" href="{{ path('admin_billing_electronic',{id:invoice.id}) }}">{{ 'billing.einvoice'|trans({},'billing') }}</a>
+    <a class="ui-button ui-button--ghost" href="/admin/billing">{{ t('admin_billing_invoice_back',locale) }}</a>
+  </div></header>
+  {% set invoiceTabs = {overview:'overview',archive:'workspace_invoice_archive',layout:'workspace_document_preview',activity:'activity'} %}{% if invoice.status != 'cancelled' %}{% set invoiceTabs = invoiceTabs|merge({adjustments:'workspace_invoice_adjustments'}) %}{% endif %}
+  {% include 'components/panel/_tabs.html.twig' with {panelKey:'admin-invoice',panelTabs:invoiceTabs} %}
+  <div class="pm-stats">
+    {% include 'components/panel/_stat.html.twig' with {value:(invoice.amount_due / 100)|number_format(2,'.',',') ~ ' ' ~ invoice.currency,label:t('admin_billing_invoice_amount_due',locale)} only %}
+    {% include 'components/panel/_stat.html.twig' with {value:invoice.due_date|date('Y-m-d'),label:t('admin_billing_invoice_due_date',locale)} only %}
+    {% include 'components/panel/_stat.html.twig' with {value:('billing.state.' ~ invoice.status)|trans({},'billing'),label:'billing.status'|trans({},'billing')} only %}
+  </div>
+  <section class="cust-panel" data-panel-section="overview"><div class="cust-panel__head"><h2 class="cust-panel__title">{{ 'workspace_invoice_items'|trans({},'panel_modules') }}</h2></div>{% include 'billing/_items.html.twig' %}</section>
+  <div class="ng-data-card" data-panel-section="overview">
     <div class="ng-data-card__header">
       <div>
         <h2 class="ng-data-card__title">{{ t('admin_billing_invoice_payment_actions', locale) }}</h2>
@@ -79,7 +51,7 @@
     </div>
   </div>
 
-  <div class="ng-data-card">
+  <div class="ng-data-card" data-panel-section="archive">
     <div class="ng-data-card__header">
       <div>
         <h2 class="ng-data-card__title">{{ t('admin_billing_archive_title', locale) }}</h2>
@@ -128,7 +100,7 @@
     </div>
   </div>
 
-  <div class="ng-data-card">
+  <div class="ng-data-card" data-panel-section="layout">
     <div class="ng-data-card__header">
       <div>
         <h2 class="ng-data-card__title">{{ t('admin_billing_layout_title', locale) }}</h2>
@@ -148,7 +120,7 @@
   </div>
 
   {% if invoice.status != 'cancelled' %}
-  <section class="ng-data-card">
+  <section class="ng-data-card" data-panel-section="adjustments">
     <div class="ng-data-card__body">
       <h2>{{ 'billing.adjustments'|trans({}, 'billing') }}</h2>
       <p>{{ 'billing.credit_hint'|trans({}, 'billing') }}</p>
@@ -170,7 +142,7 @@
   {% elseif invoice.cancellation_reason %}
     <p>{{ 'billing.cancelled'|trans({}, 'billing') }}: {{ invoice.cancellation_reason }}</p>
   {% endif %}
-  {% include 'billing/_items.html.twig' %}
-  {% include 'billing/_history.html.twig' %}
+
+  <section data-panel-section="activity">{% include 'billing/_history.html.twig' %}</section>
 </div>
 {% endblock %}

@@ -1,0 +1,21 @@
+{% set headingTheme = cmsTheme|default(active_theme|default('minimal')) %}
+{% set modernHeading = headingTheme in ['hosting','clan','private'] %}
+{% if modernHeading %}
+<section class="cms-page-heading{% if home|default(false) %} cms-page-heading--home{% endif %}" data-cms-page-heading>
+    <div class="cms-container cms-page-heading__inner">
+        <div><p class="cms-eyebrow">{{ ('theme_' ~ headingTheme)|cms_trans }}</p><h1>{{ heading }}</h1>{% if intro|default('') != '' %}<p class="cms-lead">{{ intro }}</p>{% endif %}</div>
+        {% if home|default(false) %}
+            <div class="cms-heading-actions">
+                {% if headingTheme == 'hosting' and cmsSite.shop %}<a class="cms-button" href="/shop">{{ 'browse_products'|cms_trans }}</a>
+                {% elseif headingTheme == 'clan' %}
+                    {% if cmsSite.modules.team|default(false) %}<a class="cms-button" href="/teams">{{ 'nav_team'|cms_trans }}</a>{% endif %}
+                    {% if cmsSite.modules.events|default(false) %}<a class="cms-button cms-button--secondary" href="/events">{{ 'nav_events'|cms_trans }}</a>{% endif %}
+                {% endif %}
+                <a class="cms-button cms-button--secondary" href="{{ panelUrl }}">{{ (actor ? 'open_panel' : 'account_access')|cms_trans }}</a>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% else %}
+<div class="ng-page-hero"><div class="ng-container"><nav class="ng-breadcrumb"><a href="/">{{ 'media_home'|cms_trans }}</a><span>{{ heading }}</span></nav><h1 class="ng-page-hero__title text-3xl font-bold ng-gradient-text">{{ heading }}</h1>{% if intro|default('') != '' %}<p class="mt-2 text-sm text-slate-400">{{ intro }}</p>{% endif %}</div></div>
+{% endif %}

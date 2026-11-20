@@ -13,7 +13,7 @@ use Symfony\Component\Routing\Attribute\Route;
 
 /**
  * Receives inbound webhook events from payment providers (Stripe, etc.).
- * Route: POST /billing/webhook/{provider}
+ * Route: POST /billing/webhook/{provider}.
  *
  * This endpoint must be publicly accessible (no authentication) because it is
  * called directly by the payment provider. Signature verification is delegated
@@ -33,8 +33,9 @@ final class PaymentWebhookController
     {
         $providerService = $this->providerRegistry->get($provider);
 
-        if ($providerService === null) {
+        if (null === $providerService) {
             $this->logger->warning('payment.webhook.unknown_provider', ['provider' => $provider]);
+
             return new JsonResponse(['error' => 'Unknown provider.'], Response::HTTP_NOT_FOUND);
         }
 
@@ -45,8 +46,9 @@ final class PaymentWebhookController
         } catch (\Throwable $e) {
             $this->logger->error('payment.webhook.handler_failed', [
                 'provider' => $provider,
-                'error'    => $e->getMessage(),
+                'exception_type' => $e::class,
             ]);
+
             return new JsonResponse(['error' => 'Webhook processing failed.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 

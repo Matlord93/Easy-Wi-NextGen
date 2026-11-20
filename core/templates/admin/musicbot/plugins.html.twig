@@ -2,10 +2,10 @@
 
 {% block title %}Musicbot Plugins{% endblock %}
 
-{% block body %}
-<div class="ng-card" style="padding:20px;">
-    <h1 style="margin:0 0 8px;color:var(--ng-text);font-size:22px;">Musicbot Plugins</h1>
-    <p style="margin:0 0 16px;color:var(--ng-text-muted);">Plugins werden nur per Manifest registriert, konfiguriert und zugewiesen. Es wird kein hochgeladener Plugin-Code ausgeführt.</p>
+{% set activeNav = 'musicbots' %}
+{% block content %}
+<div class="pm-workspace">
+<header class="pm-page-head"><div><h1>{{ 'workspace_music_plugins'|trans({},'panel_modules') }}</h1><p>{{ 'workspace_music_plugins_intro'|trans({},'panel_modules') }}</p></div><div class="pm-page-head__actions"></div></header>
 
     <h2 style="font-size:18px;color:var(--ng-text);">Registrierte Manifeste</h2>
     {% for manifest in manifests %}

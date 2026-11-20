@@ -1,0 +1,7 @@
+{% extends 'themes/site/base.html.twig' %}
+{% block content %}
+{% set home = page.slug == 'startseite' %}
+{% include 'themes/site/_page_heading.html.twig' with {heading:page.title, intro:home ? ('intro_' ~ cmsTheme)|cms_trans : '', home:home} %}
+<div class="cms-container cms-page-content"><div class="cms-blocks" data-cms-blocks>{% for block in blocks|default([]) %}<section class="cms-content-block" data-cms-block="{{ block.type }}">{% include 'public/blocks/_block.html.twig' with {block:block,text_class:'cms-prose'} only %}</section>{% else %}<div class="cms-empty">{{ t('public_no_content',page_locale()) }}</div>{% endfor %}</div></div>
+{% if home and cmsTheme == 'hosting' and cmsSite.shop and blocks|default([])|filter(b => b.type == 'shop_products')|length == 0 %}<section class="cms-container cms-home-shop" data-cms-home-shop>{{ cms_shop_preview() }}</section>{% endif %}
+{% endblock %}

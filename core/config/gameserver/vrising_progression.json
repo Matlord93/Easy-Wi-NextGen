@@ -1,0 +1,397 @@
+{
+  "UnlockedAchievements": [
+    {
+      "id": -1770927128,
+      "label": "Collecting the Remains"
+    },
+    {
+      "id": 436375429,
+      "label": "Wielding the Sword"
+    },
+    {
+      "id": -1400391027,
+      "label": "Mastering Magic"
+    },
+    {
+      "id": -2102083739,
+      "label": "Defensive Measures"
+    },
+    {
+      "id": 1566228114,
+      "label": "Hides of the Wild"
+    },
+    {
+      "id": 1695239324,
+      "label": "Into the Woods"
+    },
+    {
+      "id": -54280488,
+      "label": "Gathering"
+    },
+    {
+      "id": 1694767961,
+      "label": "Lord of Shadows"
+    },
+    {
+      "id": -1899098914,
+      "label": "Fortify"
+    },
+    {
+      "id": -122882616,
+      "label": "Shelter"
+    },
+    {
+      "id": 560247139,
+      "label": "Getting Ready for the Hunt"
+    },
+    {
+      "id": -1995132640,
+      "label": "Blood Hunt"
+    },
+    {
+      "id": -302458684,
+      "label": "Thirst for Power"
+    },
+    {
+      "id": -1434604634,
+      "label": "The First Book in the Library"
+    },
+    {
+      "id": 1668809517,
+      "label": "Expanding my Domain"
+    },
+    {
+      "id": 334973636,
+      "label": "Building a Castle"
+    },
+    {
+      "id": 134993992,
+      "label": "Waygate"
+    },
+    {
+      "id": 606418711,
+      "label": "Lord of the Manor"
+    },
+    {
+      "id": -892747762,
+      "label": "Servants"
+    },
+    {
+      "id": -437605270,
+      "label": "Army of Darkness"
+    },
+    {
+      "id": -1472413073,
+      "label": "Broaden Horizons"
+    },
+    {
+      "id": 1248242594,
+      "label": "Blood on Tap"
+    },
+    {
+      "id": -327597689,
+      "label": "Throne of Command"
+    },
+    {
+      "id": 149111189,
+      "label": "Reign Supreme"
+    },
+    {
+      "id": -452204266,
+      "label": "An Eye into Mortium"
+    },
+    {
+      "id": 1805684941,
+      "label": "A Castle Reaching the Sky"
+    },
+    {
+      "id": -699165894,
+      "label": "Nightfall Steed"
+    },
+    {
+      "id": 1861267375,
+      "label": "Vampire Empire"
+    },
+    {
+      "id": -2104585843,
+      "label": "Soul Stones"
+    },
+    {
+      "id": 1762480233,
+      "label": "Lord of the Night"
+    }
+  ],
+  "UnlockedResearchs": [
+    {
+      "id": -495424062,
+      "label": "All Tier 1 Research"
+    },
+    {
+      "id": -1292809886,
+      "label": "All Tier 2 Research"
+    },
+    {
+      "id": -1262194203,
+      "label": "All Tier 3 Research"
+    }
+  ],
+  "VBloodUnitSettings": [
+    {
+      "id": -1905691330,
+      "label": "Alpha the White Wolf"
+    },
+    {
+      "id": 1124739990,
+      "label": "Keely the Frost Archer"
+    },
+    {
+      "id": -2025101517,
+      "label": "Errol the Stonebreaker"
+    },
+    {
+      "id": 2122229952,
+      "label": "Rufus the Foreman"
+    },
+    {
+      "id": 1106149033,
+      "label": "Grayson the Armourer"
+    },
+    {
+      "id": 577478542,
+      "label": "Goreswine the Ravager"
+    },
+    {
+      "id": 763273073,
+      "label": "Lidia the Chaos Archer"
+    },
+    {
+      "id": -2039908510,
+      "label": "Nibbles the Putrid Rat"
+    },
+    {
+      "id": 1896428751,
+      "label": "Clive the Firestarter"
+    },
+    {
+      "id": -2122682556,
+      "label": "Finn the Fisherman"
+    },
+    {
+      "id": -484556888,
+      "label": "Polora the Feywalker"
+    },
+    {
+      "id": -1391546313,
+      "label": "Kodia the Ferocious Bear"
+    },
+    {
+      "id": 153390636,
+      "label": "Nicholaus the Fallen"
+    },
+    {
+      "id": -1659822956,
+      "label": "Quincey the Bandit King"
+    },
+    {
+      "id": -1942352521,
+      "label": "Beatrice the Tailor"
+    },
+    {
+      "id": -29797003,
+      "label": "Vincent the Frostbringer"
+    },
+    {
+      "id": -1449631170,
+      "label": "Tristan the Vampire Hunter"
+    },
+    {
+      "id": -99012450,
+      "label": "Christina the Sun Priestess"
+    },
+    {
+      "id": 619948378,
+      "label": "Sir Erwin the Gallant Cavalier"
+    },
+    {
+      "id": -1365931036,
+      "label": "Kriig the Undead General"
+    },
+    {
+      "id": 1945956671,
+      "label": "Maja the Dark Savant"
+    },
+    {
+      "id": 939467639,
+      "label": "Leandra the Shadow Priestess"
+    },
+    {
+      "id": 910988233,
+      "label": "Grethel the Glassblower"
+    },
+    {
+      "id": 613251918,
+      "label": "Bane the Shadowblade"
+    },
+    {
+      "id": 850622034,
+      "label": "Meredith the Bright Archer"
+    },
+    {
+      "id": -1065970933,
+      "label": "Terah the Geomancer"
+    },
+    {
+      "id": 24378719,
+      "label": "Frostmaw the Mountain Terror"
+    },
+    {
+      "id": 795262842,
+      "label": "General Elena the Hollow"
+    },
+    {
+      "id": -753453016,
+      "label": "Gaius the Cursed Champion"
+    },
+    {
+      "id": -496360395,
+      "label": "General Cassius the Betrayer"
+    },
+    {
+      "id": -1968372384,
+      "label": "Jade the Vampire Hunter"
+    },
+    {
+      "id": -680831417,
+      "label": "Raziel the Shepherd"
+    },
+    {
+      "id": 1688478381,
+      "label": "Octavian the Militia Captain"
+    },
+    {
+      "id": -1101874342,
+      "label": "Domina the Blade Dancer"
+    },
+    {
+      "id": 172235178,
+      "label": "Ziva the Engineer"
+    },
+    {
+      "id": 106480588,
+      "label": "Angram the Purifier"
+    },
+    {
+      "id": -548489519,
+      "label": "Ungora the Spider Queen"
+    },
+    {
+      "id": 109969450,
+      "label": "Ben the Old Wanderer"
+    },
+    {
+      "id": -1208888966,
+      "label": "Foulrot the Soultaker"
+    },
+    {
+      "id": -203043163,
+      "label": "Albert the Duke of Balaton"
+    },
+    {
+      "id": -1505705712,
+      "label": "Willfred the Werewolf Chief"
+    },
+    {
+      "id": 326378955,
+      "label": "Cyril the Cursed Smith"
+    },
+    {
+      "id": -26105228,
+      "label": "Sir Magnus the Overseer"
+    },
+    {
+      "id": -2013903325,
+      "label": "Mairwyn the Elementalist"
+    },
+    {
+      "id": 192051202,
+      "label": "Baron du Bouchon the Sommelier"
+    },
+    {
+      "id": 685266977,
+      "label": "Morian the Stormwing Matriarch"
+    },
+    {
+      "id": 814083983,
+      "label": "Henry Blackbrew the Doctor"
+    },
+    {
+      "id": -1383529374,
+      "label": "Jakira the Shadow Huntress"
+    },
+    {
+      "id": -1669199769,
+      "label": "Stavros the Carver"
+    },
+    {
+      "id": 1295855316,
+      "label": "Lucile the Venom Alchemist"
+    },
+    {
+      "id": -910296704,
+      "label": "Matka the Curse Weaver"
+    },
+    {
+      "id": -1347412392,
+      "label": "Terrorclaw the Ogre"
+    },
+    {
+      "id": 114912615,
+      "label": "Azariel the Sunbringer"
+    },
+    {
+      "id": 2054432370,
+      "label": "Voltatia the Power Master"
+    },
+    {
+      "id": 336560131,
+      "label": "Simon Belmont the Vampire Hunter"
+    },
+    {
+      "id": 173259239,
+      "label": "Dantos the Forgebinder"
+    },
+    {
+      "id": 1112948824,
+      "label": "Lord Styx the Night Champion"
+    },
+    {
+      "id": -1936575244,
+      "label": "Gorecrusher the Behemoth"
+    },
+    {
+      "id": 495971434,
+      "label": "General Valencia the Depraved"
+    },
+    {
+      "id": -740796338,
+      "label": "Solarus the Immaculate"
+    },
+    {
+      "id": -393555055,
+      "label": "Talzur the Winged Horror"
+    },
+    {
+      "id": 591725925,
+      "label": "Megara the Serpent Queen"
+    },
+    {
+      "id": 1233988687,
+      "label": "Adam the Firstborn"
+    },
+    {
+      "id": -327335305,
+      "label": "Dracula the Immortal King"
+    }
+  ],
+  "_source": "https://github.com/AudaciousBovine/VRising-Modding-Wiki/blob/a5155d2e12f6fd4e25dd902ec759524ca23eac1c/_data/serverGameSettings.json"
+}

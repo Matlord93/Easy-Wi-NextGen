@@ -1,5 +1,5 @@
 {% set locale = page_locale() %}
-<div class="ng-card" style="overflow:hidden;">
+<div id="ticket-form" data-panel-validation class="ng-card" style="overflow:hidden;" hx-get="/admin/tickets/form" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
     <div style="padding:18px 20px;border-bottom:1px solid var(--ng-border);">
         <h2 style="margin:0;font-size:15px;font-weight:700;color:var(--ng-text);">{{ t('admin_tickets_form_title', locale) }}</h2>
         <p style="margin:3px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('admin_tickets_form_intro', locale) }}</p>
@@ -85,7 +85,7 @@
         {% endif %}
 
         <div style="display:flex;justify-content:flex-end;gap:8px;">
-            <button type="button" class="ui-button ui-button--ghost" onclick="document.getElementById('new-ticket-section').classList.add('hidden')">{{ t('ticket_ui_cancel', locale) }}</button>
+            <button type="button" class="ui-button ui-button--ghost" data-panel-reveal="overview">{{ t('ticket_ui_cancel', locale) }}</button>
             <button type="submit" class="ui-button ui-button--primary">{{ t('admin_tickets_form_submit', locale) }}</button>
         </div>
     </form>

@@ -1,13 +1,14 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="{{ page_locale() }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}{{ page.title|default('Clan') }}{% endblock %}</title>
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="{{ asset('themes/' ~ (active_theme|default('titan-squad')) ~ '/css/theme.css') }}">
+    <link rel="stylesheet" href="{{ asset('workspace-public.css') }}">
 </head>
-<body class="theme-shell">
+<body class="easywi-workspace-public theme-shell">
   {% if cms_layout.show_header|default(true) %}
     {% block header %}
       <header class="hero">
@@ -17,12 +18,13 @@
     {% endblock %}
   {% endif %}
 
-  <main class="{% block main_class %}{% endblock %}">{% block body %}{% endblock %}</main>
+  <main class="{% block main_class %}{% endblock %}">{% block body %}{% block content %}{% endblock %}{% endblock %}</main>
 
   {% if cms_layout.show_footer|default(true) %}
     {% block footer %}
       <footer>© {{ "now"|date("Y") }} {{ cms_branding.name|default('Team') }}</footer>
     {% endblock %}
   {% endif %}
+{% include 'cms/layout/_cookie_consent.html.twig' %}
 </body>
 </html>

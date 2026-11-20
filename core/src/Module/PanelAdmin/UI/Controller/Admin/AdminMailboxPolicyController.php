@@ -33,7 +33,7 @@ final class AdminMailboxPolicyController
         $abuseEnabled = filter_var($p['abuse_policy_enabled'] ?? false, FILTER_VALIDATE_BOOL);
         $domain=$mailbox->getDomain();
         $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
-        $agentId = $mailDomain?->getNode()?->getId() ?? $domain->getWebspace()?->getNode()?->getId();
+        $agentId = $mailDomain?->getNode()->getAgent()?->getId() ?? $domain->getWebspace()?->getNode()?->getId();
         if ($agentId === null) return new JsonResponse(['error' => 'No mail agent/node assigned to this domain.'], 400);
         $policy=$this->mailPolicyRepository->findOneByDomain($domain) ?? new \App\Module\Core\Domain\Entity\MailPolicy($domain);
         $this->entityManager->persist($policy);
@@ -44,8 +44,8 @@ final class AdminMailboxPolicyController
             'domain' => $domain->getName(),
             'local_part' => $mailbox->getLocalPart(),
             'mail_node_id' => (string) ($mailDomain?->getNode()?->getId() ?? ''),
-            'node_id' => (string) $agentId,
-            'agent_id' => (string) $agentId,
+            'node_id' => $agentId,
+            'agent_id' => $agentId,
             'smtp_enabled' => $smtpEnabled ? 'true' : 'false',
             'send_limit_hour' => (string) $send,
             'recipient_limit' => (string) $rec,

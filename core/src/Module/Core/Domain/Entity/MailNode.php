@@ -14,6 +14,7 @@ use Doctrine\ORM\Mapping as ORM;
  */
 #[ORM\Entity(repositoryClass: MailNodeRepository::class)]
 #[ORM\Table(name: 'mail_nodes')]
+#[ORM\Index(name: 'idx_mail_node_agent', columns: ['agent_id'])]
 class MailNode
 {
     #[ORM\Id]
@@ -38,6 +39,30 @@ class MailNode
 
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $roundcubeUrl;
+
+    #[ORM\ManyToOne(targetEntity: Agent::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Agent $agent = null;
+
+    public function getAgent(): ?Agent
+    {
+        return $this->agent;
+    }
+
+    public function setAgent(?Agent $agent): void
+    {
+        $this->agent = $agent;
+    }
+
+    public function updateConnection(string $name, string $imapHost, int $imapPort, string $smtpHost, int $smtpPort, ?string $roundcubeUrl): void
+    {
+        $this->name = $name;
+        $this->imapHost = $imapHost;
+        $this->imapPort = $imapPort;
+        $this->smtpHost = $smtpHost;
+        $this->smtpPort = $smtpPort;
+        $this->roundcubeUrl = $roundcubeUrl;
+    }
 
     public function __construct(string $name, string $imapHost, int $imapPort, string $smtpHost, int $smtpPort, ?string $roundcubeUrl)
     {

@@ -9,65 +9,36 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="flex flex-col gap-6">
+<div class="pm-workspace" data-panel-tabs="schedules">
 
-    {# KPI summary #}
-    <div class="ng-kpi-row">
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_schedules_scheduler_label', locale) }}</div>
-            <div class="ng-kpi-box__value {{ summary.scheduler_running ? 'ng-kpi-box__value--success' : 'ng-kpi-box__value--danger' }}">
-                {{ t(summary.scheduler_running ? 'admin_schedules_running' : 'admin_schedules_stopped', locale) }}
-            </div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_schedules_last_heartbeat', locale) }}</div>
-            <div class="ng-kpi-box__value">{{ summary.last_heartbeat ? summary.last_heartbeat|date('Y-m-d H:i:s') : '—' }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_schedules_due_tasks', locale) }}</div>
-            <div class="ng-kpi-box__value">{{ summary.due_tasks }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_schedules_errors_24h', locale) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--danger">{{ summary.failed_24h }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_schedules_jobs_24h', locale) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--info">{{ summary.created_jobs_24h }}</div>
-        </div>
+    <header class="pm-page-head"><div><h1>{{ t('admin_schedules_page_title',locale) }}</h1><p>{{ t('admin_schedules_page_desc',locale) }}</p></div></header>
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'schedules',panelTabs:{overview:'workspace_inventory',history:'workspace_history'}} %}
+    <div class="pm-stats pm-stats--five">
+{% include 'components/panel/_stat.html.twig' with {value:t(summary.scheduler_running ? 'admin_schedules_running' : 'admin_schedules_stopped',locale),label:t('admin_schedules_scheduler_label',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.last_heartbeat ? summary.last_heartbeat|date('d.m.Y H:i:s') : '—',label:t('admin_schedules_last_heartbeat',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.due_tasks,label:t('admin_schedules_due_tasks',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.failed_24h,label:t('admin_schedules_errors_24h',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.created_jobs_24h,label:t('admin_schedules_jobs_24h',locale)} only %}
     </div>
 
     {# Schedules table #}
-    <div class="ng-data-card">
+    <div class="ng-data-card" data-panel-section="overview" data-panel-list>
         <div class="ng-data-card__header">
             <div>
                 <h2 class="ng-data-card__title">{{ t('admin_schedules_page_title', locale) }}</h2>
             </div>
         </div>
+        <div class="pm-filters"><input class="form-input" data-panel-filter aria-label="{{ 'workspace_schedule_search'|trans({},'panel_modules') }}" placeholder="{{ 'workspace_schedule_search'|trans({},'panel_modules') }}"></div>
         <div class="ng-data-card__body ng-data-card__body--flush">
             <div class="cust-ws-table-wrap">
                 <table class="cust-table">
                     <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>{{ t('admin_schedules_module', locale) }}</th>
-                            <th>{{ t('admin_schedules_type', locale) }}</th>
-                            <th>{{ t('admin_schedules_active_status', locale) }}</th>
-                            <th>{{ t('admin_schedules_cron', locale) }}</th>
-                            <th>{{ t('admin_schedules_next_execution', locale) }}</th>
-                            <th>{{ t('admin_schedules_last_execution', locale) }}</th>
-                            <th>{{ t('admin_schedules_status', locale) }}</th>
-                            <th>{{ t('admin_schedules_error', locale) }}</th>
-                            <th>{{ t('admin_schedules_last_job', locale) }}</th>
-                            <th>{{ t('admin_schedules_actions', locale) }}</th>
-                        </tr>
+                        <tr><th>{{ t('name',locale) }}</th><th>{{ t('status',locale) }}</th><th>{{ 'workspace_schedule_timing'|trans({},'panel_modules') }}</th><th>{{ 'workspace_schedule_result'|trans({},'panel_modules') }}</th><th>{{ t('actions',locale) }}</th></tr>
                     </thead>
                     <tbody>
                         {% for schedule in schedules %}
-                            <tr>
-                                <td><code>{{ schedule.source }}:{{ schedule.id }}</code></td>
-                                <td>
+                            <tr data-panel-row>
+                                <td class="pm-schedule-name">
                                     <span class="font-medium">{{ schedule.name }}</span>
                                     {% if schedule.created_at or schedule.updated_at %}
                                         <p class="mt-1 text-sm text-slate-500">Erstellt: {{ schedule.created_at ? schedule.created_at|date('Y-m-d H:i') : '—' }} · Geändert: {{ schedule.updated_at ? schedule.updated_at|date('Y-m-d H:i') : '—' }}</p>
@@ -83,22 +54,16 @@
                                     {% if schedule.payload.privacy_gdpr is defined and schedule.payload.privacy_gdpr %}
                                         <p class="mt-1 text-sm text-slate-500">Diese Hintergrundjobs bereinigen Datenschutz-/GDPR-bezogene temporäre Daten. Sie können selbst entscheiden, ob diese Automatisierung aktiv ist.</p>
                                     {% endif %}
-                                </td>
-                                <td>{{ schedule.module }}</td>
-                                <td><code>{{ schedule.type }}</code></td>
+                                <p class="pm-schedule-meta"><code>{{ schedule.source }}:{{ schedule.id }}</code> · {{ schedule.module }} · <code>{{ schedule.type }}</code></p></td>
                                 <td>
                                     {% if schedule.enabled %}
                                         <span class="ui-badge ui-badge--success">{{ t('admin_schedules_active_status', locale) }}</span>
                                     {% else %}
                                         <span class="ui-badge ui-badge--neutral">{{ t('admin_schedules_stopped', locale) }}</span>
                                     {% endif %}
-                                </td>
-                                <td><code>{{ schedule.cron_expression }}</code></td>
-                                <td>{{ schedule.next_run_at ? schedule.next_run_at|date('Y-m-d H:i') : '—' }}</td>
-                                <td>{{ schedule.last_run_at ? schedule.last_run_at|date('Y-m-d H:i') : '—' }}</td>
-                                <td>{{ schedule.last_status ?: '—' }}</td>
-                                <td>{{ schedule.last_error ?: '—' }}</td>
-                                <td>{{ schedule.last_job_id ?: '—' }}</td>
+                                <p class="pm-schedule-meta">{{ t('admin_schedules_status',locale) }}: {{ schedule.last_status ?: '—' }}</p></td>
+                                <td><code>{{ schedule.cron_expression }}</code><p class="pm-schedule-meta">{{ t('admin_schedules_next_execution',locale) }}: {{ schedule.next_run_at ? schedule.next_run_at|date('Y-m-d H:i') : '—' }}</p><p class="pm-schedule-meta">{{ t('admin_schedules_last_execution',locale) }}: {{ schedule.last_run_at ? schedule.last_run_at|date('Y-m-d H:i') : '—' }}</p></td>
+                                <td class="pm-backup-meta"><p>{{ t('admin_schedules_last_job',locale) }}: <code>{{ schedule.last_job_id ?: '—' }}</code></p><p class="pm-schedule-meta">{{ t('admin_schedules_error',locale) }}: {{ schedule.last_error ?: '—' }}</p></td>
                                 <td>
                                     <div class="flex flex-wrap gap-2">
                                         <form method="post" action="{{ path('admin_schedules_run_now') }}">
@@ -115,13 +80,12 @@
                                         </form>
                                         <a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_schedules_history', {source: schedule.source, id: schedule.id}) }}">{{ t('admin_schedules_history', locale) }}</a>
                                         <a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_schedules_logs', {source: schedule.source, id: schedule.id}) }}">{{ t('admin_schedules_logs_link', locale) }}</a>
-                                        <span class="ui-button ui-button--ghost ui-button--sm text-slate-400 cursor-not-allowed">{{ t('admin_schedules_edit', locale) }}</span>
                                     </div>
                                 </td>
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="12" class="cust-table__empty">{{ t('admin_schedules_none_found', locale) }}</td>
+                                <td colspan="5" class="cust-table__empty">{{ t('admin_schedules_none_found', locale) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -131,7 +95,7 @@
     </div>
 
     {# Recent runs #}
-    <div class="ng-data-card">
+    <div class="ng-data-card" data-panel-section="history">
         <div class="ng-data-card__header">
             <div>
                 <h2 class="ng-data-card__title">{{ t('admin_schedules_recent_runs', locale) }}</h2>

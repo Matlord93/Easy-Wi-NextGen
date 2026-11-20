@@ -6,7 +6,7 @@ namespace App\Module\Cms\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\CmsEvent;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
@@ -24,7 +24,7 @@ final class AdminCmsEventsController
 {
     public function __construct(
         private readonly CmsEventRepository $eventRepository,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
@@ -101,7 +101,7 @@ final class AdminCmsEventsController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $event = $this->eventRepository->find($id);
+        $event = $this->findForSite($request, $id);
         if (!$event instanceof CmsEvent) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
@@ -119,7 +119,7 @@ final class AdminCmsEventsController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $event = $this->eventRepository->find($id);
+        $event = $this->findForSite($request, $id);
         if (!$event instanceof CmsEvent) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
@@ -147,13 +147,21 @@ final class AdminCmsEventsController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $event = $this->eventRepository->find($id);
-        if ($event instanceof CmsEvent) {
-            $this->entityManager->remove($event);
-            $this->entityManager->flush();
+        $event = $this->findForSite($request, $id);
+        if (!$event instanceof CmsEvent) {
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
+        $this->entityManager->remove($event);
+        $this->entityManager->flush();
 
         return new RedirectResponse('/admin/cms/events');
+    }
+
+    private function findForSite(Request $request, int $id): ?CmsEvent
+    {
+        $site = $this->siteResolver->resolve($request);
+
+        return $site instanceof Site ? $this->eventRepository->findOneBy(['id' => $id, 'site' => $site]) : null;
     }
 
     private function isAdmin(Request $request): bool

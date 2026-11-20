@@ -19,17 +19,9 @@
 {% set nextPaymentAmount = nextPayment ? (nextPayment.amount_due / 100)|number_format(2, ',', '.') ~ ' ' ~ nextPayment.currency : '—' %}
 {% set ticketPercent = summary.tickets_total > 0 ? ((summary.tickets_open / summary.tickets_total) * 100)|round(0, 'common') : 0 %}
 
-<div class="cust-page infra-page infra-dashboard">
+<div class="cust-page pm-workspace infra-page infra-dashboard" data-panel-tabs="customer-dashboard">
 
-    {# ── Hero ── #}
-    <div class="cust-hero">
-        <div class="cust-hero__inner">
-            <div>
-                <div class="cust-hero__label">{{ t('customer_dashboard_title', page_locale()) }}</div>
-                <h1 class="cust-hero__title">{{ t('customer_dashboard_welcome', page_locale()) }} {{ customerName }}</h1>
-                <p class="cust-hero__desc">{{ customerEmail }} · {{ t('customer_dashboard_subtitle', page_locale()) }}</p>
-            </div>
-            <div class="cust-hero__actions">
+    <header class="pm-page-head"><div><h1>{{ t('customer_dashboard_welcome',page_locale()) }} {{ customerName }}</h1><p>{{ t('customer_dashboard_subtitle',page_locale()) }}</p></div><div class="pm-page-head__actions">
                 <a href="{{ path('customer_instances') }}" class="ui-button ui-button--ghost">
                     <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 6.027a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2.5-.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm-6.5-3h1v1h1v1h-1v1h-1v-1h-1v-1h1v-1z"/><path d="M3.051 3.26a.5.5 0 0 1 .354-.613l1.932-.518a.5.5 0 0 1 .62.44l.293 1.5 7.499-.255a.5.5 0 0 1 .51.54l-.327 3.498a.5.5 0 0 1-.374.46l-2.555.647a.5.5 0 0 1-.608-.376l-.274-1.371-3.79 1.022a.5.5 0 0 1-.61-.391L3.051 3.26z"/></svg>
                     {{ t('customer_nav_game_servers', page_locale()) }}
@@ -38,50 +30,24 @@
                     <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .49.598l-1 5a.5.5 0 0 1-.465.401l-9.397.472L4.415 11H13a.5.5 0 0 1 0 1H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5z"/></svg>
                     {{ t('customer_dashboard_action_order', page_locale()) }}
                 </a>
-            </div>
-        </div>
-
-        {# Stats row inside hero #}
-        <div class="cust-hero__stats">
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_dashboard_servers_title', page_locale()) }}</div>
-                <div class="cust-hero__stat-value">{{ instances|length }}</div>
-                <div class="cust-hero__stat-sub">{{ t('customer_nav_game_servers', page_locale()) }}</div>
-            </div>
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_dashboard_usage_title', page_locale()) }}</div>
-                <div class="cust-hero__stat-value">{{ storagePercent|number_format(0) }}%</div>
-                <div class="cust-hero__stat-sub">
-                    {% if resourceUsage.disk_limit_human %}{{ resourceUsage.disk_used_human }} / {{ resourceUsage.disk_limit_human }}{% else %}{{ t('customer_dashboard_storage_hint', page_locale()) }}{% endif %}
-                </div>
-            </div>
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_dashboard_ticket_title', page_locale()) }}</div>
-                <div class="cust-hero__stat-value">{{ summary.tickets_open }}</div>
-                <div class="cust-hero__stat-sub">{{ summary.tickets_pending }} {{ t('customer_dashboard_ticket_pending', page_locale()) }}</div>
-            </div>
-            {% if billingEnabled and activePlan %}
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_dashboard_contract_title', page_locale()) }}</div>
-                <div class="cust-hero__stat-value" style="font-size:16px;margin-top:4px;">{{ activePlan.name }}</div>
-                <div class="cust-hero__stat-sub">{{ t('customer_dashboard_next_payment_label', page_locale()) }} {{ nextPaymentAmount }}</div>
-            </div>
-            {% else %}
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_dashboard_contract_title', page_locale()) }}</div>
-                <div class="cust-hero__stat-value" style="font-size:15px;margin-top:4px;">—</div>
-                <div class="cust-hero__stat-sub">{{ t('customer_dashboard_contract_unavailable', page_locale()) }}</div>
-            </div>
-            {% endif %}
-        </div>
+            </div></header>
+    <div class="pm-stats pm-stats--four">
+{% include 'components/panel/_stat.html.twig' with {value:instances|length,label:t('customer_dashboard_servers_title',page_locale())} only %}
+{% include 'components/panel/_stat.html.twig' with {value:storagePercent|number_format(0) ~ '%',label:t('customer_dashboard_usage_title',page_locale())} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.tickets_open,label:t('customer_dashboard_ticket_title',page_locale())} only %}
+{% include 'components/panel/_stat.html.twig' with {value:billingEnabled and activePlan ? activePlan.name : '—',label:t('customer_dashboard_contract_title',page_locale())} only %}
     </div>
-
-    <nav class="infra-grid infra-grid--two" aria-label="{{ 'infra.infrastructure'|trans({}, 'infrastructure') }}">
+    <p class="pm-music-usage">{{ customerEmail }} · {% if resourceUsage.disk_limit_human %}{{ resourceUsage.disk_used_human }} / {{ resourceUsage.disk_limit_human }}{% else %}{{ t('customer_dashboard_storage_hint',page_locale()) }}{% endif %} · {{ summary.tickets_pending }} {{ t('customer_dashboard_ticket_pending',page_locale()) }}{% if billingEnabled and activePlan %} · {{ t('customer_dashboard_next_payment_label',page_locale()) }} {{ nextPaymentAmount }}{% endif %}</p>
+    {% set dashboardTabs = {overview:'overview'} %}
+    {% if billingEnabled %}{% set dashboardTabs = dashboardTabs|merge({billing:'workspace_billing'}) %}{% endif %}
+    {% if panelNews is not empty %}{% set dashboardTabs = dashboardTabs|merge({news:'workspace_news'}) %}{% endif %}
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'customer-dashboard',panelTabs:dashboardTabs} %}
+    <nav data-panel-section="overview" class="infra-grid infra-grid--two" aria-label="{{ 'infra.infrastructure'|trans({}, 'infrastructure') }}">
       <a class="infra-card infra-panel-link" href="{{ path('customer_proxmox') }}"><div class="infra-eyebrow">Proxmox</div><h2>{{ 'pve.my_guests'|trans({}, 'proxmox') }}</h2><p class="infra-muted">{{ 'infra.customer_hint'|trans({}, 'infrastructure') }}</p></a>
       <a class="infra-card infra-panel-link" href="{{ path('customer_kvm') }}"><div class="infra-eyebrow">KVM</div><h2>{{ 'console.my_kvm'|trans({}, 'vm_console') }}</h2><p class="infra-muted">{{ 'infra.customer_hint'|trans({}, 'infrastructure') }}</p></a>
     </nav>
     {% if panelNews is not empty %}
-    <div class="cust-panel">
+    <div class="cust-panel" data-panel-section="news">
         <div class="cust-panel__head">
             <div>
                 <h3 class="cust-panel__title">{{ t('customer_dashboard_news_title', page_locale()) }}</h3>
@@ -111,7 +77,7 @@
     {% endif %}
 
     {# ── Main grid: Server-Liste + Sidebar ── #}
-    <div class="cust-grid-2--wide">
+    <div class="cust-grid-2--wide" data-panel-section="overview">
 
         {# Server cards #}
         <div class="cust-panel">
@@ -124,9 +90,7 @@
             </div>
             <div class="cust-panel__body">
                 <div class="cust-server-grid">
-                    {% for slot in 0..3 %}
-                        {% set instance = instances[slot] ?? null %}
-                        {% if instance %}
+                    {% for instance in instances|slice(0,4) %}
                             {% set isOnline = instance.status in ['running', 'online'] %}
                             {% set isOff    = instance.status in ['stopped', 'offline'] %}
                             {% set dotClass = isOnline ? 'success' : (isOff ? 'danger' : 'warning') %}
@@ -173,16 +137,7 @@
                                     <a href="{{ path('customer_instance_detail', {id: instance.id}) }}" class="ui-button ui-button--ghost ui-button--sm" style="margin-left:auto;">{{ t('details', page_locale()) }}</a>
                                 </div>
                             </article>
-                        {% else %}
-                            <article class="cust-server-card cust-server-card--placeholder">
-                                <div class="cust-server-card__head">
-                                    <div>
-                                        <h4 class="cust-server-card__name">{{ t('customer_dashboard_no_instances', page_locale()) }}</h4>
-                                        <p class="cust-server-card__id">{{ t('customer_dashboard_slot', page_locale()) }} {{ slot + 1 }}</p>
-                                    </div>
-                                </div>
-                            </article>
-                        {% endif %}
+                    {% else %}<p class="pm-empty">{{ t('customer_dashboard_no_instances',page_locale()) }}</p>
                     {% endfor %}
                 </div>
             </div>
@@ -271,7 +226,7 @@
 
     {# ── Invoices (billing module) ── #}
     {% if billingEnabled %}
-    <div class="cust-panel">
+    <div class="cust-panel" data-panel-section="billing">
         <div class="cust-panel__head">
             <div>
                 <h3 class="cust-panel__title">{{ t('customer_dashboard_invoice_title', page_locale()) }}</h3>

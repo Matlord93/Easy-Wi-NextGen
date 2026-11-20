@@ -167,12 +167,12 @@ class AgentJob
 
     public function setLogText(?string $logText): void
     {
-        $this->logText = $logText !== '' ? $this->redactSecretPatterns($logText) : null;
+        $this->logText = '' !== $logText ? $this->redactSecretPatterns($logText) : null;
     }
 
     public function setErrorText(?string $errorText): void
     {
-        $this->errorText = $errorText !== '' ? $this->redactSecretPatterns($errorText) : null;
+        $this->errorText = '' !== $errorText ? $this->redactSecretPatterns($errorText) : null;
     }
 
     public function setRetries(int $retries): void
@@ -182,22 +182,37 @@ class AgentJob
 
     public function setIdempotencyKey(?string $idempotencyKey): void
     {
-        $this->idempotencyKey = $idempotencyKey !== '' ? $idempotencyKey : null;
+        $this->idempotencyKey = '' !== $idempotencyKey ? $idempotencyKey : null;
+    }
+
+    /** Remove expired per-virtual-server snapshot data while preserving the job audit record. */
+    public function forgetVoiceSnapshot(): void
+    {
+        if (!in_array($this->type, ['ts3.virtual.snapshot.create', 'ts3.virtual.snapshot.restore', 'ts6.virtual.snapshot.create', 'ts6.virtual.snapshot.restore'], true)
+            || !in_array($this->status, [AgentJobStatus::Success, AgentJobStatus::Failed], true)) {
+            throw new \DomainException('Only completed virtual-server snapshots can be expired.');
+        }
+        unset($this->payload['snapshot_content']);
+        $this->resultPayload = null;
+        $this->logText = null;
+        $this->errorText = null;
     }
 
     public function setResultPayload(?array $payload): void
     {
-        $this->resultPayload = $payload === [] || $payload === null ? null : $this->stripSecretKeys($payload);
+        $this->resultPayload = [] === $payload || null === $payload ? null : $this->stripSecretKeys($payload);
     }
 
     /**
      * @template TKey of array-key
+     *
      * @param array<TKey, mixed>|null $data
+     *
      * @return array<TKey, mixed>|null
      */
     private function stripSecretKeys(?array $data): ?array
     {
-        if ($data === null) {
+        if (null === $data) {
             return null;
         }
         $clean = [];
@@ -214,7 +229,7 @@ class AgentJob
                 continue;
             }
             $nested = \App\Infrastructure\Config\JsonArray::fromValue($data[$key]);
-            $clean += [$key => $nested !== null ? $this->stripSecretKeys($nested) : $data[$key]];
+            $clean += [$key => null !== $nested ? $this->stripSecretKeys($nested) : $data[$key]];
         }
 
         return $clean;
@@ -222,7 +237,7 @@ class AgentJob
 
     private function redactSecretPatterns(?string $text): ?string
     {
-        if ($text === null || $text === '') {
+        if (null === $text || '' === $text) {
             return $text;
         }
 

@@ -6,35 +6,14 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="flex flex-col gap-6">
+<div class="flex flex-col gap-6" data-panel-tabs="admin-webspaces">
 
-    <section class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:16px;">
-                    <div>
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot" style="background:#34d399;"></span>
-                            {{ t('admin_webspaces_title', locale) }}
-                        </div>
-                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_webspaces_title', locale) }}</h1>
-                        <p class="tkt-hero__sub">{{ t('admin_webspaces_intro', locale) }}</p>
-                    </div>
-                    <div style="display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:10px;">
-                        <div class="tkt-kpi">
-                            <div class="tkt-kpi__label">{{ t('admin_webspaces_list_title', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ webspaces|length }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <div>
-        <a href="#webspaces-create-section" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_create_title', locale) }}</a>
+    <header class="pm-page-head"><div><h1>{{ t('admin_webspaces_title',locale) }}</h1><p>{{ t('admin_webspaces_intro',locale) }}</p></div><a href="#pm-admin-webspaces-create" class="ui-button ui-button--primary">+ {{ t('admin_webspaces_create_title',locale) }}</a></header>
+    <div class="pm-stats">
+        {% include 'components/panel/_stat.html.twig' with {value:webspaces|length,label:t('admin_webspaces_title',locale)} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:webspaces|reduce((sum,item) => sum + item.domains|length,0),label:'domains_ssl'|trans({},'panel_modules')} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:nodes|length,label:'nodes'|trans({},'panel_modules')} only %}
     </div>
-
     {% if notice %}
         <div class="ng-alert ng-alert--success">{{ notice }}</div>
     {% endif %}
@@ -42,8 +21,10 @@
         <div class="ng-alert ng-alert--danger">{{ error }}</div>
     {% endif %}
 
+    <div data-panel-section="domains" data-panel-webspace-domains></div>
     {# Create form + help text #}
-    <div class="ng-layout-2col--equal" id="webspaces-create-section">
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'admin-webspaces',panelTabs:{overview:'overview',domains:'domains_ssl',create:'create'}} %}
+    <div class="ng-layout-2col--equal" id="webspaces-create-section" data-panel-section="create">
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
@@ -163,7 +144,7 @@
     } %}
 
     {# Webspaces list #}
-    <div class="ng-data-card">
+    <div class="ng-data-card" data-panel-section="overview" data-panel-webspaces-list>
         <div class="ng-data-card__header">
             <div>
                 <h2 class="ng-data-card__title">{{ t('admin_webspaces_list_title', locale) }}</h2>
@@ -176,61 +157,38 @@
         <div class="ng-data-card__body ng-data-card__body--flush">
             <div class="cust-ws-table-wrap">
                 <table class="cust-table">
-                    <thead>
-                        <tr>
-                            <th>{{ t('admin_label_id', locale) }}</th>
-                            <th>{{ t('admin_webspaces_customer_label', locale) }}</th>
-                            <th>{{ t('admin_webspaces_node_label', locale) }}</th>
-                            <th>{{ t('admin_webspaces_path_label', locale) }}</th>
-                            <th>{{ t('admin_webspaces_domain_label', locale) }}</th>
-                            <th>{{ t('admin_webspaces_port_label', locale) }}</th>
-                            <th>{{ t('admin_webspaces_ddos_label', locale) }}</th>
-                            <th>{{ t('admin_webspaces_php_label', locale) }}</th>
-                            <th>{{ t('admin_webspaces_status_label', locale) }}</th>
-                            <th>{{ t('admin_webspaces_col_apply', locale) }}</th>
-                            <th>{{ t('admin_actions', locale) }}</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>Domain</th><th>{{ 'customer'|trans({},'panel_modules') }}</th><th>Node</th><th>PHP</th><th>{{ 'resources'|trans({},'panel_modules') }}</th><th>Status</th><th>{{ 'actions'|trans({},'panel_modules') }}</th></tr></thead>
                     <tbody>
                         {% for webspace in webspaces %}
-                            <tr>
-                                <td style="font-family:monospace;font-size:11px;color:var(--ng-text-muted);">{{ webspace.id }}</td>
-                                <td>
+                            <tr><td><strong>{{ webspace.domain }}</strong><small class="pm-cell-sub">{{ webspace.id }}</small></td><td>
                                     <div style="font-weight:600;color:var(--ng-text);">{{ webspace.customer.email }}</div>
                                     <div style="font-size:11px;color:var(--ng-text-muted);">ID {{ webspace.customer.id }}</div>
-                                </td>
-                                <td>
+                                </td><td>
                                     <div style="font-weight:600;color:var(--ng-text);">{{ webspace.node.name ?? webspace.node.id }}</div>
                                     <div style="font-size:11px;color:var(--ng-text-muted);">{{ webspace.node.id }}</div>
-                                </td>
-                                <td>
+                                </td><td>{{ webspace.php_version }}</td><td><span class="ui-badge ui-badge--neutral">{{ webspace.quota }} MiB</span><details class="pm-row-details"><summary>{{ 'workspace_details'|trans({},'panel_modules') }}</summary>
                                     <div style="font-weight:600;color:var(--ng-text);">{{ webspace.path }}</div>
                                     <div style="font-size:11px;color:var(--ng-text-muted);">{{ webspace.docroot }}</div>
-                                </td>
-                                <td style="font-size:11px;color:var(--ng-text-muted);">{{ webspace.domain }}</td>
-                                <td style="font-size:11px;color:var(--ng-text-muted);">{{ webspace.assigned_port ?? '-' }}</td>
-                                <td>
+                                {{ webspace.domain }}{{ webspace.assigned_port ?? '-' }}
                                     {% if webspace.ddos_protection_enabled %}
                                         <span class="ui-badge ui-badge--success">{{ t('admin_webspaces_ddos_enabled', locale) }}</span>
                                     {% else %}
                                         <span class="ui-badge ui-badge--neutral">{{ t('admin_webspaces_ddos_disabled', locale) }}</span>
                                     {% endif %}
-                                </td>
-                                <td style="font-size:11px;color:var(--ng-text-muted);">{{ webspace.php_version }}</td>
-                                <td>
+                                </details></td><td>
                                     {% set badgeVariant = statusClasses[webspace.status] ?? 'neutral' %}
                                     <span class="ui-badge ui-badge--{{ badgeVariant }}">{{ webspace.status|title }}</span>
-                                </td>
-                                <td style="font-size:11px;color:var(--ng-text-muted);">
+                                <details class="pm-row-details"><summary>{{ 'workspace_operations'|trans({},'panel_modules') }}</summary>
                                     <div>{{ webspace.apply_status|default('unknown')|replace({'_':' '})|title }}</div>
                                     <div>{% if webspace.apply_required %}{{ t('admin_webspaces_apply_required', locale) }}{% else %}{{ t('admin_webspaces_apply_clean', locale) }}{% endif %}</div>
                                     {% if webspace.last_apply_error_code %}
                                         <div style="color:var(--aw-status-danger, #fca5a5);">{{ webspace.last_apply_error_code }}</div>
                                     {% endif %}
-                                </td>
-                                <td>
+                                </details></td><td>
                                     <div style="display:flex;flex-wrap:wrap;gap:8px;">
                                         {% if webspace.status != 'deleted' %}
+                                            <a class="ui-button ui-button--primary ui-button--sm" href="#webspace-edit-{{ webspace.id }}" data-panel-open-details="webspace-edit-{{ webspace.id }}">{{ 'edit'|trans({},'panel_modules') }}</a>
+                                            <details class="pm-actions-menu"><summary aria-label="{{ 'workspace_service_details'|trans({},'panel_modules') }}">•••</summary><div>
                                             {% if webspace.status == 'active' %}
                                                 <form method="post" action="{{ path('admin_webspaces_suspend', {id: webspace.id}) }}">
                                                     <button class="ui-button ui-button--warning ui-button--sm">
@@ -249,15 +207,15 @@
                                                     {{ t('admin_webspaces_delete_action', locale) }}
                                                 </button>
                                             </form>
+                                            </div></details>
                                         {% else %}
                                             <span style="font-size:11px;color:var(--ng-text-muted);">{{ t('admin_webspaces_deleted_label', locale) }}</span>
                                         {% endif %}
                                     </div>
-                                </td>
-                            </tr>
-                            <tr style="background:var(--ng-surface-soft);">
-                                <td colspan="11" style="padding:24px 24px;">
-                                    <details style="border:1px solid var(--ng-border);border-radius:0.75rem;background:var(--ng-surface);">
+                                </td></tr>
+                            <tr class="pm-webspace-domain-row" data-panel-domain-name="{{ webspace.domain }}">
+                                <td colspan="7" style="padding:24px 24px;">
+                                    <details id="webspace-edit-{{ webspace.id }}" style="border:1px solid var(--ng-border);border-radius:0.75rem;background:var(--ng-surface);">
                                         <summary style="cursor:pointer;padding:12px 16px;font-size:0.875rem;font-weight:600;color:var(--ng-text);border-bottom:1px solid var(--ng-border);">
                                             {{ t('admin_webspaces_domain_management_title', locale) }}
                                         </summary>
@@ -331,7 +289,7 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="11" class="cust-table__empty">{{ t('admin_webspaces_empty', locale) }}</td>
+                                <td colspan="7" class="cust-table__empty">{{ t('admin_webspaces_empty', locale) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -339,7 +297,7 @@
             </div>
             {% set total_pages = (total / per_page)|round(0, 'ceil') %}
             <div style="border-top:1px solid var(--ng-border);padding:12px 24px;font-size:11px;color:var(--ng-text-muted);">
-                {{ t('admin_webspaces_pagination', locale)|replace({'%page%': page, '%total_pages%': (total_pages > 0 ? total_pages : 1), '%total%': total}) }}
+                {{ t('admin_webspaces_pagination', locale)|replace({'%page%': page, '%total%': (total_pages > 0 ? total_pages : 1), '%items%': total}) }}
             </div>
         </div>
     </div>

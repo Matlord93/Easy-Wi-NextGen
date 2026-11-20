@@ -10,7 +10,7 @@ function setup({resource = false, task = false} = {}) {
     const state = {textContent: 'cached state'};
     const label = {textContent: 'fresh'};
     const row = {dataset: {pveTaskUrl: '/tasks/1'}, querySelector: () => state};
-    const panel = {dataset: {pveResourcesUrl: '/resources'}, innerHTML: '<p>cached VM</p>', closest: () => ({querySelector: () => label})};
+    const panel = {dataset: {pveResourcesUrl: '/resources'}, innerHTML: '<p>cached VM</p>', querySelectorAll: () => [], closest: () => ({querySelector: () => label})};
     const timeout = [];
     const forms = [];
     const context = {

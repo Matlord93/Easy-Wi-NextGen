@@ -1,0 +1,21 @@
+<section class="cust-panel" aria-labelledby="source-startup-heading">
+    <div class="cust-panel__head"><h2 id="source-startup-heading" class="cust-panel__title">{{ setupSourceEngine }} · Startparameter</h2><p class="gs-config__description">Karte und Spielerlimit werden beim nächsten Start oder Neustart übernommen. Gebucht: {{ instance.max_slots }} Slots. Spielregeln, Name und Passwörter stehen in der Konfiguration darunter.</p></div>
+    <div class="cust-panel__body">
+        {% if setupMessages.vars %}<div class="ng-alert ng-alert--success">{{ setupMessages.vars }}</div>{% endif %}
+        <form action="{{ path('customer_instance_setup_vars', {id: instance.id}) }}" method="post">
+            <input type="hidden" name="_token" value="{{ csrf_token('source-setup-' ~ instance.id) }}">
+            <div class="gs-config__fields">
+                {% for field in setupSourceVars %}
+                    <div class="gs-config__field">
+                        <label class="form-label" for="source-setting-{{ field.key }}">{{ field.label }}</label>
+                        <p class="gs-config__description" id="source-setting-{{ field.key }}-help">{{ field.helptext }}</p>
+                        <input id="source-setting-{{ field.key }}" aria-describedby="source-setting-{{ field.key }}-help" class="form-input" name="vars[{{ field.key }}]" value="{{ field.value }}" type="{{ field.type == 'number' ? 'number' : (field.type == 'password' ? 'password' : 'text') }}" {% if field.type == 'password' %}autocomplete="new-password"{% endif %} {% if field.required %}required{% endif %} {% if field.type == 'number' %}min="{{ field.min }}" step="1"{% if field.max is not null %} max="{{ field.max }}"{% endif %}{% endif %} {% if field.readonly %}disabled{% endif %}>
+                        {% if field.readonly %}<span class="gs-config__managed">Vom Betreiber gesperrt</span>{% endif %}
+                        {% if field.error %}<p role="alert" class="ng-alert ng-alert--danger">{{ field.error }}</p>{% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="gs-config__footer"><span>Ein Neustart wird nicht automatisch ausgelöst.</span><button type="submit" class="ui-button ui-button--primary">Startparameter speichern</button></div>
+        </form>
+    </div>
+</section>

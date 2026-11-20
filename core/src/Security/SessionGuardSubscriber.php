@@ -132,6 +132,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
         }
 
         return $routeName === 'payment_webhook'
+            || $routeName === 'payment_paypal_return'
             || str_starts_with($routeName, 'public_cms_')
             || str_starts_with($routeName, 'public_forum_')
             || str_starts_with($routeName, 'public_cookie_')
@@ -156,6 +157,12 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
 
         if (str_starts_with($path, '/admin/')) {
             return new Response($this->translator->trans('error_security_unauthorized'), Response::HTTP_UNAUTHORIZED);
+        }
+
+        if ($path === '/marketplace' || str_starts_with($path, '/marketplace/')) {
+            $target = $request->getRequestUri();
+            $request->getSession()->set(PostLoginRedirectResolver::SESSION_TARGET_KEY, $target);
+            return new RedirectResponse('/login?target='.rawurlencode($target));
         }
 
         if ($this->isLoginRedirectPath($path)) {

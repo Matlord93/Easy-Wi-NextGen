@@ -410,7 +410,7 @@ class Agent
             // Heartbeats report capabilities; they must not erase panel settings
             // or replace disk measurements accepted through the job-result API.
             $retainedMetadata = $this->metadata ?? [];
-            foreach (['ts6_supported', 'kvm_managed', 'platform_family', 'minecraft_managed_install', 'os',
+            foreach (['ts6_supported', 'kvm_managed', 'platform_family', 'minecraft_managed_install', 'instance_runtime_limits', 'os',
                 'bind_ip_addresses', 'php_versions', 'hostname', 'os_release', 'agent_service_port',
                 'agent_service_scheme', 'capabilities', 'ipv6_address', 'ipv6_addresses'] as $reportedKey) {
                 // Native capability snapshots still replace their old values, including omissions.
@@ -428,6 +428,12 @@ class Agent
                 $ipv6 = trim($metadata['ipv6_address']);
                 $this->lastHeartbeatIpv6 = $ipv6 !== '' ? $ipv6 : null;
             }
+        } elseif (isset($this->metadata['instance_runtime_limits'])) {
+            // An older agent may omit metadata altogether. Its heartbeat must
+            // not keep a newer agent's permission to raise the Java heap.
+            $retainedMetadata = $this->metadata;
+            unset($retainedMetadata['instance_runtime_limits']);
+            $this->setMetadata($retainedMetadata);
         }
 
         $this->setStatus($status ?? self::STATUS_ACTIVE);

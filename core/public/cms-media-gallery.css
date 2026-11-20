@@ -1,0 +1,23 @@
+/* Shared gallery works with both the current CMS themes and legacy layouts. */
+.cms-media-search { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; margin-bottom:24px; }
+.cms-media-search > div { flex:1; min-width:min(260px,100%); }
+.cms-media-search label { display:block; margin-bottom:6px; font-size:14px; font-weight:600; }
+.cms-media-search input[type=search] { width:100%; min-width:0; }
+.cms-media-search button,.cms-media-pagination a { border:1px solid var(--cms-line,#475569); background:var(--cms-soft,#1e293b); color:var(--cms-text,#e2e8f0); padding:10px 16px; border-radius:8px; font-weight:600; }
+.cms-media-search button { cursor:pointer; }
+.cms-media-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }
+.cms-media-card { min-width:0; margin:0; overflow:hidden; border:1px solid var(--cms-line,#334155); border-radius:12px; background:var(--cms-surface,#0f172a); }
+.cms-media-picture { aspect-ratio:5/3; background:var(--cms-soft,#1e293b); }
+.cms-media-picture a { display:block; height:100%; }
+.cms-media-picture img { display:block; width:100%; height:100%; object-fit:contain; }
+.cms-media-placeholder { display:flex; height:100%; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--cms-muted,#94a3b8); font-size:14px; }
+.cms-media-card figcaption { padding:14px 16px; color:var(--cms-text,#e2e8f0); font-size:14px; overflow-wrap:anywhere; }
+.cms-media-empty { grid-column:1/-1; }
+.cms-media-pagination { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:16px; margin-top:28px; }
+
+.cms-media-search input[type=search] { border:1px solid var(--cms-line,#475569); border-radius:8px; background:var(--cms-soft,#1e293b); color:var(--cms-text,#e2e8f0); padding:10px 12px; }
+@media(max-width:900px) { .cms-media-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:540px) { .cms-media-grid { grid-template-columns:minmax(0,1fr); } }
+
+.cms-media-search > a { padding:10px 0; color:var(--cms-brand,#a5b4fc); font-size:14px; text-decoration:none; }
+.cms-media-search > a:hover { text-decoration:underline; }

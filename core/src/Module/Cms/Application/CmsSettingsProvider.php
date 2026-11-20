@@ -9,6 +9,7 @@ use App\Module\Core\Domain\Entity\CmsSiteSettings;
 use App\Module\Core\Domain\Entity\Site;
 use App\Repository\CmsSiteSettingsRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 final class CmsSettingsProvider
 {
@@ -35,6 +36,7 @@ final class CmsSettingsProvider
     public function __construct(
         private readonly CmsSiteSettingsRepositoryInterface $settingsRepository,
         private readonly EntityManagerInterface $entityManager,
+        private readonly ?RequestStack $requests = null,
     ) {
     }
 
@@ -47,13 +49,32 @@ final class CmsSettingsProvider
 
         $settings = new CmsSiteSettings($site);
         $this->entityManager->persist($settings);
+        $this->requests?->getCurrentRequest()?->attributes->set($this->cacheKey($site), $settings);
 
         return $settings;
     }
 
     public function findForSite(Site $site): ?CmsSiteSettings
     {
-        return $this->settingsRepository->findOneBySite($site);
+        $request = $this->requests?->getCurrentRequest();
+        $key = $this->cacheKey($site);
+        if ($request !== null && $request->attributes->has($key)) {
+            return self::cachedSettings($request->attributes->get($key));
+        }
+        $settings = $this->settingsRepository->findOneBySite($site);
+        $request?->attributes->set($key, $settings);
+
+        return $settings;
+    }
+
+    private function cacheKey(Site $site): string
+    {
+        return '_easywi_cms_settings.'.($site->getId() ?? 'new-'.spl_object_id($site));
+    }
+
+    private static function cachedSettings(mixed $value): ?CmsSiteSettings
+    {
+        return $value instanceof CmsSiteSettings ? $value : null;
     }
 
     /** @return array{logo_path: string, primary_color: string, socials: array<string, string>} */

@@ -1,26 +1,29 @@
+<div id="shop-categories-table" class="ng-data-card" data-panel-list hx-get="/admin/shop/categories/table" hx-trigger="shop-categories-changed from:body" hx-swap="outerHTML">
+    <div class="ng-data-card__header"><h2 class="ng-data-card__title">{{ 'workspace_shop_categories'|trans({},'panel_modules') }}</h2><button class="ui-button ui-button--ghost" type="button" hx-get="/admin/shop/categories/table" hx-target="#shop-categories-table" hx-swap="outerHTML">{{ t('refresh',page_locale()) }}</button></div>
+    <div class="pm-filters"><label class="sr-only" for="shop-categories-search">{{ 'search'|trans({},'panel_modules') }}</label><input class="form-input" id="shop-categories-search" type="search" data-panel-filter placeholder="{{ 'workspace_catalog_search'|trans({},'panel_modules') }}"></div>
 {% set locale = page_locale() %}
 <div class="overflow-x-auto">
-    <table class="min-w-full text-sm">
+    <table class="cust-table">
         <thead class="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase text-slate-600">
             <tr>
                 <th class="px-5 py-3">Name</th>
                 <th class="px-5 py-3">Slug</th>
                 <th class="px-5 py-3">Sortierung</th>
-                <th class="px-5 py-3 text-right">Aktion</th>
+                <th class="px-5 py-3">{{ t('status',locale) }}</th><th class="px-5 py-3 text-right">Aktion</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-slate-200">
             {% for category in categories %}
-                <tr>
+                <tr data-panel-row>
                     <td class="px-5 py-4 font-medium text-slate-900">{{ category.name }}</td>
                     <td class="px-5 py-4 text-slate-600">{{ category.slug }}</td>
                     <td class="px-5 py-4 text-slate-600">{{ category.sort_order }}</td>
-                    <td class="px-5 py-4 text-right">
+                    <td><span class="ui-badge ui-badge--{{ category.active ? 'success' : 'neutral' }}">{{ (category.active ? 'workspace_active' : 'workspace_inactive')|trans({},'panel_modules') }}</span></td><td class="px-5 py-4 text-right">
                         <div class="flex items-center justify-end gap-2">
-                            <button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700" hx-get="/admin/shop/categories/{{ category.id }}/edit" hx-target="#shop-categories-form">
+                            <button class="ui-button ui-button--ghost ui-button--sm" hx-get="/admin/shop/categories/{{ category.id }}/edit" hx-target="#shop-categories-form" hx-swap="outerHTML" data-panel-reveal="create">
                                 {{ t('admin_shop_edit', locale) }}
                             </button>
-                            <button class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600" hx-post="/admin/shop/categories/{{ category.id }}/delete" hx-confirm="{{ t('admin_shop_delete_confirm', locale) }}" hx-swap="none">
+                            <button class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600" hx-post="/admin/shop/categories/{{ category.id }}/delete" hx-headers='{"X-CSRF-TOKEN":"{{ csrf_token("admin-shop") }}"}' hx-confirm="{{ t('admin_shop_delete_confirm', locale) }}" hx-swap="none">
                                 {{ t('admin_shop_delete', locale) }}
                             </button>
                         </div>
@@ -28,9 +31,11 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="4" class="px-5 py-6 text-center text-slate-600">Noch keine Kategorien.</td>
+                    <td colspan="5" class="px-5 py-6 text-center text-slate-600">Noch keine Kategorien.</td>
                 </tr>
             {% endfor %}
         </tbody>
     </table>
+</div>
+
 </div>

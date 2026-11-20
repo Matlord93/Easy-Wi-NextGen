@@ -162,9 +162,11 @@ final class CustomerMailboxDetailControllerTest extends TestCase
     public function testTemplateContainsNoContentFields(): void
     {
         $template = strtolower((string) file_get_contents(__DIR__ . '/../../templates/customer/mail/detail.html.twig'));
-        foreach (['subject', 'body', 'from', 'sender', 'value=\"{{ password'] as $forbidden) {
-            self::assertStringNotContainsString($forbidden, $template);
+        // Inspect rendered Twig expressions; CSS names such as __body are layout only.
+        foreach (['subject', 'body', 'from', 'sender'] as $field) {
+            self::assertDoesNotMatchRegularExpression('/\\{\\{[^}]*\\b'.$field.'\\b[^}]*\\}\\}/s', $template);
         }
+        self::assertStringNotContainsString('value="{{ password', $template);
     }
 
 
@@ -234,6 +236,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $domain->setId(20);
         $node = $this->createStub(\App\Module\Core\Domain\Entity\MailNode::class);
         $node->method('getId')->willReturn(99);
+        $node->method('getAgent')->willReturn(new \App\Module\Core\Domain\Entity\Agent('mail-agent', ['key_id' => 'fixture', 'nonce' => 'fixture', 'ciphertext' => 'fixture']));
         $mailDomain = new \App\Module\Core\Domain\Entity\MailDomain($domain, $node);
 
         $mailbox = $this->createMock(Mailbox::class);
@@ -248,7 +251,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $mailboxRepo->method('find')->willReturn($mailbox);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->expects(self::once())->method('persist')->with(self::callback(static fn ($job): bool => $job instanceof \App\Module\Core\Domain\Entity\Job && $job->getType() === 'mailbox.password.reset'));
+        $entityManager->expects(self::once())->method('persist')->with(self::callback(static fn ($job): bool => $job instanceof \App\Module\Core\Domain\Entity\Job && $job->getType() === 'mailbox.password.reset' && $job->getPayload()['agent_id'] === 'mail-agent'));
         $entityManager->expects(self::once())->method('flush');
 
         $mailDomainRepo = $this->createStub(MailDomainRepositoryInterface::class);

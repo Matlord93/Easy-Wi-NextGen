@@ -20,49 +20,17 @@
 } %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;max-width:1120px;">
+<div class="pm-workspace pm-music-backend">
 
     {# ── Hero / Header ── #}
-    <div class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero" style="padding-bottom:0;">
-            <div class="tkt-hero__inner" style="padding-bottom:16px;">
-                <div>
-                    <div class="tkt-hero__breadcrumb">
-                        <a href="{{ path('admin_musicbot_index') }}" style="color:var(--ng-text-muted);text-decoration:none;">Musicbots</a>
-                        <span>/</span>
-                        <span>TeamSpeak Client Backend</span>
-                    </div>
-                    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot"></span>
-                            Musicbot
-                        </div>
-                        <span class="ui-badge ui-badge--{{ statusMap[status] ?? 'neutral' }}" style="font-size:11px;">{{ status }}</span>
-                    </div>
-                    <h1 class="tkt-hero__title" style="margin-top:10px;">TeamSpeak Client Backend</h1>
-                    <p class="tkt-hero__sub">Easy-Wi baut TeamSpeak nicht nach. Hinterlege hier einen lokal bereitgestellten erlaubten Client-/SDK-Layer.</p>
-                </div>
-            </div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:14px 20px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-            <div class="tkt-kpi">
-                <div class="tkt-kpi__label">Status</div>
-                <div class="tkt-kpi__value" style="font-size:14px;">{{ status }}</div>
-            </div>
-            <div class="tkt-kpi">
-                <div class="tkt-kpi__label">Letzter Check</div>
-                <div class="tkt-kpi__value" style="font-size:13px;">{{ form.last_checked_at ? form.last_checked_at|date('Y-m-d H:i') : '—' }}</div>
-            </div>
-            <div class="tkt-kpi">
-                <div class="tkt-kpi__label">Node</div>
-                <div class="tkt-kpi__value" style="font-size:14px;">{{ selectedNode ? (selectedNode.name ?: selectedNode.id) : '—' }}</div>
-            </div>
-            <div class="tkt-kpi">
-                <div class="tkt-kpi__label">Checksum</div>
-                <div class="tkt-kpi__value" style="font-size:11px;font-family:monospace;word-break:break-all;">{{ form.checksum ? form.checksum|slice(0,16) ~ '…' : '—' }}</div>
-            </div>
-        </div>
-    </div>
+    <header class="pm-page-head"><div><h1>{{ 'TeamSpeak Client Backend' }}</h1><p>{{ 'workspace_music_backend_intro'|trans({},'panel_modules') }}</p></div><div class="pm-page-head__actions"><a class="ui-button ui-button--ghost" href="{{ path('admin_musicbot_index') }}">{{ 'back'|trans({},'panel_modules') }}</a></div></header>
+<div class="pm-stats">
+{% include 'components/panel/_stat.html.twig' with {value:status,label:t('status',page_locale())} only %}
+{% include 'components/panel/_stat.html.twig' with {value:form.last_checked_at ? form.last_checked_at|date('d.m.Y H:i') : '—',label:'workspace_last_check'|trans({},'panel_modules')} only %}
+{% include 'components/panel/_stat.html.twig' with {value:selectedNode ? (selectedNode.name ?: selectedNode.id) : '—',label:'nodes'|trans({},'panel_modules')} only %}
+</div>
+<p class="pm-music-usage">{{ 'workspace_checksum'|trans({},'panel_modules') }}: <code>{{ form.checksum ?: '—' }}</code></p>
+
 
     {# ── Flash Messages ── #}
     {% for message in app.flashes('success') %}<div class="ng-alert ng-alert--success">{{ message }}</div>{% endfor %}

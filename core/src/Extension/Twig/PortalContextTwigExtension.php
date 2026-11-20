@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace App\Extension\Twig;
 
 use App\Infrastructure\Http\RequestActor;
-
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\CookieConsentService;
+use App\Module\Core\Application\CookieCatalogProvider;
 use App\Module\Core\Application\PortalLocale;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Setup\Application\WebinterfaceUpdateService;
 use App\Repository\AgentRepositoryInterface;
@@ -33,7 +33,8 @@ final class PortalContextTwigExtension extends AbstractExtension
         private readonly TranslatorInterface $translator,
         private readonly CookieConsentService $cookieConsentService,
         private readonly ThemeResolver $themeResolver,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
+        private readonly CookieCatalogProvider $cookieCatalog,
     ) {
     }
 
@@ -49,10 +50,12 @@ final class PortalContextTwigExtension extends AbstractExtension
             new TwigFunction('app_setting', [$this, 'appSetting']),
             new TwigFunction('app_settings', [$this, 'appSettings']),
             new TwigFunction('cookie_consent', [$this, 'cookieConsent']),
+            new TwigFunction('cookie_catalog', [$this, 'cookieCatalog']),
             new TwigFunction('cookie_has_consent', [$this, 'cookieHasConsent']),
             new TwigFunction('cookie_consent_cookie_name', [$this, 'cookieConsentCookieName']),
             new TwigFunction('cookie_consent_version', [$this, 'cookieConsentVersion']),
             new TwigFunction('active_theme', [$this, 'activeTheme']),
+            new TwigFunction('cms_themes', [$this, 'cmsThemes']),
         ];
     }
 
@@ -71,9 +74,18 @@ final class PortalContextTwigExtension extends AbstractExtension
         return $this->themeResolver->resolveThemeKey($site);
     }
 
+    /** @return list<string> */
+    public function cmsThemes(): array
+    {
+        return $this->themeResolver->supportedThemes();
+    }
+
     public function currentUser(): ?User
     {
         $request = $this->requestStack->getCurrentRequest();
+        if ($request?->attributes->get('_cms_preview') === true) {
+            return null;
+        }
         $actor = RequestActor::user($request);
 
         return $actor instanceof User ? $actor : null;
@@ -167,6 +179,12 @@ final class PortalContextTwigExtension extends AbstractExtension
             'marketing' => $consent['marketing'],
             default => false,
         };
+    }
+
+    /** @return list<array{name:string,purpose:string,category:string,duration:string,provider:string}> */
+    public function cookieCatalog(): array
+    {
+        return $this->cookieCatalog->all();
     }
 
     public function cookieConsentCookieName(): string

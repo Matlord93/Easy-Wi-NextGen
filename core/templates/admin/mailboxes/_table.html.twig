@@ -1,3 +1,5 @@
+<div id="mailboxes-table" class="ng-data-card" data-panel-list
+     hx-get="/admin/mailboxes/table" hx-trigger="mailboxes-changed from:body" hx-swap="outerHTML">
 <div class="ng-data-card__header">
     <div>
         <h2 class="ng-data-card__title">{{ t('admin_mailboxes_inventory_title', page_locale()) }}</h2>
@@ -12,6 +14,7 @@
         >{{ t('refresh', page_locale()) }}</button>
     </div>
 </div>
+<div class="pm-filters"><label class="sr-only" for="mailbox-search">{{ 'search'|trans({},'panel_modules') }}</label><input type="search" id="mailbox-search" class="form-input" data-panel-filter placeholder="{{ 'workspace_mailbox_search'|trans({},'panel_modules') }}"></div>
 <div class="cust-ws-table-wrap">
     <table class="cust-table">
         <thead>
@@ -26,7 +29,7 @@
         </thead>
         <tbody>
         {% for mailbox in mailboxes %}
-            <tr>
+            <tr data-panel-row>
                 <td>
                     <div class="font-semibold" style="color:var(--ng-text);">{{ mailbox.address }}</div>
                     <div style="font-size:11px;color:var(--ng-text-muted);">{{ mailbox.domain.name }}</div>
@@ -49,6 +52,7 @@
                         <button
                             class="ui-button ui-button--ghost ui-button--sm"
                             hx-get="/admin/mailboxes/{{ mailbox.id }}/edit"
+                            data-panel-reveal="create"
                             hx-target="#mailbox-form"
                             hx-swap="outerHTML"
                         >{{ t('edit', page_locale()) }}</button>
@@ -77,4 +81,6 @@
         {% endfor %}
         </tbody>
     </table>
+</div>
+
 </div>

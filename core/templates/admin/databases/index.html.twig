@@ -6,24 +6,14 @@
 {% set locale = page_locale() %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
+<div style="display:flex;flex-direction:column;gap:20px;" data-panel-tabs="admin-databases">
 
-    {# ── Hero ── #}
-    <section class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                    <div class="tkt-hero__pill">
-                        <span class="tkt-hero__pill-dot"></span>
-                        {{ t('admin_databases_hero_label', locale) }}
-                    </div>
-                    <h1 class="tkt-hero__title">{{ t('admin_databases_title', locale) }}</h1>
-                    <p class="tkt-hero__sub">{{ t('admin_databases_hero_intro', locale) }}</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
+    <header class="pm-page-head"><div><h1>{{ 'databases'|trans({},'panel_modules') }}</h1><p>{{ t('admin_databases_intro',locale) }}</p></div><a href="#pm-admin-databases-create" class="ui-button ui-button--primary">+ {{ t('admin_databases_create',locale) }}</a></header>
+    <div class="pm-stats">
+        {% include 'components/panel/_stat.html.twig' with {value:databases|length,label:'databases'|trans({},'panel_modules')} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:databaseNodes|length,label:'nodes'|trans({},'panel_modules')} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:databaseNodes|filter(node => node.healthStatus == 'healthy')|length ~ ' / ' ~ databaseNodes|length,label:'db_node_health_healthy'|trans({},'panel_modules')} only %}
+    </div>
     {% if errors is defined and errors is not empty %}
         <div class="ng-alert ng-alert--danger">
             <ul class="list-disc space-y-1 pl-5">
@@ -34,9 +24,10 @@
         </div>
     {% endif %}
 
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'admin-databases',panelTabs:{databases:'databases',nodes:'nodes',assignments:'assignments',create:'create'}} %}
     {# Databases list + create form #}
-    <div class="ng-layout-2col">
-        <div class="ng-data-card">
+    <div class="pm-workspace">
+        <div class="ng-data-card" data-panel-section="databases">
             <div class="ng-data-card__header">
                 <div>
                     <h2 class="ng-data-card__title">{{ t('admin_databases_list', page_locale()) }}</h2>
@@ -112,7 +103,7 @@
             </div>
         </div>
 
-        <div class="ng-data-card">
+        <div class="ng-data-card" data-panel-section="create">
             <div class="ng-data-card__header">
                 <div>
                     <h2 class="ng-data-card__title">{{ t('admin_databases_create', page_locale()) }}</h2>
@@ -120,7 +111,7 @@
                 </div>
             </div>
             <div class="ng-data-card__body">
-                <form method="post" action="/admin/databases" class="flex flex-col gap-4">
+                <form method="post" action="/admin/databases#pm-admin-databases-create" class="flex flex-col gap-4">
                     <div class="form-field">
                         <label class="form-label">{{ t('admin_databases_customer', page_locale()) }}</label>
                         <select name="customer_id" class="form-input" required>
@@ -160,7 +151,7 @@
     </div>
 
     {# Customer database limits #}
-    <div class="ng-data-card">
+    <div class="ng-data-card" data-panel-section="assignments">
         <div class="ng-data-card__header">
             <div>
                 <h2 class="ng-data-card__title">{{ t('admin_databases_customer_limits_title', page_locale()) }}</h2>
@@ -186,7 +177,7 @@
     </div>
 
     {# Database nodes list + create form #}
-    <div class="ng-layout-2col">
+    <div class="ng-layout-2col" data-panel-section="nodes">
         <div class="ng-data-card">
             <div class="ng-data-card__header">
                 <div>
@@ -234,12 +225,13 @@
                                     </td>
                                     <td>
                                         <div class="flex flex-col gap-2">
-                                            <form method="post" action="/admin/databases/nodes/{{ node.id }}/health">
+                                            <a class="ui-button ui-button--primary ui-button--sm w-full" href="{{ path('admin_database_nodes_edit',{id:node.id}) }}">{{ 'edit'|trans({},'panel_modules') }}</a>
+                                            <form method="post" action="/admin/databases/nodes/{{ node.id }}/health#pm-admin-databases-nodes">
                                                 <button class="ui-button ui-button--primary ui-button--sm w-full">
                                                     {{ t('admin_database_nodes_check', page_locale()) }}
                                                 </button>
                                             </form>
-                                            <form method="post" action="/admin/databases/nodes/{{ node.id }}/toggle">
+                                            <form method="post" action="/admin/databases/nodes/{{ node.id }}/toggle#pm-admin-databases-nodes">
                                                 <button class="ui-button ui-button--ghost ui-button--sm w-full">
                                                     {{ node.isActive ? t('admin_database_nodes_deactivate', page_locale()) : t('admin_database_nodes_activate', page_locale()) }}
                                                 </button>
@@ -266,7 +258,7 @@
                 </div>
             </div>
             <div class="ng-data-card__body">
-                <form method="post" action="/admin/databases/nodes" class="flex flex-col gap-4">
+                <form method="post" action="/admin/databases/nodes#pm-admin-databases-nodes" class="flex flex-col gap-4">
                     <div class="form-field">
                         <label class="form-label">{{ t('admin_database_nodes_name', page_locale()) }}</label>
                         <input name="name" type="text" class="form-input" required>

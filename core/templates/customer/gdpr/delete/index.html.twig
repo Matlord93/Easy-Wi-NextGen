@@ -2,14 +2,14 @@
 
 {% block title %}{{ t('customer_gdpr_delete_page_title', page_locale()) }}{% endblock %}
 
+{% set activeNav = 'gdpr' %}
 {% block content %}
 {% set locale = page_locale() %}
-<div class="cust-page">
+<div class="pm-workspace pm-account-page">
 
-    <div class="cust-hero">
-        <h1 class="cust-hero__title">{{ t('customer_gdpr_delete_title', locale) }}</h1>
-        <p class="cust-hero__sub">{{ t('customer_gdpr_delete_intro', locale) }}</p>
-    </div>
+    <header class="pm-page-head"><div><h1>{{ t('customer_gdpr_delete_title',locale) }}</h1><p>{{ t('customer_gdpr_delete_intro',locale) }}</p></div><div class="pm-page-head__actions"></div></header>
+{% include 'customer/profile/_nav.html.twig' with {accountNav:'delete'} %}
+
 
     <div class="cust-grid-2">
         <div class="cust-panel">
@@ -17,9 +17,7 @@
                 <h2 class="cust-panel__title">{{ t('customer_gdpr_delete_status_title', locale) }}</h2>
                 <p style="font-size:13px;color:var(--color-text-muted,#64748b);margin-top:2px;">{{ t('customer_gdpr_delete_status_intro', locale) }}</p>
             </div>
-            <div id="gdpr-delete-status" hx-get="/gdpr/delete/status" hx-trigger="gdpr-delete-updated from:body" hx-swap="outerHTML">
-                {% include 'customer/gdpr/delete/_status.html.twig' with { request: request, statusStyles: statusStyles } %}
-            </div>
+            {% include 'customer/gdpr/delete/_status.html.twig' with { request: request, statusStyles: statusStyles } %}
         </div>
 
         <div class="cust-panel">

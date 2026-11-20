@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
-
 use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ShopProduct;
@@ -18,8 +17,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
-use Twig\Environment;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Twig\Environment;
 
 #[Route(path: '/admin/shop/products')]
 final class AdminShopProductController
@@ -30,36 +29,13 @@ final class AdminShopProductController
         private readonly TemplateRepository $templateRepository,
         private readonly AgentRepositoryInterface $agentRepository,
         private readonly SiteResolver $siteResolver,
+        private readonly \Symfony\Component\HttpFoundation\RequestStack $requests,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly \Symfony\Component\Security\Csrf\CsrfTokenManagerInterface $csrf,
     ) {
-    }
-
-    #[Route(path: '', name: 'admin_shop_products', methods: ['GET'])]
-    public function index(Request $request): Response
-    {
-        if (!$this->isAdmin($request)) {
-            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
-        }
-
-        $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
-            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
-        }
-
-        $products = $this->productRepository->findBy(['siteId' => $site->getId()], ['createdAt' => 'DESC']);
-        $categories = $this->categoryRepository->findBy(['siteId' => $site->getId()], ['sortOrder' => 'ASC']);
-
-        return new Response($this->twig->render('admin/shop/products/index.html.twig', [
-            'products' => $this->normalizeProducts($products),
-            'categories' => $this->normalizeCategories($categories),
-            'templates' => $this->normalizeTemplates(),
-            'nodes' => $this->normalizeNodes(),
-            'form' => $this->buildFormContext(),
-            'activeNav' => 'shop-products',
-        ]));
     }
 
     #[Route(path: '/table', name: 'admin_shop_products_table', methods: ['GET'])]
@@ -70,7 +46,7 @@ final class AdminShopProductController
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
+        if (null === $site) {
             return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
@@ -88,12 +64,9 @@ final class AdminShopProductController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        return new Response($this->twig->render('admin/shop/products/_form.html.twig', [
-            'form' => $this->buildFormContext(),
-            'categories' => $this->normalizeCategories($this->categoryRepository->findAll()),
-            'templates' => $this->normalizeTemplates(),
-            'nodes' => $this->normalizeNodes(),
-        ]));
+        $url = '/admin/shop/rental-products/gameserver/new';
+
+        return new \Symfony\Component\HttpFoundation\RedirectResponse($url, 303, ['HX-Redirect' => $url]);
     }
 
     #[Route(path: '/{id}/edit', name: 'admin_shop_products_edit', methods: ['GET'])]
@@ -104,38 +77,38 @@ final class AdminShopProductController
         }
 
         $product = $this->productRepository->find($id);
-        if ($product === null) {
+        if (null === $product) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null || $product->getSiteId() !== $site->getId()) {
+        if (null === $site || $product->getSiteId() !== $site->getId()) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
-        return new Response($this->twig->render('admin/shop/products/_form.html.twig', [
-            'form' => $this->buildFormContext($product),
-            'categories' => $this->normalizeCategories($this->categoryRepository->findBy(['siteId' => $site->getId()], ['sortOrder' => 'ASC'])),
-            'templates' => $this->normalizeTemplates(),
-            'nodes' => $this->normalizeNodes(),
-        ]));
+        $url = '/admin/shop/rental-products/'.$product->getKind()->value.'/'.$id.'/edit';
+
+        return new \Symfony\Component\HttpFoundation\RedirectResponse($url, 303, ['HX-Redirect' => $url]);
     }
 
     #[Route(path: '', name: 'admin_shop_products_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
+        if (!$this->csrf->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('admin-shop', $request->request->getString('_token', $request->headers->get('X-CSRF-TOKEN', ''))))) {
+            return new Response('Invalid CSRF token.', 403);
+        }
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
+        if (null === $site) {
             return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $formData = $this->parsePayload($request);
-        if ($formData['errors'] !== []) {
+        if ([] !== $formData['errors']) {
             return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
         }
 
@@ -143,7 +116,7 @@ final class AdminShopProductController
         $template = $this->templateRepository->find($formData['template_id']);
         $node = $this->agentRepository->find($formData['node_id']);
 
-        if ($category === null || $template === null || $node === null) {
+        if (null === $category || null === $template || null === $node) {
             return $this->renderFormWithErrors(array_replace($formData, [
                 'errors' => ['Category, template, and node are required.'],
             ]), Response::HTTP_BAD_REQUEST);
@@ -184,23 +157,30 @@ final class AdminShopProductController
     #[Route(path: '/{id}', name: 'admin_shop_products_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
+        if (!$this->csrf->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('admin-shop', $request->request->getString('_token', $request->headers->get('X-CSRF-TOKEN', ''))))) {
+            return new Response('Invalid CSRF token.', 403);
+        }
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $product = $this->productRepository->find($id);
-        if ($product === null) {
+        if (null === $product) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null || $product->getSiteId() !== $site->getId()) {
+        if (null === $site || $product->getSiteId() !== $site->getId()) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
+        if (\App\Module\Core\Domain\Enum\ShopProductKind::Gameserver !== $product->getKind()) {
+            return new Response('Bitte dieses Produkt unter /admin/shop/rental-products bearbeiten.', 409);
+        }
+
         $formData = $this->parsePayload($request);
-        if ($formData['errors'] !== []) {
+        if ([] !== $formData['errors']) {
             return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST, $product);
         }
 
@@ -208,7 +188,7 @@ final class AdminShopProductController
         $template = $this->templateRepository->find($formData['template_id']);
         $node = $this->agentRepository->find($formData['node_id']);
 
-        if ($category === null || $template === null || $node === null) {
+        if (null === $category || null === $template || null === $node) {
             return $this->renderFormWithErrors(array_replace($formData, [
                 'errors' => ['Category, template, and node are required.'],
             ]), Response::HTTP_BAD_REQUEST, $product);
@@ -242,21 +222,32 @@ final class AdminShopProductController
     #[Route(path: '/{id}/delete', name: 'admin_shop_products_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
+        if (!$this->csrf->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('admin-shop', $request->request->getString('_token', $request->headers->get('X-CSRF-TOKEN', ''))))) {
+            return new Response('Invalid CSRF token.', 403);
+        }
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $product = $this->productRepository->find($id);
-        if ($product === null) {
+        if (null === $product) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null || $product->getSiteId() !== $site->getId()) {
+        if (null === $site || $product->getSiteId() !== $site->getId()) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
+        if ($this->entityManager->getRepository(\App\Module\Core\Domain\Entity\ShopOrder::class)->count(['product' => $product]) > 0 || $this->entityManager->getRepository(\App\Module\Core\Domain\Entity\ShopRental::class)->count(['product' => $product]) > 0) {
+            if ('true' !== $request->headers->get('HX-Request')) {
+                return new \Symfony\Component\HttpFoundation\RedirectResponse('/admin/shop/rental-products/'.$product->getKind()->value.'/'.$id.'/edit?delete=blocked', 303);
+            }
+
+            return new Response('This product has orders or rentals. Deactivate it to preserve their history.', 409);
+        }
+        $kind = $product->getKind()->value;
         $this->entityManager->remove($product);
         $this->entityManager->flush();
 
@@ -265,11 +256,11 @@ final class AdminShopProductController
             'site_id' => $product->getSiteId(),
         ]);
 
-        return new Response('', Response::HTTP_NO_CONTENT);
+        return 'true' === $request->headers->get('HX-Request') ? new Response('', Response::HTTP_NO_CONTENT) : new \Symfony\Component\HttpFoundation\RedirectResponse('/admin/shop/rental-products/'.$kind.'?deleted=1', 303);
     }
 
     /**
-     * @return array{name: string, description: string, image_url: null|string, price_monthly_cents: int,
+     * @return array{name: string, description: string, image_url: string|null, price_monthly_cents: int,
      * category_id: int, template_id: int, node_id: string, cpu_limit: int, ram_limit: int, disk_limit: int,
      * is_active: bool, is_public_active: bool, is_customer_active: bool, errors: list<string>}
      */
@@ -278,7 +269,11 @@ final class AdminShopProductController
         $name = trim((string) $request->request->get('name'));
         $description = trim((string) $request->request->get('description'));
         $imageUrl = trim((string) $request->request->get('image_url')) ?: null;
-        $priceMonthly = (float) $request->request->get('price_monthly', 0);
+        $priceCents = 0;
+        try {
+            $priceCents = \App\Module\Core\Application\Billing\BillingAmount::parse($request->request->getString('price_monthly', '0.00'));
+        } catch (\InvalidArgumentException) {
+        }
         $categoryId = (int) $request->request->get('category_id', 0);
         $templateId = (int) $request->request->get('template_id', 0);
         $nodeId = (string) $request->request->get('node_id', '');
@@ -290,19 +285,19 @@ final class AdminShopProductController
         $isCustomerActive = $request->request->getBoolean('is_customer_active', false);
         $errors = [];
 
-        if ($name === '') {
+        if ('' === $name || mb_strlen($name) > 160) {
             $errors[] = 'Name is required.';
         }
 
-        if ($priceMonthly <= 0) {
+        if ($priceCents <= 0) {
             $errors[] = 'Price per month must be positive.';
         }
 
-        if ($categoryId <= 0 || $templateId <= 0 || $nodeId === '') {
+        if ($categoryId <= 0 || $templateId <= 0 || '' === $nodeId) {
             $errors[] = 'Category, template, and node are required.';
         }
 
-        if ($cpuLimit <= 0 || $ramLimit <= 0 || $diskLimit <= 0) {
+        if ($cpuLimit <= 0 || $cpuLimit > 21_474_836 || $ramLimit <= 0 || $ramLimit > 2_097_151 || $diskLimit <= 0 || $diskLimit > 2_097_151) {
             $errors[] = 'Limits must be positive.';
         }
 
@@ -310,7 +305,7 @@ final class AdminShopProductController
             'name' => $name,
             'description' => $description,
             'image_url' => $imageUrl,
-            'price_monthly_cents' => (int) round($priceMonthly * 100.0),
+            'price_monthly_cents' => $priceCents,
             'category_id' => $categoryId,
             'template_id' => $templateId,
             'node_id' => $nodeId,
@@ -334,8 +329,8 @@ final class AdminShopProductController
             'image_url' => $product?->getImageUrl() ?? '',
             'price_monthly' => $product ? number_format($product->getPriceMonthlyCents() / 100, 2, '.', '') : '',
             'category_id' => $product?->getCategory()->getId() ?? '',
-            'template_id' => $product?->getTemplate()->getId() ?? '',
-            'node_id' => $product?->getNode()->getId() ?? '',
+            'template_id' => $product?->getGameTemplate()?->getId() ?? '',
+            'node_id' => $product?->getProvisioningNode()?->getId() ?? '',
             'cpu_limit' => $product?->getCpuLimit() ?? 0,
             'ram_limit' => $product?->getRamLimit() ?? 0,
             'disk_limit' => $product?->getDiskLimit() ?? 0,
@@ -351,7 +346,7 @@ final class AdminShopProductController
     {
         return new Response($this->twig->render('admin/shop/products/_form.html.twig', [
             'form' => $this->buildFormContext($product, $formData['errors']),
-            'categories' => $this->normalizeCategories($this->categoryRepository->findAll()),
+            'categories' => $this->normalizeCategories($this->categoryRepository->findBy(['siteId' => $this->siteResolver->resolve($this->requests->getCurrentRequest() ?? Request::create('/'))?->getId() ?? 0], ['sortOrder' => 'ASC'])),
             'templates' => $this->normalizeTemplates(),
             'nodes' => $this->normalizeNodes(),
         ]), $status);
@@ -371,6 +366,7 @@ final class AdminShopProductController
     {
         return array_map(static fn (ShopProduct $product): array => [
             'id' => $product->getId(),
+            'kind' => $product->getKind()->value,
             'name' => $product->getName(),
             'category' => $product->getCategory()->getName(),
             'price_monthly' => number_format($product->getPriceMonthlyCents() / 100, 2, '.', ''),
@@ -401,7 +397,7 @@ final class AdminShopProductController
         ], $this->templateRepository->findAll());
     }
 
-    /** @return list<array{id: string, name: null|string}> */
+    /** @return list<array{id: string, name: string|null}> */
     private function normalizeNodes(): array
     {
         return array_map(static fn ($node): array => [
@@ -413,6 +409,7 @@ final class AdminShopProductController
     private function isAdmin(Request $request): bool
     {
         $actor = RequestActor::user($request);
+
         return $actor instanceof User && $actor->isAdmin();
     }
 }

@@ -300,6 +300,21 @@ services:
     arguments:
       $menuProviders: !tagged_iterator 'app.extension.menu_provider'
 
+  App\Module\Core\Application\Contracts\GameserverContractProvider:
+    tags: ['app.contract_resource']
+
+  App\Module\Core\Application\Contracts\VoiceContractProvider:
+    tags: ['app.contract_resource']
+
+  App\Module\Core\Application\Contracts\KvmContractProvider:
+    tags: ['app.contract_resource']
+
+  App\Module\Core\Application\Contracts\WebspaceContractProvider:
+    tags: ['app.contract_resource']
+
+  App\Module\Core\Application\Contracts\DomainContractProvider:
+    tags: ['app.contract_resource']
+
   App\Module\Cms\Application\BlockRenderer\BlockRendererRegistry:
     arguments:
       $renderers: !tagged_iterator 'app.cms.block_renderer'
@@ -314,6 +329,9 @@ services:
     tags: ['app.cms.block_renderer']
 
   App\Module\Cms\Application\BlockRenderer\CardsBlockRenderer:
+    tags: ['app.cms.block_renderer']
+
+  App\Module\Cms\Application\BlockRenderer\ShopProductsBlockRenderer:
     tags: ['app.cms.block_renderer']
 
   App\Module\Cms\Application\Security\CaptchaVerifierInterface: '@App\Module\Cms\Application\Security\NoneCaptchaVerifier'

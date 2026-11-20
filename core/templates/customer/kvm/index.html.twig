@@ -1,6 +1,27 @@
 {% extends 'customer/base.html.twig' %}
+{% set activeNav = 'kvm' %}
 {% trans_default_domain 'infrastructure' %}
 {% block content %}
-<div class="infra-page"><header class="infra-hero"><div><span class="infra-eyebrow">KVM</span><h1>{{ 'console.my_kvm'|trans({}, 'vm_console') }}</h1><p>{{ 'infra.customer_hint'|trans }}</p></div><span class="infra-tag">{{ guests|length }} {{ 'infra.servers'|trans }}</span></header>
-<div class="infra-grid">{% for row in guests %}{% set usage = infra_kvm_usage(row.assignment.node, row.assignment.vmUuid) %}<article class="infra-card"><div class="infra-card__head"><h2><a href="{{ path('customer_kvm_guest', {id: row.assignment.id}) }}">{{ row.guest.label|default('console.vm'|trans({}, 'vm_console')) }}</a></h2><span class="infra-tag {{ row.guest.state|default('') == 'running' ? 'infra-tag--online' : '' }}">{{ row.guest.state|default('console.unavailable'|trans({}, 'vm_console')) }}</span></div>{% include 'infrastructure/_metrics.html.twig' with {seriesRole: 'server'} %}<p class="infra-muted">{{ row.guest.vcpus|default('—') }} vCPU · {{ row.guest.memory_mib|default('—') }} MiB · {{ row.guest.disk_gib|default('—') }} GiB</p><a class="ui-button ui-button--primary" href="{{ path('customer_kvm_guest', {id: row.assignment.id}) }}">{{ 'infra.open'|trans }}</a></article>{% else %}<p class="infra-empty">{{ 'console.no_vms'|trans({}, 'vm_console') }}</p>{% endfor %}</div></div>
+<div class="infra-page pm-workspace">
+    <header class="pm-page-head"><div><h1>{{ 'console.my_kvm'|trans({},'vm_console') }}</h1><p>{{ 'infra.customer_hint'|trans }}</p></div></header>
+    <div class="pm-stats">
+        {% include 'components/panel/_stat.html.twig' with {value:guests|length,label:'infra.servers'|trans} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:guests|filter(row => row.guest.state|default('') == 'running')|length,label:'infra.running'|trans} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:guests|filter(row => row.guest is empty)|length,label:'workspace_unavailable'|trans({},'panel_modules')} only %}
+    </div>
+    <section class="cust-panel" data-infra-list>
+        <div class="infra-search"><input class="form-input" type="search" data-infra-filter placeholder="{{ 'infra.search'|trans }}" aria-label="{{ 'infra.search'|trans }}"><select class="form-input" data-infra-state aria-label="Status"><option value="">{{ 'infra.all_states'|trans }}</option><option value="running">{{ 'infra.running'|trans }}</option><option value="shut off">{{ 'infra.stopped'|trans }}</option></select></div>
+        <div class="infra-table-wrap"><table class="cust-table">
+            <thead><tr><th>{{ 'infra.server'|trans }}</th><th>Status</th><th>{{ 'infra.capacity'|trans }}</th><th>{{ 'workspace_usage'|trans({},'panel_modules') }}</th><th>{{ 'actions'|trans({},'panel_modules') }}</th></tr></thead>
+            <tbody>{% for row in guests %}<tr data-infra-item data-state="{{ row.guest.state|default('unknown') }}">
+                <td><a class="pm-server-name" href="{{ path('customer_kvm_guest',{id:row.assignment.id}) }}">{{ row.guest.label|default('console.vm'|trans({},'vm_console')) }}</a><small class="pm-cell-sub">{{ row.assignment.vmUuid }}</small></td>
+                <td><span class="ui-badge ui-badge--{{ row.guest.state|default('') == 'running' ? 'success' : 'neutral' }}">{{ row.guest.state|default('workspace_unavailable'|trans({},'panel_modules')) }}</span></td>
+                <td>{{ row.guest.vcpus|default('—') }} vCPU · {{ row.guest.memory_mib|default('—') }} MiB<small class="pm-cell-sub">{{ row.guest.disk_gib|default('—') }} GiB</small></td>
+                <td><details class="pm-row-details pm-inventory-metrics"><summary>{{ 'overview'|trans({},'panel_modules') }}</summary><div>{% include 'infrastructure/_metrics.html.twig' with {usage:infra_kvm_usage(row.assignment.node,row.assignment.vmUuid),seriesRole:'server',loadingDisk:false} %}</div><p data-usage-error role="status" hidden>{{ 'infra.refresh_failed'|trans }}</p></details></td>
+                <td><a class="ui-button ui-button--primary" href="{{ path('customer_kvm_guest',{id:row.assignment.id}) }}">{{ 'infra.open'|trans }}</a></td>
+            </tr>{% endfor %}</tbody>
+        </table></div>
+        <p class="infra-empty" data-infra-no-results {% if guests is not empty %}hidden{% endif %}>{{ guests is empty ? 'console.no_vms'|trans({},'vm_console') : 'infra.no_results'|trans }}</p>
+    </section>
+</div>
 {% endblock %}

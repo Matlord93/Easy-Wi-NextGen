@@ -2,11 +2,36 @@
 {% trans_default_domain 'proxmox' %}
 {% set pageTitle = 'pve.title'|trans %}
 {% block content %}
-<div class="infra-page">{% include 'proxmox/_alerts.html.twig' %}
-<header class="infra-hero"><div><span class="infra-eyebrow">{{ 'infra.infrastructure'|trans({}, 'infrastructure') }}</span><h1>{{ pageTitle }}</h1><p>{{ 'infra.proxmox_hint'|trans({}, 'infrastructure') }}</p></div><span class="infra-tag">{{ clusters|length }} {{ 'infra.connections'|trans({}, 'infrastructure') }}</span></header>
-<p><a class="ui-button ui-button--ghost" href="{{ path('admin_vm_console') }}">{{ 'setup.title'|trans({}, 'vm_console') }}</a></p>
-<div class="infra-grid infra-grid--wide"><section class="infra-card"><div class="infra-card__head"><h2>{{ 'infra.connections'|trans({}, 'infrastructure') }}</h2></div><div class="infra-grid">{% for cluster in clusters %}<article class="infra-card"><div class="infra-card__head"><h2><a href="{{ path('admin_proxmox_cluster', {id: cluster.id}) }}">{{ cluster.name }}</a></h2><span class="infra-tag">{{ (cluster.enabled ? 'pve.enabled' : 'pve.disabled')|trans }}</span></div><p class="infra-muted">{{ cluster.baseUrl }}</p><a class="ui-button ui-button--primary" href="{{ path('admin_proxmox_cluster', {id: cluster.id}) }}">{{ 'infra.open'|trans({}, 'infrastructure') }}</a></article>{% else %}<p class="infra-empty">{{ 'pve.no_clusters'|trans }}</p>{% endfor %}</div></section>
-<section class="ng-data-card">
+<div class="infra-page pm-workspace" data-panel-tabs="proxmox-connections">
+    {% include 'proxmox/_alerts.html.twig' %}
+    <header class="pm-page-head">
+        <div><h1>{{ pageTitle }}</h1><p>{{ 'infra.proxmox_hint'|trans({}, 'infrastructure') }}</p></div>
+        <div class="pm-page-head__actions">
+            <a class="ui-button ui-button--ghost" href="{{ path('admin_vm_console') }}">{{ 'setup.title'|trans({}, 'vm_console') }}</a>
+            <a class="ui-button ui-button--primary" href="#pm-proxmox-connections-create">+ {{ 'pve.add_cluster'|trans }}</a>
+        </div>
+    </header>
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'proxmox-connections',panelTabs:{overview:'workspace_connections',create:'create'}} %}
+    <div class="pm-stats">
+        {% include 'components/panel/_stat.html.twig' with {value:clusters|length,label:'infra.connections'|trans({},'infrastructure')} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:clusters|filter(cluster => cluster.enabled)|length,label:'pve.enabled'|trans} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:clusters|filter(cluster => not cluster.enabled)|length,label:'pve.disabled'|trans} only %}
+    </div>
+    <section class="cust-panel" data-panel-section="overview" data-panel-list>
+        <div class="pm-filters"><label class="sr-only" for="proxmox-connection-search">{{ 'search'|trans({},'panel_modules') }}</label><input class="form-input" id="proxmox-connection-search" type="search" data-panel-filter placeholder="{{ 'workspace_connection_search'|trans({},'panel_modules') }}"></div>
+        <div class="infra-table-wrap"><table class="cust-table">
+            <thead><tr><th>{{ 'pve.cluster_name'|trans }}</th><th>{{ 'pve.base_url'|trans }}</th><th>{{ 'pve.state'|trans }}</th><th>{{ 'actions'|trans({},'panel_modules') }}</th></tr></thead>
+            <tbody>{% for cluster in clusters %}
+                <tr data-panel-row>
+                    <td><a class="pm-server-name" href="{{ path('admin_proxmox_cluster',{id:cluster.id}) }}">{{ cluster.name }}</a></td>
+                    <td>{{ cluster.baseUrl }}</td>
+                    <td><span class="ui-badge ui-badge--{{ cluster.enabled ? 'success' : 'neutral' }}">{{ (cluster.enabled ? 'pve.enabled' : 'pve.disabled')|trans }}</span></td>
+                    <td><a class="ui-button ui-button--ghost" href="{{ path('admin_proxmox_cluster',{id:cluster.id}) }}">{{ 'edit'|trans({},'panel_modules') }}</a></td>
+                </tr>
+            {% else %}<tr><td colspan="4" class="cust-table__empty">{{ 'pve.no_clusters'|trans }}</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </section>
+<section class="ng-data-card" data-panel-section="create">
   <div class="ng-data-card__header"><h2>{{ 'pve.add_cluster'|trans }}</h2></div>
   <form method="post" class="ng-data-card__body" style="display:grid;gap:12px;">
     <input type="hidden" name="_token" value="{{ csrf_token('proxmox-config') }}">
@@ -20,5 +45,5 @@
     <button class="ui-button ui-button--primary">{{ 'pve.save'|trans }}</button>
   </form>
 </section>
-</div></div>
+</div>
 {% endblock %}

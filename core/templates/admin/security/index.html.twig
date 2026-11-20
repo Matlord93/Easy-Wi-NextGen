@@ -3,6 +3,14 @@
 {% set pageTitle = t('admin_security_title', locale) %}
 {% set pageSubtitle = t('admin_security_intro', locale) %}
 {% set activeNav = 'security' %}
+{% set activeSection = 'ddos' %}
+{% if app.request %}
+    {% if app.request.pathInfo == '/admin/security/ddos' or app.request.query.has('ddos') %}{% set activeSection = 'providers' %}{% endif %}
+    {% if app.request.query.has('firewall') or app.request.pathInfo starts with '/admin/security/firewall/' %}{% set activeSection = 'firewall' %}{% endif %}
+    {% if app.request.query.has('fail2ban') or app.request.pathInfo starts with '/admin/security/fail2ban/' %}{% set activeSection = 'fail2ban' %}{% endif %}
+    {% for filter in ['event_from','event_to','event_ip','event_rule','event_source'] %}{% if app.request.query.has(filter) %}{% set activeSection = 'events' %}{% endif %}{% endfor %}
+    {% if app.request.query.has('ruleset') or app.request.pathInfo starts with '/admin/security/ruleset/' %}{% set activeSection = 'ruleset' %}{% endif %}
+{% endif %}
 
 {% block content %}
 
@@ -40,7 +48,7 @@
     'apps': t('admin_security_fail2ban_group_apps', locale),
 } %}
 
-<div style="display:flex;flex-direction:column;gap:24px;">
+<div class="pm-workspace pm-security-page" data-panel-tabs="security-centre" data-panel-active="{{ activeSection }}">
 
     {# ── Flash messages ── #}
     {% if errors is not empty %}
@@ -69,87 +77,19 @@
     {# ══════════════════════════════════════
        HERO
     ══════════════════════════════════════ #}
-    <section class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero" style="background:linear-gradient(135deg,rgba(99,102,241,.1) 0%,rgba(239,68,68,.07) 60%,transparent 100%);">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:18px;">
-                    <div>
-                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                            <div class="tkt-hero__pill" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.1);">
-                                <span class="tkt-hero__pill-dot" style="background:#ef4444;animation:pulse 2s infinite;"></span>
-                                <span style="color:var(--aw-status-danger, #fca5a5);">{{ t('admin_security_hero_label', locale) }}</span>
-                            </div>
-                            {% if attackCount > 0 %}
-                                <span class="ui-badge ui-badge--danger">{{ attackCount }} {{ t('admin_security_kpi_attacks', locale) }}</span>
-                            {% else %}
-                                <span class="ui-badge ui-badge--success">{{ t('admin_security_ddos_all_clear', locale) }}</span>
-                            {% endif %}
-                        </div>
-                        <h1 class="tkt-hero__title">{{ t('admin_security_hero_title', locale) }}</h1>
-                        <p class="tkt-hero__sub">{{ t('admin_security_hero_intro', locale) }}</p>
-                    </div>
+    <header class="pm-page-head"><div><h1>{{ t('admin_security_hero_title',locale) }}</h1><p>{{ t('admin_security_intro',locale) }}</p></div><div class="pm-page-head__actions"></div></header>
+<div class="pm-stats">
+{% include 'components/panel/_stat.html.twig' with {value:totalNodes,label:t('admin_security_kpi_nodes',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:attackCount,label:t('admin_security_kpi_attacks',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:credentials|length,label:t('admin_security_kpi_providers',locale)} only %}
+</div>
+{% include 'components/panel/_tabs.html.twig' with {panelKey:'security-centre',panelTabs:{ddos:'workspace_ddos',firewall:'workspace_firewall',fail2ban:'workspace_fail2ban',events:'workspace_security_events',ruleset:'workspace_ruleset',providers:'workspace_providers'}} %}
 
-                    {# KPI row #}
-                    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;">
-                        <div class="tkt-kpi">
-                            <div class="tkt-kpi__label">{{ t('admin_security_kpi_nodes', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ totalNodes }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--pending">
-                            <div class="tkt-kpi__label">{{ t('admin_security_event_count', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ totalEvents }}</div>
-                        </div>
-                        <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
-                            <div class="tkt-kpi__label" style="color:rgba(252,165,165,.75);">{{ t('admin_security_blocked', locale) }}</div>
-                            <div class="tkt-kpi__value" style="color:var(--aw-status-danger, #fca5a5);">{{ securityEventSummary.blocked }}</div>
-                        </div>
-                        <div class="tkt-kpi {{ attackCount > 0 ? '' : 'tkt-kpi--resolved' }}" style="{{ attackCount > 0 ? 'border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);' : '' }}">
-                            <div class="tkt-kpi__label" style="{{ attackCount > 0 ? 'color:rgba(252,165,165,.75);' : '' }}">{{ t('admin_security_kpi_attacks', locale) }}</div>
-                            <div class="tkt-kpi__value" style="{{ attackCount > 0 ? 'color:var(--aw-status-danger, #fca5a5);' : '' }}">{{ attackCount }}</div>
-                        </div>
-                        <div class="tkt-kpi">
-                            <div class="tkt-kpi__label">{{ t('admin_security_kpi_providers', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ credentials|length }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {# Quick navigation #}
-        <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-            <a href="#ddos" class="tkt-qa">
-                <div class="tkt-qa__icon" style="background:rgba(239,68,68,.15);color:var(--aw-status-danger, #fca5a5);font-size:17px;">⚡</div>
-                <div class="tkt-qa__title">{{ t('admin_security_nav_ddos', locale) }}</div>
-                <div class="tkt-qa__sub">{{ attackCount }} {{ t('admin_security_kpi_attacks', locale)|lower }}</div>
-            </a>
-            <a href="#firewall" class="tkt-qa">
-                <div class="tkt-qa__icon" style="background:rgba(96,165,250,.15);color:var(--aw-status-info, #60a5fa);font-size:17px;">🔥</div>
-                <div class="tkt-qa__title">{{ t('admin_security_nav_firewall', locale) }}</div>
-                <div class="tkt-qa__sub">{{ totalNodes }} {{ t('admin_security_kpi_nodes', locale)|lower }}</div>
-            </a>
-            <a href="#fail2ban" class="tkt-qa">
-                <div class="tkt-qa__icon" style="background:rgba(251,191,36,.15);color:var(--aw-status-warning, #fbbf24);font-size:17px;">🛡</div>
-                <div class="tkt-qa__title">{{ t('admin_security_nav_fail2ban', locale) }}</div>
-                <div class="tkt-qa__sub">{{ t('admin_security_nav_fail2ban_sub', locale) }}</div>
-            </a>
-            <a href="#events" class="tkt-qa">
-                <div class="tkt-qa__icon" style="background:rgba(167,139,250,.15);color:var(--aw-status-primary, #a78bfa);font-size:17px;">📋</div>
-                <div class="tkt-qa__title">{{ t('admin_security_nav_events', locale) }}</div>
-                <div class="tkt-qa__sub">{{ totalEvents }} {{ t('admin_security_nav_events_sub', locale) }}</div>
-            </a>
-            <a href="#providers" class="tkt-qa">
-                <div class="tkt-qa__icon" style="background:rgba(52,211,153,.15);color:var(--aw-status-success, #34d399);font-size:17px;">🔑</div>
-                <div class="tkt-qa__title">{{ t('admin_security_nav_providers', locale) }}</div>
-                <div class="tkt-qa__sub">{{ credentials|length }} {{ t('admin_security_kpi_providers', locale)|lower }}</div>
-            </a>
-        </div>
-    </section>
 
     {# ══════════════════════════════════════
        DDOS LIVE STATUS
     ══════════════════════════════════════ #}
-    <div id="ddos" style="display:flex;flex-direction:column;gap:16px;">
+    <div id="ddos" data-panel-section="ddos" style="display:flex;flex-direction:column;gap:16px;">
 
         <div class="ng-data-card" data-ddos-live data-endpoint="/admin/security/ddos/live-status">
             <div class="ng-data-card__header" style="border-left:3px solid #ef4444;padding-left:18px;margin-left:-1px;">
@@ -338,7 +278,7 @@
     {# ══════════════════════════════════════
        FIREWALL
     ══════════════════════════════════════ #}
-    <div id="firewall" class="ng-data-card">
+    <div id="firewall" data-panel-section="firewall" class="ng-data-card">
         <div class="ng-data-card__header" style="border-left:3px solid #60a5fa;padding-left:18px;margin-left:-1px;">
             <div style="display:flex;align-items:center;gap:14px;">
                 <div style="width:40px;height:40px;border-radius:10px;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🔥</div>
@@ -442,7 +382,7 @@
     {# ══════════════════════════════════════
        FAIL2BAN
     ══════════════════════════════════════ #}
-    <div id="fail2ban" class="ng-data-card">
+    <div id="fail2ban" data-panel-section="fail2ban" class="ng-data-card">
         <div class="ng-data-card__header" style="border-left:3px solid #fbbf24;padding-left:18px;margin-left:-1px;">
             <div style="display:flex;align-items:center;gap:14px;">
                 <div style="width:40px;height:40px;border-radius:10px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🛡</div>
@@ -603,7 +543,7 @@
     {# ══════════════════════════════════════
        SECURITY EVENTS
     ══════════════════════════════════════ #}
-    <div id="events" class="ng-data-card">
+    <div id="events" data-panel-section="events" class="ng-data-card">
         <div class="ng-data-card__header" style="border-left:3px solid #a78bfa;padding-left:18px;margin-left:-1px;">
             <div style="display:flex;align-items:center;gap:14px;">
                 <div style="width:40px;height:40px;border-radius:10px;background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">📋</div>
@@ -708,7 +648,7 @@
     {# ══════════════════════════════════════
        UNIFIED RULESET
     ══════════════════════════════════════ #}
-    <details id="ruleset" class="ng-card" style="overflow:hidden;">
+    <details open id="ruleset" data-panel-section="ruleset" class="ng-card" style="overflow:hidden;">
         <summary style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;cursor:pointer;user-select:none;list-style:none;transition:background .15s;" onmouseover="this.style.background='var(--ng-surface-soft)'" onmouseout="this.style.background=''">
             <div style="display:flex;align-items:center;gap:14px;">
                 <div style="width:38px;height:38px;border-radius:9px;background:rgba(148,163,184,.1);border:1px solid var(--ng-border);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">⚙️</div>
@@ -770,7 +710,7 @@
     {# ══════════════════════════════════════
        DDOS PROVIDER CREDENTIALS
     ══════════════════════════════════════ #}
-    <div id="providers" class="ng-data-card">
+    <div id="providers" data-panel-section="providers" class="ng-data-card">
         <div class="ng-data-card__header" style="border-left:3px solid #34d399;padding-left:18px;margin-left:-1px;">
             <div style="display:flex;align-items:center;gap:14px;">
                 <div style="width:40px;height:40px;border-radius:10px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🔑</div>
@@ -942,7 +882,7 @@
 
     let loading = false;
     function load() {
-        if (loading) return;
+        if (loading || document.hidden || card.closest('[data-panel-section]')?.hidden) return;
         loading = true;
         if (refreshBtn) refreshBtn.disabled = true;
         fetch(endpoint, {headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}})

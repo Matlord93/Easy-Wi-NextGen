@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\KnowledgeBaseArticle;
 use App\Module\Core\Domain\Enum\TicketCategory;
 use App\Repository\KnowledgeBaseArticleRepository;
@@ -20,7 +20,7 @@ final class PublicKnowledgeBaseController
 {
     public function __construct(
         private readonly KnowledgeBaseArticleRepository $kbRepository,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         #[Autowire(service: 'limiter.public_docs')]
         private readonly RateLimiterFactory $docsLimiter,
         private readonly Environment $twig,

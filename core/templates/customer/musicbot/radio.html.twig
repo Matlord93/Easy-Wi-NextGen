@@ -4,13 +4,11 @@
 {% set activeNav = 'musicbots' %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;" id="radio-app">
+<div class="pm-workspace pm-native-music" id="radio-app">
+
+<header class="pm-page-head"><div><h1>{{ 'Webradio · ' ~ instance.name }}</h1><p>{{ 'workspace_music_radio_intro'|trans({},'panel_modules') }}</p></div><div class="pm-page-head__actions"><a class="ui-button ui-button--ghost" href="{{ path('customer_musicbot_show',{id:instance.id}) }}">{{ 'back'|trans({},'panel_modules') }}</a></div></header>
 
     <div class="ui-card">
-        <div class="ui-card__header">
-            <h2 class="ui-card__title">📻 Webradio</h2>
-            <a href="{{ path('customer_musicbot_show', {id: instance.id}) }}" class="ui-btn ui-btn--sm ui-btn--neutral">← Zurück zum Bot</a>
-        </div>
         <div class="ui-card__body" style="padding-bottom:0;">
             <nav style="display:flex;gap:4px;border-bottom:2px solid var(--color-border,#e0e0e0);margin-bottom:-1px;">
                 <button class="radio-tab-btn active" data-tab="catalog">🌐 Katalog</button>

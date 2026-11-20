@@ -6,7 +6,7 @@ namespace App\Module\Cms\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\ContactMessage;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\ContactMessageRepository;
@@ -22,7 +22,7 @@ use Twig\Environment;
 final class AdminCmsContactController
 {
     public function __construct(
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly ContactMessageRepository $contactMessageRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,

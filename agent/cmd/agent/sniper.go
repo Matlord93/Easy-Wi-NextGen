@@ -964,6 +964,10 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		markSharedFailure(err)
 		return failureResult(job.ID, fmt.Errorf("server.properties: %w", err))
 	}
+	if err := ensureSevenDaysToDiePorts(instanceDir, job.Payload); err != nil {
+		markSharedFailure(err)
+		return failureResult(job.ID, fmt.Errorf("serverconfig.xml: %w", err))
+	}
 
 	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
 	if err != nil {

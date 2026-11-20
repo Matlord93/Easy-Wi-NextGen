@@ -167,6 +167,18 @@ final class FileServiceClient
         ];
     }
 
+    /** @return array{saved:bool,new_etag:string} */
+    public function createFileContent(Instance $instance, string $path, string $content): array
+    {
+        $path = $this->normalizeRelativePath($path);
+        if ('' === $path) {
+            throw new FileServiceException('invalid_path', 'Missing file path.', 400);
+        }
+        $response = $this->requestJsonWithPassthroughErrors($instance, 'PUT', $this->buildEndpoint($instance, '/content'), [], ['path' => $path, 'content' => $content, 'create_only' => true, 'etag' => '*']);
+
+        return ['saved' => true === ($response['saved'] ?? false), 'new_etag' => JsonMap::strings($response)['new_etag'] ?? ''];
+    }
+
     public function uploadFile(Instance $instance, string $path, UploadedFile $upload): void
     {
         $endpoint = $this->buildEndpoint($instance, '/upload');

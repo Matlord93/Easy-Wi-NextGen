@@ -1,0 +1,22 @@
+{% set cmsSite = cms_site_context() %}
+{% set cmsTheme = active_theme|default('hosting') %}
+{% set brandName = app_setting('branding_name','Easy-Wi NextGen') %}
+{% set actor = current_user() %}
+{% set panelUrl = actor ? (actor.isAdmin ? '/admin' : (actor.type.value == 'reseller' ? '/reseller' : (actor.customerAccessEnabled ? '/dashboard' : '/profile'))) : path('public_login') %}
+<!DOCTYPE html>
+<html lang="{{ page_locale() }}" class="dark">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}{{ page.title|default(brandName) }} · {{ app_setting('site_title',brandName) }}{% endblock %}</title>
+<script src="{{ asset('js/panel-theme.js') }}"></script>
+<link rel="stylesheet" href="{{ asset('ui.css') }}"><link rel="stylesheet" href="{{ asset('workspace-public.css') }}"><link rel="stylesheet" href="{{ asset('cms-themes.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body class="easywi-workspace-public cms-site cms-site--{{ cmsTheme }}" data-cms-theme="{{ cmsTheme }}"{% if cmsSite.branding.primary_color|default('') %} style="--cms-brand:{{ cmsSite.branding.primary_color }}"{% endif %}>
+<a class="cms-skip-link" href="#cms-main">{{ 'skip_content'|cms_trans({}) }}</a>
+{% if cms_layout.show_header|default(true) %}{% block header %}{% include 'themes/site/_header.html.twig' %}{% endblock %}{% endif %}
+<main id="cms-main" class="cms-main" tabindex="-1">{% block content %}{% endblock %}</main>
+{% if cms_layout.show_footer|default(true) %}{% block footer %}{% include 'themes/site/_footer.html.twig' %}{% endblock %}{% endif %}
+{% include 'cms/layout/_cookie_consent.html.twig' %}
+<script src="{{ asset('js/cms-site.js') }}" defer></script>
+</body></html>

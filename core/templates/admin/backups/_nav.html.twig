@@ -1,0 +1,5 @@
+<nav class="pm-module-nav" aria-label="{{ 'navigation'|trans({},'panel_modules') }}">
+<a href="{{ path('admin_backups_overview') }}"{% if backupNav == 'overview' %} aria-current="page"{% endif %}>{{ t('overview',page_locale()) }}</a>
+<a href="{{ path('admin_backups_targets') }}"{% if backupNav == 'targets' %} aria-current="page"{% endif %}>{{ t('admin_backups_nav_targets',page_locale()) }}</a>
+<a href="{{ path('admin_settings_backups') }}"{% if backupNav == 'settings' %} aria-current="page"{% endif %}>{{ t('admin_backups_nav_settings',page_locale()) }}</a>
+</nav>

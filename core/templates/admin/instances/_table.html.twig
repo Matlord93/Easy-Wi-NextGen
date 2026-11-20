@@ -38,7 +38,7 @@
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
                 <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('filter', page_locale()) }}</button>
-                <a href="{{ path('admin_instances_table') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('reset', page_locale()) }}</a>
+                <a href="{{ path('admin_instances') }}" hx-get="{{ path('admin_instances_table') }}" hx-target="#instances-table" hx-swap="outerHTML" class="ui-button ui-button--ghost ui-button--sm">{{ t('reset', page_locale()) }}</a>
             </div>
         </form>
     </div>
@@ -52,18 +52,7 @@
 
 <div class="cust-ws-table-wrap">
     <table class="cust-table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>{{ t('admin_instances_customer_game', page_locale()) }}</th>
-                <th>Node</th>
-                <th>{{ t('admin_instances_resources', page_locale()) }}</th>
-                <th>Disk</th>
-                <th>Status</th>
-                <th>Setup</th>
-                <th style="text-align:right;">{{ t('admin_instances_actions', page_locale()) }}</th>
-            </tr>
-        </thead>
+        <thead><tr><th>{{ 'servers'|trans({},'panel_modules') }}</th><th>{{ 'customer'|trans({},'panel_modules') }}</th><th>Node</th><th>Status</th><th>{{ 'resources'|trans({},'panel_modules') }}</th><th>{{ 'actions'|trans({},'panel_modules') }}</th></tr></thead>
         <tbody>
             {% for instance in instances %}
                 {% set displayStatus = instance.display_status ?? instance.status %}
@@ -93,13 +82,12 @@
                 {% set diskBarWidth = diskPercent > 100 ? 100 : diskPercent %}
 
                 <tr>
-                    <td>
+                    <td><a class="pm-server-name" href="{{ path('admin_instances_edit',{id:instance.id}) }}">{{ instance.server_name ?: instance.template_name }}</a><small class="pm-cell-sub">{{ instance.template_name }}</small><details class="pm-row-details"><summary>#{{ instance.id }} · {{ 'workspace_details'|trans({},'panel_modules') }}</summary>
                         <span style="font-weight:600;">#{{ instance.id }}</span>
                         <div style="font-size:11px;color:var(--color-text-muted,#94a3b8);margin-top:2px;">
                             {{ instance.updated_at ? instance.updated_at|date('Y-m-d H:i') : '—' }}
                         </div>
-                    </td>
-                    <td>
+
                         <div style="font-weight:600;font-size:14px;">{{ instance.template_name }}</div>
                         <div style="margin-top:3px;font-size:12px;color:var(--color-text-muted,#64748b);">
                             {{ t('admin_instances_hostname', page_locale()) }}: <span style="font-weight:600;">{{ instance.server_name ?: '—' }}</span>
@@ -119,10 +107,43 @@
                         {% if instance.sftp_last_error %}
                             <div style="font-size:11px;color:var(--aw-status-danger, #ef4444);">{{ t('admin_instances_sftp_error_label', page_locale()) }}: {{ instance.sftp_last_error }}</div>
                         {% endif %}
-                    </td>
+                    </details></td>
+                    <td>{{ instance.customer_email }}</td>
                     <td>{{ instance.node }}</td>
-                    <td>
-                        <div style="font-size:12px;">{{ instance.cpu_limit }} vCPU · {{ instance.ram_limit }} MB · {{ instance.disk_limit }} MB</div>
+                    <td><span class="ui-badge ui-badge--{{ statusVariant }}">{{ t('customer_instance_status_' ~ displayStatus,page_locale()) }}</span>{% if instance.runtime_status_reason or instance.install_error_code or instance.latest_lifecycle_job_id %}<details class="pm-row-details"><summary>{{ 'workspace_notices'|trans({},'panel_modules') }}</summary>
+                        <span class="ui-badge ui-badge--{{ statusVariant }}">
+                            {{ t('customer_instance_status_' ~ displayStatus, page_locale()) }}
+                        </span>
+                        {% if instance.runtime_status_reason %}
+                            <div style="margin-top:4px;font-size:11px;color:#d97706;">{{ instance.runtime_status_reason }}</div>
+                        {% endif %}
+                        {% if instance.latest_lifecycle_job_id %}
+                            <div style="margin-top:4px;font-size:11px;color:var(--color-text-muted,#94a3b8);">
+                                {{ instance.latest_lifecycle_job_type }} · {{ instance.latest_lifecycle_job_status }}
+                                {% if instance.latest_lifecycle_job_error_code %}
+                                    <span style="color:var(--aw-status-danger, #ef4444);">({{ instance.latest_lifecycle_job_error_code }})</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+
+                        <span class="ui-badge ui-badge--{{ installVariant }}">
+                            {{ instance.install_ready ? t('admin_instances_install_ready', page_locale()) : t('admin_instances_setup_open', page_locale()) }}
+                        </span>
+                        <div style="margin-top:6px;font-size:11px;color:var(--color-text-muted,#64748b);">
+                            Shared: {{ instance.shared_storage_enabled ? 'yes' : 'no' }}
+                            {% if instance.shared_storage_key %}
+                                · key={{ instance.shared_storage_key }}
+                            {% endif %}
+                        </div>
+                        {% if instance.shared_storage_status %}
+                            <div style="margin-top:2px;font-size:11px;color:#6366f1;">{{ instance.shared_storage_status }}</div>
+                        {% endif %}
+                        {% if instance.install_error_code %}
+                            <div style="margin-top:4px;font-size:11px;color:#d97706;">{{ instance.install_error_code == 'MINECRAFT_AGENT_UPDATE_REQUIRED' ? t('minecraft_agent_update_required', page_locale()) : instance.install_error_code }}</div>
+                        {% endif %}
+                    </details>{% endif %}</td>
+                    <td><div class="pm-limit-line">CPU {{ instance.cpu_limit }}% · RAM {{ instance.ram_limit }} MiB</div><div class="pm-cell-sub">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}</div><meter class="pm-meter" min="0" max="100" value="{{ diskBarWidth }}" aria-label="Disk"></meter><details class="pm-row-details"><summary>{{ 'configuration'|trans({},'panel_modules') }}</summary>
+                        <div style="font-size:12px;">{{ instance.cpu_limit }}% · {{ instance.ram_limit }} MB · {{ instance.disk_limit }} MB</div>
                         <details style="margin-top:6px;">
                             <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#6366f1;">{{ t('admin_instances_update_resources', page_locale()) }}</summary>
                             <form style="margin-top:8px;display:grid;gap:6px;"
@@ -140,8 +161,7 @@
                                 <button class="ui-button ui-button--primary ui-button--sm" style="justify-self:start;">{{ t('admin_instances_update_resources_submit', page_locale()) }}</button>
                             </form>
                         </details>
-                    </td>
-                    <td>
+
                         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                             <span class="ui-badge ui-badge--{{ diskVariant }}">{{ instance.disk_state|replace({'_': ' '})|title }}</span>
                             <span style="font-size:11px;color:var(--color-text-muted,#64748b);">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}</span>
@@ -149,24 +169,7 @@
                         <div style="margin-top:6px;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;">
                             <div style="height:4px;background:#6366f1;border-radius:2px;width:{{ diskBarWidth }}%;"></div>
                         </div>
-                    </td>
-                    <td>
-                        <span class="ui-badge ui-badge--{{ statusVariant }}">
-                            {{ t('customer_instance_status_' ~ displayStatus, page_locale()) }}
-                        </span>
-                        {% if instance.runtime_status_reason %}
-                            <div style="margin-top:4px;font-size:11px;color:#d97706;">{{ instance.runtime_status_reason }}</div>
-                        {% endif %}
-                        {% if instance.latest_lifecycle_job_id %}
-                            <div style="margin-top:4px;font-size:11px;color:var(--color-text-muted,#94a3b8);">
-                                {{ instance.latest_lifecycle_job_type }} · {{ instance.latest_lifecycle_job_status }}
-                                {% if instance.latest_lifecycle_job_error_code %}
-                                    <span style="color:var(--aw-status-danger, #ef4444);">({{ instance.latest_lifecycle_job_error_code }})</span>
-                                {% endif %}
-                            </div>
-                        {% endif %}
-                    </td>
-                    <td>
+
                         <span class="ui-badge ui-badge--{{ installVariant }}">
                             {{ instance.install_ready ? t('admin_instances_install_ready', page_locale()) : t('admin_instances_setup_open', page_locale()) }}
                         </span>
@@ -182,9 +185,10 @@
                         {% if instance.install_error_code %}
                             <div style="margin-top:4px;font-size:11px;color:#d97706;">{{ instance.install_error_code == 'MINECRAFT_AGENT_UPDATE_REQUIRED' ? t('minecraft_agent_update_required', page_locale()) : instance.install_error_code }}</div>
                         {% endif %}
-                    </td>
-                    <td style="text-align:right;">
+                    </details></td>
+                    <td><div class="pm-row-actions"><a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_instances_edit',{id:instance.id}) }}">{{ 'edit'|trans({},'panel_modules') }}</a><details class="pm-actions-menu"><summary aria-label="{{ 'actions'|trans({},'panel_modules') }}">•••</summary><div>
                         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+                            <a class="ui-button ui-button--primary ui-button--sm" href="{{ path('admin_instances_edit',{id:instance.id}) }}">{{ 'edit'|trans({},'panel_modules') }}</a>
                             <form method="post"
                                   action="{{ path('admin_users_impersonate', {id: instance.customer_id}) }}"
                                   style="display:contents;">
@@ -224,11 +228,11 @@
                                 {{ t('delete', page_locale()) }}
                             </button>
                         </div>
-                    </td>
+                    </div></details></div></td>
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="8" class="cust-table__empty">{{ t('admin_instances_empty', page_locale()) }}</td>
+                    <td colspan="6" class="cust-table__empty">{{ t('admin_instances_empty', page_locale()) }}</td>
                 </tr>
             {% endfor %}
         </tbody>

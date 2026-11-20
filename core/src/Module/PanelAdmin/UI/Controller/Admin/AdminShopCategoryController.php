@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
-
 use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ShopCategory;
@@ -15,8 +14,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
-use Twig\Environment;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Twig\Environment;
 
 #[Route(path: '/admin/shop/categories')]
 final class AdminShopCategoryController
@@ -28,6 +27,7 @@ final class AdminShopCategoryController
         private readonly AuditLoggerInterface $auditLogger,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly \Symfony\Component\Security\Csrf\CsrfTokenManagerInterface $csrf,
     ) {
     }
 
@@ -39,7 +39,7 @@ final class AdminShopCategoryController
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
+        if (null === $site) {
             return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
@@ -60,7 +60,7 @@ final class AdminShopCategoryController
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
+        if (null === $site) {
             return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
@@ -91,12 +91,12 @@ final class AdminShopCategoryController
         }
 
         $category = $this->categoryRepository->find($id);
-        if ($category === null) {
+        if (null === $category) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null || $category->getSiteId() !== $site->getId()) {
+        if (null === $site || $category->getSiteId() !== $site->getId()) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
@@ -108,18 +108,21 @@ final class AdminShopCategoryController
     #[Route(path: '', name: 'admin_shop_categories_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
+        if (!$this->csrf->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('admin-shop', $request->request->getString('_token', $request->headers->get('X-CSRF-TOKEN', ''))))) {
+            return new Response('Invalid CSRF token.', 403);
+        }
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
+        if (null === $site) {
             return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $formData = $this->parsePayload($request);
-        if ($formData['errors'] !== []) {
+        if ([] !== $formData['errors']) {
             return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
         }
 
@@ -144,23 +147,26 @@ final class AdminShopCategoryController
     #[Route(path: '/{id}', name: 'admin_shop_categories_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
+        if (!$this->csrf->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('admin-shop', $request->request->getString('_token', $request->headers->get('X-CSRF-TOKEN', ''))))) {
+            return new Response('Invalid CSRF token.', 403);
+        }
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $category = $this->categoryRepository->find($id);
-        if ($category === null) {
+        if (null === $category) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null || $category->getSiteId() !== $site->getId()) {
+        if (null === $site || $category->getSiteId() !== $site->getId()) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $formData = $this->parsePayload($request);
-        if ($formData['errors'] !== []) {
+        if ([] !== $formData['errors']) {
             return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST, $category);
         }
 
@@ -182,21 +188,27 @@ final class AdminShopCategoryController
     #[Route(path: '/{id}/delete', name: 'admin_shop_categories_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
+        if (!$this->csrf->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('admin-shop', $request->request->getString('_token', $request->headers->get('X-CSRF-TOKEN', ''))))) {
+            return new Response('Invalid CSRF token.', 403);
+        }
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
         $category = $this->categoryRepository->find($id);
-        if ($category === null) {
+        if (null === $category) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null || $category->getSiteId() !== $site->getId()) {
+        if (null === $site || $category->getSiteId() !== $site->getId()) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
+        if ($this->entityManager->getRepository(\App\Module\Core\Domain\Entity\ShopProduct::class)->count(['category' => $category]) > 0) {
+            return new Response('This category contains products. Reassign them before deletion.', 409);
+        }
         $this->entityManager->remove($category);
         $this->entityManager->flush();
 
@@ -216,16 +228,16 @@ final class AdminShopCategoryController
         $sortOrder = (int) $request->request->get('sort_order', 0);
         $errors = [];
 
-        if ($name === '') {
-            $errors[] = 'Name is required.';
+        if ('' === $name || mb_strlen($name) > 120) {
+            $errors[] = 'Name is required and must not exceed 120 characters.';
         }
 
-        if ($slug === '') {
+        if ('' === $slug) {
             $slug = $this->slugify($name);
         }
 
-        if ($slug === '') {
-            $errors[] = 'Slug is required.';
+        if ('' === $slug || mb_strlen($slug) > 120) {
+            $errors[] = 'Slug is required and must not exceed 120 characters.';
         }
 
         return [
@@ -273,6 +285,7 @@ final class AdminShopCategoryController
             'name' => $category->getName(),
             'slug' => $category->getSlug(),
             'sort_order' => $category->getSortOrder(),
+            'active' => $category->isActive(),
         ], $categories);
     }
 
@@ -280,12 +293,14 @@ final class AdminShopCategoryController
     {
         $slug = strtolower(trim($value));
         $slug = preg_replace('/[^a-z0-9]+/', '-', $slug) ?? '';
+
         return trim($slug, '-');
     }
 
     private function isAdmin(Request $request): bool
     {
         $actor = RequestActor::user($request);
+
         return $actor instanceof User && $actor->isAdmin();
     }
 }

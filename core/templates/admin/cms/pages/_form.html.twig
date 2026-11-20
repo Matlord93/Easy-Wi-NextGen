@@ -1,6 +1,6 @@
-<div id="cms-page-form" class="ng-data-card" data-admin-validation>
+<div id="cms-page-form" class="ng-data-card pm-editor-panel" data-admin-validation data-panel-validation>
     <div class="ng-data-card__body">
-        <details class="group" {{ form.errors is not empty or form.action == 'update' ? 'open' : '' }}>
+        <details class="group" open>
             <summary class="flex items-center justify-between gap-4 px-5 py-4">
                 <div>
                     <h2 class="ng-data-card__title">{{ t(form.header, page_locale()) }}</h2>
@@ -44,6 +44,7 @@
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                         <button type="submit" class="ui-button ui-button--primary w-full">{{ t(form.submit_label, page_locale()) }}</button>
                         {% if form.action == 'update' %}
+                            <a href="{{ path('admin_cms_page_preview', {id: form.id}) }}" class="ui-button ui-button--ghost" target="_blank" rel="noopener">{{ 'workspace_cms_preview'|trans({}, 'panel_modules') }}</a>
                             <button
                                 type="button"
                                 class="ui-button ui-button--ghost sm:w-auto"

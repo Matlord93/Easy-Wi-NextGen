@@ -1,3 +1,4 @@
+<div id="shop-categories-form" class="ng-data-card pm-editor-panel" data-panel-validation hx-get="/admin/shop/categories/form" hx-trigger="shop-categories-changed from:body" hx-swap="outerHTML">
 <div class="p-6">
     {% if form.errors %}
         <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -9,7 +10,8 @@
         </div>
     {% endif %}
 
-    <form method="post" action="/admin/shop/categories{% if form.action == 'update' %}/{{ form.id }}{% endif %}" class="space-y-4">
+    <form method="post" action="/admin/shop/categories{% if form.action == 'update' %}/{{ form.id }}{% endif %}" hx-post="/admin/shop/categories{% if form.action == 'update' %}/{{ form.id }}{% endif %}" hx-target="#shop-categories-form" hx-swap="outerHTML" class="space-y-4">
+        <input type="hidden" name="_token" value="{{ csrf_token('admin-shop') }}">
         <div>
             <label class="text-xs font-semibold uppercase text-slate-700">Name</label>
             <input name="name" value="{{ form.name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Gameserver">
@@ -23,9 +25,11 @@
             <input name="sort_order" type="number" min="0" value="{{ form.sort_order }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
         </div>
         <div class="flex justify-end gap-2">
-            <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+            <button type="submit" class="ui-button ui-button--primary">
                 {{ form.action == 'update' ? 'Kategorie speichern' : 'Kategorie anlegen' }}
             </button>
         </div>
     </form>
+</div>
+
 </div>

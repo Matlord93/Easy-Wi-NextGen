@@ -21,9 +21,13 @@ func readMinecraftConfig(dir, name string) ([]byte, error) {
 	return root.ReadFile(name)
 }
 
+func publishMinecraftFile(dir, name string, reader io.Reader, mode os.FileMode) error {
+	return publishInstanceFile(dir, name, reader, mode)
+}
+
 // Anchoring writes to os.Root prevents customer-created symlinks from making
 // the privileged agent read or overwrite files outside this instance.
-func publishMinecraftFile(dir, name string, reader io.Reader, mode os.FileMode) error {
+func publishInstanceFile(dir, name string, reader io.Reader, mode os.FileMode) error {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return err
@@ -37,7 +41,7 @@ func publishMinecraftFile(dir, name string, reader io.Reader, mode os.FileMode) 
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return err
 	}
-	temporary := filepath.Join(parent, ".minecraft-"+hex.EncodeToString(nonce[:]))
+	temporary := filepath.Join(parent, ".easywi-"+hex.EncodeToString(nonce[:]))
 	f, err := root.OpenFile(temporary, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return err

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Cms\UI\Controller\Public;
 
 use App\Module\Cms\Application\ThemeResolver;
+use App\Module\Cms\UI\Http\CmsPreviewResponseFactory;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -17,17 +18,21 @@ final class ThemePreviewController
         private readonly ThemeResolver $themeResolver,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly CmsPreviewResponseFactory $responses,
     ) {
     }
 
     #[Route(path: '/preview/{theme}', name: 'public_theme_preview', methods: ['GET'])]
-    public function __invoke(Request $_request, string $theme): Response
+    public function __invoke(Request $request, string $theme): Response
     {
         if (!in_array($theme, $this->themeResolver->supportedThemes(), true)) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
-        return new Response($this->twig->render(sprintf('themes/%s/pages/startseite.html.twig', $theme), [
+        $request->attributes->set('_cms_preview', true);
+        $request->attributes->set('_cms_preview_theme', $theme);
+
+        return $this->responses->create($this->twig->render(sprintf('themes/%s/pages/startseite.html.twig', $theme), [
             'page' => ['title' => 'Theme Preview', 'slug' => 'startseite'],
             'cms_pages' => [
                 ['title' => 'Startseite', 'slug' => 'startseite', 'is_active' => true],
@@ -40,6 +45,6 @@ final class ThemePreviewController
             ],
             'active_theme' => $theme,
             'template_key' => $theme,
-        ]));
+        ]), $request);
     }
 }

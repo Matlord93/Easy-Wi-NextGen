@@ -25,6 +25,7 @@ final class AdminInstanceSlotsController
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly ?\Symfony\Component\Security\Csrf\CsrfTokenManagerInterface $csrf = null,
     ) {
     }
 
@@ -45,6 +46,9 @@ final class AdminInstanceSlotsController
         $error = null;
 
         if ($request->isMethod('POST')) {
+            if ($this->csrf === null || !$this->csrf->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('admin_instance_slots_'.$id, $request->request->getString('_token')))) {
+                return new Response('Invalid CSRF token.', Response::HTTP_FORBIDDEN);
+            }
             $maxSlotsValue = $request->request->get('max_slots');
             $currentSlotsValue = $request->request->get('current_slots');
             $lockSlots = $request->request->get('lock_slots') === '1';

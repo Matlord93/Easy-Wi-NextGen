@@ -4,138 +4,21 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
-use App\Infrastructure\Http\RequestActor;
-
-use App\Module\Core\Application\AppSettingsServiceInterface;
-use App\Module\Core\Domain\Entity\Instance;
-use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\InstanceRepositoryInterface;
+use App\Module\Core\Attribute\RequiresModule;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
-use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
-use Symfony\Contracts\Translation\TranslatorInterface;
-use Twig\Environment;
-use App\Module\Core\Attribute\RequiresModule;
 
 #[RequiresModule('game')]
-final class CustomerGameserverFilesController
+final readonly class CustomerGameserverFilesController
 {
-    public function __construct(
-        private readonly InstanceRepositoryInterface $instanceRepository,
-        private readonly AppSettingsServiceInterface $appSettingsService,
-        private readonly UrlGeneratorInterface $urlGenerator,
-        private readonly Environment $twig,
-        private readonly TranslatorInterface $translator,
-    ) {
+    public function __construct(private CustomerInstanceController $instances)
+    {
     }
 
-    #[Route(path: '/instances/{id}/files', name: 'customer_instance_files', methods: ['GET'])]
+    #[Route('/instances/{id}/files', name: 'customer_instance_files', methods: ['GET'])]
     public function __invoke(Request $request, int $id): Response
     {
-        if (!$this->appSettingsService->isCustomerDataManagerEnabled()) {
-            throw new AccessDeniedHttpException($this->translator->trans('customer_instance_files_error_file_manager_disabled'));
-        }
-
-        $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
-
-        return new Response($this->twig->render('customer/instances/files/dashboard.html.twig', [
-            'instance' => $instance,
-            'tabs' => $this->buildTabs(($instance->getId() ?? 0)),
-            'activeTab' => 'files',
-            'activeNav' => 'instances',
-            'pageTitle' => $this->translator->trans('customer_instance_files_page_title'),
-            'pageSubtitle' => $instance->getServerName() !== '' ? $instance->getServerName() : $instance->getTemplate()->getDisplayName(),
-        ]));
-    }
-
-
-    /**
-     * @return array{0: array{key: string, label: string, href: string}, 1: array{key: string, label:
-     * string, label_is_key: bool, href: string}, 2: array{key: string, label: string, href: string}, 3:
-     * array{key: string, label: string, href: string}, 4: array{key: string, label: string, href: string},
-     * 5: array{key: string, label: string, href: string}, 6: array{key: string, label: string, href:
-     * string}, 7: array{key: string, label: string, href: string}, 8: array{key: string, label: string,
-     * href: string}}
-     */
-    private function buildTabs(int $instanceId): array
-    {
-        return [
-            [
-                'key' => 'overview',
-                'label' => 'customer_instance_tab_overview',
-                'href' => $this->urlGenerator->generate('customer_instance_overview_page', ['id' => $instanceId]),
-            ],
-            [
-                'key' => 'console',
-                'label' => $this->appSettingsService->getCustomerConsoleLabel() ?? 'customer_instance_tab_console',
-                'label_is_key' => $this->appSettingsService->getCustomerConsoleLabel() === null,
-                'href' => $this->urlGenerator->generate('customer_instance_console_page', ['id' => $instanceId]),
-            ],
-            [
-                'key' => 'setup',
-                'label' => 'customer_instance_tab_setup',
-                'href' => $this->urlGenerator->generate('customer_instance_detail', ['id' => $instanceId, 'tab' => 'setup']),
-            ],
-            [
-                'key' => 'files',
-                'label' => 'customer_instance_tab_files',
-                'href' => $this->urlGenerator->generate('customer_instance_files', ['id' => $instanceId]),
-            ],
-            [
-                'key' => 'backups',
-                'label' => 'customer_instance_tab_backups',
-                'href' => $this->urlGenerator->generate('customer_instance_backups_page', ['id' => $instanceId]),
-            ],
-            [
-                'key' => 'addons',
-                'label' => 'customer_instance_tab_addons',
-                'href' => $this->urlGenerator->generate('customer_instance_addons_page', ['id' => $instanceId]),
-            ],
-            [
-                'key' => 'tasks',
-                'label' => 'customer_instance_tab_tasks',
-                'href' => $this->urlGenerator->generate('customer_instance_tasks_page', ['id' => $instanceId]),
-            ],
-            [
-                'key' => 'settings',
-                'label' => 'customer_instance_tab_settings',
-                'href' => $this->urlGenerator->generate('customer_instance_settings_page', ['id' => $instanceId]),
-            ],
-            [
-                'key' => 'reinstall',
-                'label' => 'customer_instance_tab_reinstall',
-                'href' => $this->urlGenerator->generate('customer_instance_reinstall_page', ['id' => $instanceId]),
-            ],
-        ];
-    }
-
-    private function requireCustomer(Request $request): User
-    {
-        $actor = RequestActor::user($request);
-        if (!$actor instanceof User || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)) {
-            throw new UnauthorizedHttpException('session', $this->translator->trans('error_unauthorized'));
-        }
-
-        return $actor;
-    }
-
-    private function findCustomerInstance(User $customer, int $id): Instance
-    {
-        $instance = $this->instanceRepository->find($id);
-        if ($instance === null) {
-            throw new NotFoundHttpException($this->translator->trans('gs_api_instance_not_found'));
-        }
-
-        if (!$customer->isAdmin() && $instance->getCustomer()->getId() !== $customer->getId()) {
-            throw new AccessDeniedHttpException($this->translator->trans('error_forbidden'));
-        }
-
-        return $instance;
+        return $this->instances->filesPage($request, $id);
     }
 }

@@ -1,4 +1,5 @@
-<div id="consent-table">
+{# The write response already replaces this target; only other sources need a GET. #}
+<div id="consent-table" hx-get="/gdpr/consents/table" hx-trigger="consent-log-updated[event.target.getAttribute('hx-target') != '#consent-table'] from:body" hx-swap="outerHTML">
     {% if logs is empty %}
         <div class="tkt-all-clear">
             <div class="tkt-all-clear__icon">

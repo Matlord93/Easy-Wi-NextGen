@@ -127,6 +127,10 @@ final class AdminMailboxController
         }
 
         $domain = $formData['domain'];
+        if ($this->mailDomainRepository->findOneByDomain($domain)?->getNode()->getAgent() === null && $domain->getWebspace() === null) {
+            $formData['errors'][] = $this->translator->trans('error_no_mail_agent');
+            return $this->renderFormWithErrors($domains, $formData, Response::HTTP_CONFLICT);
+        }
         $localPart = $formData['local_part'];
         $passwordHash = $this->mailPasswordHasher->hash($formData['password']);
         $secretPayload = $this->encryptionService->encrypt($formData['password']);
@@ -184,7 +188,7 @@ final class AdminMailboxController
     {
         $ports = array_values(array_unique(self::DEFAULT_MAIL_PORTS));
 
-        $node = $mailbox->getDomain()->getWebspace()?->getNode();
+        $node = $this->mailDomainRepository->findOneByDomain($mailbox->getDomain())?->getNode()->getAgent() ?? $mailbox->getDomain()->getWebspace()?->getNode();
         if ($node === null) {
             return null;
         }
@@ -468,7 +472,7 @@ final class AdminMailboxController
             'local_part' => $mailbox->getLocalPart(),
             'address' => $mailbox->getAddress(),
             'customer_id' => (string) $mailbox->getCustomer()->getId(),
-            'agent_id' => $domain->getWebspace()?->getNode()?->getId() ?? '',
+            'agent_id' => $this->mailDomainRepository->findOneByDomain($domain)?->getNode()->getAgent()?->getId() ?? $domain->getWebspace()?->getNode()?->getId() ?? '',
         ], $extraPayload);
 
         $job = new Job($type, $payload);

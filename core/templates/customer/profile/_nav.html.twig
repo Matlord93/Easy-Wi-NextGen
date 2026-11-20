@@ -1,0 +1,3 @@
+<nav class="pm-module-nav" aria-label="{{ 'workspace_account_navigation'|trans({},'panel_modules') }}">
+{% for key,item in {profile:{url:path('customer_profile'),label:'workspace_profile'},security:{url:path('customer_security'),label:'workspace_account_security'},consents:{url:'/gdpr/consents',label:'workspace_consents'},exports:{url:path('customer_gdpr_exports'),label:'workspace_data_exports'},delete:{url:path('customer_gdpr_delete'),label:'workspace_account_deletion'}} %}<a href="{{ item.url }}"{% if accountNav == key %} aria-current="page"{% endif %}>{{ item.label|trans({},'panel_modules') }}</a>{% endfor %}
+</nav>

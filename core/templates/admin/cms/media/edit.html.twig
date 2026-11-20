@@ -1,0 +1,20 @@
+{% extends 'admin/base.html.twig' %}
+{% set activeNav = 'cms-media' %}
+{% trans_default_domain 'panel_modules' %}
+{% block content %}
+<div class="pm-workspace">
+    <header class="pm-page-head"><div><h1>{{ 'workspace_cms_library_edit'|trans }}</h1><p>{{ 'workspace_cms_library_edit_hint'|trans }}</p></div><a class="ui-button ui-button--ghost" href="{{ path('admin_cms_media_index',{q:search,page:current_page}) }}">{{ 'back'|trans }}</a></header>
+    <section class="cust-panel"><div class="cust-panel__head"><h2 class="cust-panel__title">{{ 'workspace_cms_library_metadata'|trans }}</h2></div><div class="ng-data-card__body">
+        {% if preview %}<img src="{{ preview.raster ? path('admin_cms_media_thumbnail', {id: preview.id, variant: 'editor'}) : preview.path }}" alt="" width="400" height="220" style="max-width:100%;height:220px;object-fit:contain;border-radius:8px">{% endif %}
+        <p style="overflow-wrap:anywhere"><code>{{ asset.path }}</code></p>
+        {% if errors %}<div class="ng-alert ng-alert--danger" role="alert">{% for error in errors %}<p>{{ error|trans }}</p>{% endfor %}</div>{% endif %}
+        <form method="post" action="{{ path('admin_cms_media_update',{id:asset.id,q:search,page:current_page}) }}" class="flex flex-col gap-4" data-media-edit>
+            <input type="hidden" name="_token" value="{{ csrf_token('cms_media_update_' ~ asset.id) }}">
+            <label class="form-field"><span class="form-label">{{ 'workspace_cms_library_name'|trans }}</span><input class="form-input" name="title" maxlength="180" value="{{ title_value }}"></label>
+            <label class="form-field"><span class="form-label">{{ 'workspace_cms_library_alt'|trans }}</span><input class="form-input" name="alt" maxlength="180" value="{{ alt_value }}"></label>
+            <p class="text-sm">{{ 'workspace_cms_library_block_texts'|trans }}</p>
+            <div class="flex flex-wrap gap-3"><button type="submit" class="ui-button ui-button--primary">{{ 'save'|trans }}</button><a class="ui-button ui-button--ghost" href="{{ path('admin_cms_media_index',{q:search,page:current_page}) }}">{{ 'workspace_cms_library_cancel'|trans }}</a></div>
+        </form>
+    </div></section>
+</div>
+{% endblock %}

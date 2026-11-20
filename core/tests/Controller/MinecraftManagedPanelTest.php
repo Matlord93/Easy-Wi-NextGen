@@ -185,7 +185,7 @@ final class MinecraftManagedPanelTest extends AbstractWebTestCase
         $this->seedSite();
         $instance = $this->seedInstance();
         $instance->getTemplate()->setInstallResolver(['type' => 'minecraft_vanilla']);
-        $instance->getNode()->recordHeartbeat(['os' => 'linux'], 'test', '127.0.0.1', [], ['os' => 'linux', 'minecraft_managed_install' => true]);
+        $instance->getNode()->recordHeartbeat(['os' => 'linux'], 'test', '127.0.0.1', [], ['os' => 'linux', 'minecraft_managed_install' => true, 'instance_runtime_limits' => true]);
         $instance->setInstalledVersion('1.20.4');
         $instance->setInstalledJavaVersion('17');
         $instance->setLockedVersion('1.21.11');
@@ -206,8 +206,22 @@ final class MinecraftManagedPanelTest extends AbstractWebTestCase
         self::assertSame(str_repeat('a', 40), $update['minecraft_sha1']);
         self::assertStringNotContainsString('set_property', $runtime['start_params']);
         $env = array_column($runtime['env_vars'], 'value', 'key');
-        self::assertSame('384M', $env['JAVA_XMX']);
-        self::assertSame('384M', $env['JAVA_XMS']);
+        self::assertSame('512M', $env['JAVA_XMX']);
+        self::assertSame('512M', $env['JAVA_XMS']);
+        $instance->setRamLimit(4096);
+        $runtime = $builder->buildRuntimePayload($instance);
+        self::assertSame('5120', $runtime['ram_limit']);
+        self::assertSame('4096', $runtime['booked_ram_mib']);
+        $env = array_column($runtime['env_vars'], 'value', 'key');
+        self::assertSame('4096M', $env['JAVA_XMX']);
+        self::assertSame('512M', $env['JAVA_XMS']);
+        $instance->getNode()->recordHeartbeat(['os' => 'linux'], 'old-agent', '127.0.0.1', [], ['minecraft_managed_install' => true]);
+        $legacy = $builder->buildRuntimePayload($instance);
+        $legacyEnv = array_column($legacy['env_vars'], 'value', 'key');
+        self::assertSame('3072M', $legacyEnv['JAVA_XMX']);
+        self::assertArrayNotHasKey('instance_runtime_limits', $instance->getNode()->getMetadata());
+        $legacyInstall = $builder->buildSniperUpdatePayload($instance);
+        self::assertSame('3072M', array_column($legacyInstall['env_vars'], 'value', 'key')['JAVA_XMX']);
     }
 
     public function testCustomerCanEditGameSettingsButCannotChangeReservedPorts(): void

@@ -1,7 +1,12 @@
-<div id="jobs-table"
-    hx-get="/admin/jobs/table"
+<div id="jobs-table" class="ng-data-card"
+    hx-get="/admin/jobs/table?page={{ pagination.page }}"
     hx-trigger="every 15s"
     hx-swap="outerHTML">
+
+<div class="ng-data-card__header">
+    <div><h2 class="ng-data-card__title">{{ t('admin_jobs_recent_title', page_locale()) }}</h2><p class="ng-data-card__sub">{{ t('admin_jobs_recent_intro', page_locale()) }}</p></div>
+    <button class="ui-button ui-button--ghost ui-button--sm" hx-get="/admin/jobs/table?page={{ pagination.page }}" hx-target="#jobs-table" hx-swap="outerHTML">{{ t('refresh', page_locale()) }}</button>
+</div>
 
 <div class="cust-ws-table-wrap">
     <table class="cust-table">
@@ -21,7 +26,7 @@
                 <td>
                     <span style="font-family:monospace;font-size:11px;color:var(--color-text-muted,#64748b);">{{ job.id }}</span>
                 </td>
-                <td style="font-weight:600;">{{ t('job_type_' ~ job.type|replace({'.': '_'}), page_locale()) }}</td>
+                <td style="font-weight:600;">{% set typeKey = 'job_type_' ~ job.type|replace({'.':'_'}) %}{% set typeLabel = t(typeKey, page_locale()) %}{{ typeLabel == typeKey ? job.type : typeLabel }}</td>
                 <td>
                     {% if job.status == 'succeeded' %}
                         {% set jobBadge = 'success' %}

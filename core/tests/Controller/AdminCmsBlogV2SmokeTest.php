@@ -10,13 +10,13 @@ use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\HttpFoundation\Request;
 
-final class AdminCmsBlogV2SmokeTest extends KernelTestCase
+final class AdminCmsBlogV2SmokeTest extends AbstractWebTestCase
 {
     public function testAdminCanCreateCategoryAndAssignCategoryTagOnPostUpdate(): void
     {
+        $this->seedSite();
         self::bootKernel();
         $this->seedSiteAndPost();
 

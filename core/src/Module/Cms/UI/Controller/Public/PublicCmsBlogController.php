@@ -9,7 +9,7 @@ use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Cms\UI\Http\MaintenancePageResponseFactory;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\BlogCategory;
 use App\Module\Core\Domain\Entity\BlogTag;
 use App\Module\Core\Domain\Entity\CmsPost;
@@ -32,7 +32,7 @@ final class PublicCmsBlogController
         private readonly BlogCategoryRepository $categoryRepository,
         private readonly BlogTagRepository $tagRepository,
         private readonly CmsPageRepository $pageRepository,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly CmsFeatureToggle $featureToggle,
         private readonly CmsMaintenanceService $maintenanceService,
         private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory,

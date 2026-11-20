@@ -66,6 +66,10 @@
         {% endif %}
     </div>
 
+    <div class="pm-global-search" data-panel-search>
+        <label class="pm-global-search__field"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="panel-navigation-search" type="search" data-panel-search-input data-empty-label="{{ 'workspace_search_empty'|trans({},'panel_modules') }}" autocomplete="off" placeholder="{{ 'workspace_search'|trans({},'panel_modules') }}" aria-label="{{ 'workspace_search'|trans({},'panel_modules') }}" aria-expanded="false" aria-controls="panel-search-results"></label>
+        <div id="panel-search-results" class="pm-search-results" data-panel-search-results hidden></div>
+    </div>
     <div class="ng-topbar__actions">
         {# Language switcher #}
         <div class="ng-language-switcher" role="group" aria-label="{{ t('language', page_locale()) }}">
@@ -103,7 +107,7 @@
         </a>
 
         {# Update pill (admin only) #}
-        {% if updateStatus and updateStatus.hasUpdates %}
+        {% if user and user.type.value == 'superadmin' and updateStatus and updateStatus.hasUpdates %}
             <a class="ng-update-pill" href="{{ path('admin_updates') }}" title="{{ t('admin_updates_available', page_locale()) }}">
                 <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13" aria-hidden="true">
                     <path d="M8 1a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 .708-.708L7.5 7.293V1.5A.5.5 0 0 1 8 1zm-5.5 9a.5.5 0 0 1 .5.5v1.5h10v-1.5a.5.5 0 0 1 1 0v2a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5z"/>

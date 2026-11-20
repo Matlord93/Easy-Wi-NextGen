@@ -2,21 +2,10 @@
 
 {% set siteTitle = app_setting('site_title', 'Easy-Wi NextGen') %}
 
-{% block head %}
-    <title>{{ t('cms_blog_title', page_locale()) }} · {{ siteTitle }}</title>
-{% endblock %}
+{% block title %}{{ t('cms_blog_title', page_locale()) }} · {{ siteTitle }}{% endblock %}
 
 {% block content %}
-<div class="ng-page-hero">
-    <div class="ng-container">
-        <nav class="ng-breadcrumb">
-            <a href="/">{{ t('common_home', page_locale()) }}</a>
-            <span>{{ t('cms_blog_title', page_locale()) }}</span>
-        </nav>
-        <h1 class="text-3xl font-bold ng-gradient-text">{{ t('cms_blog_title', page_locale()) }}</h1>
-        <p class="mt-2 text-sm text-slate-400">{{ t('cms_blog_public_subtitle', page_locale()) }}</p>
-    </div>
-</div>
+{% include 'themes/site/_page_heading.html.twig' with {heading:t('cms_blog_title',page_locale()), intro:'blog_intro'|cms_trans} %}
 
 <div class="ng-container ng-section">
     <form method="get" action="/blog"
@@ -47,7 +36,7 @@
                 {% if post.featured_image_path %}
                     <div class="relative h-52 overflow-hidden">
                         <img src="{{ post.featured_image_path }}" alt="{{ post.title }}"
-                             class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                             class="cms-module-cover h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent"></div>
                     </div>
                 {% endif %}

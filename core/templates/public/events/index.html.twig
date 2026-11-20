@@ -3,16 +3,7 @@
 {% block title %}Events · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
 {% block content %}
-<div class="ng-page-hero">
-    <div class="ng-container">
-        <nav class="ng-breadcrumb">
-            <a href="/">Home</a>
-            <span>Events</span>
-        </nav>
-        <h1 class="text-3xl font-bold ng-gradient-text">Events</h1>
-        <p class="mt-2 text-sm text-slate-400">Alle kommenden Clan-Termine und Community-Events im Überblick.</p>
-    </div>
-</div>
+{% include 'themes/site/_page_heading.html.twig' with {heading:'nav_events'|cms_trans, intro:'events_intro'|cms_trans} %}
 
 <div class="ng-container ng-section">
     <div class="space-y-5">
@@ -30,11 +21,11 @@
                 {% set statusLabel = 'Abgeschlossen' %}
             {% endif %}
 
-            <article class="group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70 transition-all duration-300 hover:border-slate-700 md:flex">
+            <article class="cms-event-card group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70 transition-all duration-300 hover:border-slate-700 md:flex">
                 {% if event.cover_image_path %}
                     <div class="relative h-48 flex-shrink-0 overflow-hidden md:h-auto md:w-56">
                         <img src="{{ event.cover_image_path }}" alt="{{ event.title }}"
-                             class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                             class="cms-module-cover h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         <div class="absolute inset-0 bg-gradient-to-r from-transparent to-slate-900/50 md:block hidden"></div>
                     </div>
                 {% endif %}

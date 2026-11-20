@@ -1,18 +1,19 @@
 {% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 {% block title %}Teams · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 {% block content %}
+{% include 'themes/site/_page_heading.html.twig' with {heading:'nav_team'|cms_trans, intro:'team_intro'|cms_trans} %}
+
 <div class="ng-container ng-section">
-  <h1 class="text-3xl font-bold">Unsere Teams</h1>
-  <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+  <div class="cms-module-grid">
     {% for group in team_groups %}
-      <a href="/teams/{{ group.slug }}" class="rounded-xl border border-slate-800 overflow-hidden bg-slate-900/70">
-        {% if group.imagePath %}<img src="{{ group.imagePath }}" class="h-44 w-full object-cover" alt="{{ group.name }}">{% endif %}
+      <a href="/teams/{{ group.slug }}" class="cms-module-card rounded-xl border border-slate-800 overflow-hidden bg-slate-900/70">
+        {% if group.imagePath %}<img src="{{ group.imagePath }}" class="cms-module-cover h-44 w-full object-cover" alt="{{ group.name }}">{% endif %}
         <div class="p-4 text-lg font-semibold">{{ group.name }}</div>
         <div class="px-4 pb-4 text-sm text-slate-400">{{ group.game }}</div>
       </a>
     {% else %}
       {% for member in team_members|default([]) %}
-        <article class="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+        <article class="cms-module-card rounded-xl border border-slate-800 bg-slate-900/70 p-4">
           <h2 class="text-lg font-semibold">{{ member.name }}</h2>
           {% if member.role %}<p class="text-sm text-slate-300">{{ member.role }}</p>{% endif %}
           {% if member.teamName %}<p class="text-xs text-slate-400">{{ member.teamName }}</p>{% endif %}

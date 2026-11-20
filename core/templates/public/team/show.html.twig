@@ -1,14 +1,12 @@
 {% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 {% block title %}{{ group.name }} · Team{% endblock %}
 {% block content %}
+<header class="ng-page-hero"><div class="ng-container"><nav class="ng-breadcrumb"><a href="/">{{ 'media_home'|cms_trans({}) }}</a><a href="/teams">{{ 'nav_team'|cms_trans({}) }}</a><span>{{ group.name }}</span></nav><h1>{{ group.name }}</h1><p>{{ (active_theme|default('') in ['hosting','private'] ? 'team_area_label' : 'team_game_label')|cms_trans({}) }}: {{ group.game }}</p></div></header>
 <div class="ng-container ng-section">
-  <a href="/teams" class="text-sm text-cyan-400">{{ t('public_team_back', page_locale()) }}</a>
-  <h1 class="text-3xl font-bold mt-2">{{ group.name }}</h1>
-  <p class="text-slate-400">Spiel: {{ group.game }}</p>
-  <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+  <div class="cms-module-grid">
     {% for member in members %}
-      <article class="rounded-xl border border-slate-800 bg-slate-900/70 overflow-hidden">
-        {% if member.avatarPath %}<img src="{{ member.avatarPath }}" class="h-44 w-full object-cover" alt="{{ member.name }}">{% endif %}
+      <article class="cms-module-card rounded-xl border border-slate-800 bg-slate-900/70 overflow-hidden">
+        {% if member.avatarPath %}<img src="{{ member.avatarPath }}" class="cms-module-cover h-44 w-full object-cover" alt="{{ member.name }}">{% endif %}
         <div class="p-4"><h2 class="font-semibold">{{ member.name }}</h2><p class="text-sm text-slate-400">{{ member.roleTitle }}</p></div>
       </article>
     {% else %}<p>{{ t('public_team_no_members', page_locale()) }}</p>{% endfor %}

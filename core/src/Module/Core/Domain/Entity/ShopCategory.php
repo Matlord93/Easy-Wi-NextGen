@@ -21,6 +21,26 @@ class ShopCategory
     #[ORM\Column]
     private ?int $id = null;
 
+    #[ORM\Column(type: 'text', nullable: true)] private ?string $description = null;
+    #[ORM\Column(options: ['default' => true])] private bool $active = true;
+
+    public function getDescription(): string
+    {
+        return $this->description ?? '';
+    }
+
+    public function isActive(): bool
+    {
+        return $this->active;
+    }
+
+    public function configure(string $description, bool $active): void
+    {
+        $this->description = $description;
+        $this->active = $active;
+        $this->touch();
+    }
+
     #[ORM\Column]
     private int $siteId;
 

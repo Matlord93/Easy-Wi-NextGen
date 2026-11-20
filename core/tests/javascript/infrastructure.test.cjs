@@ -5,10 +5,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../../public/js/infrastructure.js'), 'utf8');
 
-function setup() {
+async function setup() {
     let now = 100000;
     const error = {hidden: true, setAttribute() {this.hidden = true;}, removeAttribute() {this.hidden = false;}};
-    const panel = {querySelectorAll: () => [], contains: () => false, dataset: {infraUsageUrl: '/owned-server/usage'}, innerHTML: 'last confirmed usage', parentElement: {querySelector: () => error}};
+    const panel = {isConnected: true, removeAttribute() {}, querySelectorAll: () => [], contains: () => false, dataset: {infraUsageUrl: '/owned-server/usage'}, innerHTML: 'last confirmed usage', parentElement: {querySelector: () => error}};
     const context = {URL, AbortController, WeakMap, WeakSet,
         Date: class extends Date {static now() {return now;}},
         location: {href: 'https://panel.test/server', origin: 'https://panel.test', hash: ''}, history: {},
@@ -18,11 +18,13 @@ function setup() {
         fetch: async () => {throw Error('unavailable');},
     };
     vm.runInNewContext(source, context);
+    // Let the initial empty refresh finish before simulating a user/timer refresh.
+    await new Promise(resolve => setImmediate(resolve));
     return {context, panel, error, advance: ms => {now += ms;}, refresh: context.window.EasyWiInfrastructure.refresh};
 }
 
 test('metrics outage preserves confirmed readings, backs off and recovers', async () => {
-    const {context, panel, error, advance, refresh} = setup(); let calls = 0;
+    const {context, panel, error, advance, refresh} = await setup(); let calls = 0;
     context.fetch = async (url, options) => {
         calls++; assert.equal(options.credentials, 'same-origin'); assert.equal(options.redirect, 'error'); assert.equal(options.cache, 'no-store');
         return {ok: false, status: 503};
@@ -36,15 +38,24 @@ test('metrics outage preserves confirmed readings, backs off and recovers', asyn
 });
 
 test('expired authorization stops metric requests and hidden pages stay idle', async () => {
-    const {context, advance, refresh} = setup(); let calls = 0;
+    const {context, advance, refresh} = await setup(); let calls = 0;
     context.fetch = async () => {calls++; return {ok: false, status: 403};};
     context.document.hidden = true; await refresh(); assert.equal(calls, 0);
     context.document.hidden = false; await refresh(); advance(600000); await refresh(); assert.equal(calls, 1);
 });
 
 test('metrics endpoint cannot send the panel session to another origin', async () => {
-    const {context, panel, refresh} = setup(); let calls = 0;
+    const {context, panel, refresh} = await setup(); let calls = 0;
     panel.dataset.infraUsageUrl = 'https://external.test/usage';
     context.fetch = async () => {calls++;};
     await refresh(); assert.equal(calls, 0); assert.equal(panel.innerHTML, 'last confirmed usage');
+});
+
+test('a detached metrics panel cannot issue requests or change its last readings', async () => {
+    const {context, panel, refresh} = await setup(); let calls = 0;
+    panel.isConnected = false;
+    context.fetch = async () => {calls++;};
+    await refresh();
+    assert.equal(calls, 0);
+    assert.equal(panel.innerHTML, 'last confirmed usage');
 });

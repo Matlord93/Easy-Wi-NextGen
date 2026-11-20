@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Cms\UI\Controller\Public;
 
 use App\Module\Cms\Application\PageResolver;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Repository\CmsEventRepository;
 use App\Repository\CmsPostRepository;
 use App\Repository\ForumBoardRepository;
@@ -19,7 +19,7 @@ use Symfony\Component\Routing\Attribute\Route;
 final class DebugPageSourceController
 {
     public function __construct(
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly PageResolver $pageResolver,
         private readonly CmsPostRepository $postRepository,
         private readonly CmsEventRepository $eventRepository,

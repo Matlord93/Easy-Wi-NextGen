@@ -8,7 +8,7 @@ use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\AuditLoggerInterface;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Setup\Application\InstallerService;
 use App\Repository\UserRepositoryInterface;
 use App\Security\IdentifierHasher;
@@ -32,7 +32,7 @@ final class PublicLoginController
         private readonly LoginCredentialVerifier $credentialVerifier,
         private readonly LoginFinalizer $loginFinalizer,
         private readonly AuditLoggerInterface $auditLogger,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly InstallerService $installerService,
         private readonly TwoFactorPolicy $twoFactorPolicy,
         private readonly PostLoginRedirectResolver $redirectResolver,

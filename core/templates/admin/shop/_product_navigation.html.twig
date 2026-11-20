@@ -1,0 +1,5 @@
+<nav class="shop-kind-tabs" aria-label="Produktverwaltung">
+<a href="{{ path('admin_rental_product_edit',{kind:product.kind.value,id:product.id}) }}"{% if section == 'product' %} aria-current="page"{% endif %}>Produktdaten</a>
+<a href="{{ path('admin_shop_variants',{id:product.id}) }}"{% if section == 'variants' %} aria-current="page"{% endif %}>Varianten</a>
+{% if product.kind.value != 'domain' %}<a href="{{ path('admin_rental_product_capacity',{kind:product.kind.value,id:product.id}) }}"{% if section == 'capacity' %} aria-current="page"{% endif %}>Verkaufskapazität</a>{% endif %}
+</nav>

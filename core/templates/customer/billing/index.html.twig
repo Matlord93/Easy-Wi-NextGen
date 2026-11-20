@@ -1,21 +1,24 @@
 {% extends 'customer/base.html.twig' %}
+{% set activeNav = 'billing' %}
 {% block content %}
-<section class="ng-data-card">
-  <div class="ng-data-card__header"><h1>{{ 'billing.history'|trans({}, 'billing') }}</h1></div>
-  <div class="cust-ws-table-wrap"><table class="cust-table">
-    <thead><tr><th>{{ 'billing.number'|trans({}, 'billing') }}</th><th>{{ 'billing.date'|trans({}, 'billing') }}</th><th>{{ 'billing.total'|trans({}, 'billing') }}</th><th>{{ 'billing.outstanding'|trans({}, 'billing') }}</th><th>{{ 'billing.status'|trans({}, 'billing') }}</th><th>PDF</th></tr></thead>
-    <tbody>
-    {% for invoice in invoices %}
-      <tr>
-        <td><a href="{{ path('customer_billing_invoice', {id: invoice.id}) }}">{{ invoice.number }}</a></td>
-        <td>{{ invoice.created_at|date('Y-m-d') }}</td>
-        <td>{{ (invoice.amount_total / 100)|number_format(2, '.', ',') }} {{ invoice.currency }}</td>
-        <td>{{ (invoice.amount_due / 100)|number_format(2, '.', ',') }} {{ invoice.currency }}</td>
-        <td>{{ ('billing.state.' ~ invoice.status)|trans({}, 'billing') }}</td>
-        <td><a href="{{ path('customer_billing_invoice_pdf', {id: invoice.id}) }}">{{ 'billing.download_pdf'|trans({}, 'billing') }}</a></td>
-      </tr>
-    {% else %}<tr><td colspan="6">{{ 'billing.empty'|trans({}, 'billing') }}</td></tr>{% endfor %}
-    </tbody>
-  </table></div>
-</section>
+<div class="pm-workspace">
+    <header class="pm-page-head"><div><h1>{{ 'billing.history'|trans({},'billing') }}</h1><p>{{ 'workspace_billing_intro'|trans({},'panel_modules') }}</p></div></header>
+    <div class="pm-stats">
+        {% include 'components/panel/_stat.html.twig' with {value:invoices|length,label:'workspace_invoices'|trans({},'panel_modules')} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:invoices|filter(invoice => invoice.status in ['open','past_due'])|length,label:'workspace_payment_open'|trans({},'panel_modules')} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:invoices|filter(invoice => invoice.status == 'paid')|length,label:'billing.state.paid'|trans({},'billing')} only %}
+    </div>
+    <section class="cust-panel" data-panel-list>
+        <div class="pm-filters"><label class="sr-only" for="customer-invoice-search">{{ 'search'|trans({},'panel_modules') }}</label><input class="form-input" type="search" id="customer-invoice-search" data-panel-filter placeholder="{{ 'workspace_invoice_search'|trans({},'panel_modules') }}"><label class="sr-only" for="customer-invoice-state">{{ 'billing.status'|trans({},'billing') }}</label><select class="form-input" id="customer-invoice-state" data-panel-facet="status"><option value="">{{ 'workspace_all_statuses'|trans({},'panel_modules') }}</option>{% for state in ['draft','open','past_due','paid','cancelled'] %}<option value="{{ state }}">{{ ('billing.state.' ~ state)|trans({},'billing') }}</option>{% endfor %}</select></div>
+        <div class="infra-table-wrap"><table class="cust-table">
+            <thead><tr><th>{{ 'billing.number'|trans({},'billing') }}</th><th>{{ 'billing.date'|trans({},'billing') }}</th><th>{{ 'billing.total'|trans({},'billing') }}</th><th>{{ 'billing.outstanding'|trans({},'billing') }}</th><th>{{ 'billing.status'|trans({},'billing') }}</th><th>PDF</th></tr></thead>
+            <tbody>{% for invoice in invoices %}<tr data-panel-row data-status="{{ invoice.status }}">
+                <td><a class="pm-server-name" href="{{ path('customer_billing_invoice',{id:invoice.id}) }}">{{ invoice.number ?: '#' ~ invoice.id }}</a></td>
+                <td>{{ invoice.created_at|date('Y-m-d') }}</td><td>{{ (invoice.amount_total / 100)|number_format(2,'.',',') }} {{ invoice.currency }}</td><td>{{ (invoice.amount_due / 100)|number_format(2,'.',',') }} {{ invoice.currency }}</td>
+                <td><span class="ui-badge ui-badge--{{ invoice.status == 'paid' ? 'success' : (invoice.status == 'past_due' ? 'warning' : 'neutral') }}">{{ ('billing.state.' ~ invoice.status)|trans({},'billing') }}</span></td>
+                <td><a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('customer_billing_invoice_pdf',{id:invoice.id}) }}">{{ 'billing.download_pdf'|trans({},'billing') }}</a></td>
+            </tr>{% else %}<tr><td colspan="6" class="cust-table__empty">{{ 'billing.empty'|trans({},'billing') }}</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </section>
+</div>
 {% endblock %}

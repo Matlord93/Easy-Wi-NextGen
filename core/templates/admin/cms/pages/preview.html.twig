@@ -1,0 +1,28 @@
+{% extends 'admin/base.html.twig' %}
+{% set activeNav = 'cms-pages' %}
+{% trans_default_domain 'panel_modules' %}
+{% block content %}
+<div class="pm-workspace">
+    <header class="pm-page-head">
+        <div><h1>{{ 'workspace_cms_preview'|trans }} · {{ page.title }}</h1><p>{{ 'workspace_cms_preview_description'|trans }}</p></div>
+        <div class="pm-page-head__actions"><a class="ui-button ui-button--ghost" href="{{ path('admin_cms_pages_show', {id: page.id}) }}">{{ 'workspace_content_blocks'|trans }}</a><a class="ui-button ui-button--ghost" href="{{ path('admin_cms_pages') }}">{{ 'back'|trans }}</a></div>
+    </header>
+    <section class="cust-panel">
+        <div class="cust-panel__head"><h2 class="cust-panel__title">{{ 'workspace_cms_preview_settings'|trans }}</h2><span class="ui-badge ui-badge--{{ page.isPublished ? 'success' : 'neutral' }}">{{ t(page.isPublished ? 'published' : 'draft', page_locale()) }}</span></div>
+        <div class="ng-data-card__body">
+            <p>{{ 'workspace_cms_preview_saved'|trans }}</p>
+            {% if module_route %}<p class="ng-alert ng-alert--warning" role="note">{{ 'workspace_cms_preview_module'|trans }}</p>{% endif %}
+            <form method="get" class="flex flex-wrap items-end gap-4">
+                <div class="form-field"><label class="form-label" for="cms-preview-theme">{{ 'workspace_cms_preview_theme'|trans }}</label><select class="form-input" name="theme" id="cms-preview-theme">{% for theme in supported_themes %}<option value="{{ theme }}" {{ theme == preview_theme ? 'selected' : '' }}>{{ theme|replace({'_':' ', '-':' '})|title }}</option>{% endfor %}</select></div>
+                <div class="form-field"><label class="form-label" for="cms-preview-scheme">{{ 'workspace_cms_preview_scheme'|trans }}</label><select class="form-input" name="scheme" id="cms-preview-scheme"><option value="light" {{ preview_scheme == 'light' ? 'selected' : '' }}>{{ 'workspace_cms_preview_light'|trans }}</option><option value="dark" {{ preview_scheme == 'dark' ? 'selected' : '' }}>{{ 'workspace_cms_preview_dark'|trans }}</option></select></div>
+                <div class="form-field"><label class="form-label" for="cms-preview-viewport">{{ 'workspace_cms_preview_viewport'|trans }}</label><select class="form-input" name="viewport" id="cms-preview-viewport"><option value="desktop" {{ preview_viewport == 'desktop' ? 'selected' : '' }}>Desktop</option><option value="mobile" {{ preview_viewport == 'mobile' ? 'selected' : '' }}>Mobil</option></select></div>
+                <button class="ui-button ui-button--primary" type="submit">{{ 'workspace_cms_preview_apply'|trans }}</button>
+            </form>
+        </div>
+    </section>
+    {% include 'admin/cms/pages/_checks.html.twig' with {editable:false} %}
+    <section class="cust-panel" aria-label="{{ 'workspace_cms_preview'|trans }}" style="overflow:hidden">
+        <iframe title="{{ 'workspace_cms_preview'|trans }}: {{ page.title }}" sandbox="" referrerpolicy="no-referrer" src="{{ path('admin_cms_page_preview_content', {id:page.id,theme:preview_theme,scheme:preview_scheme,viewport:preview_viewport}) }}" style="display:block;width:{{ preview_viewport == 'mobile' ? '390px' : '100%' }};max-width:100%;height:75vh;min-height:480px;margin:0 auto;border:0;background:{{ preview_scheme == 'light' ? '#ffffff' : '#0b1220' }}"></iframe>
+    </section>
+</div>
+{% endblock %}

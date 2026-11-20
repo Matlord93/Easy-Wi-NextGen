@@ -68,6 +68,18 @@ final class InstanceQueryResolverTest extends TestCase
         self::assertSame('node_ip', $spec->getExtra()['resolved_host_source']);
     }
 
+    public function testPrefersNodeHeartbeatAddressOverTheNodeHostname(): void
+    {
+        $instance = $this->createInstance('seven_days_to_die', 294420, [['name' => 'game', 'protocol' => 'udp']]);
+        $instance->setSetupVars(['BIND_IP' => '0.0.0.0', 'PUBLIC_IP' => '::ffff:127.0.1.1']);
+        $instance->getNode()->setMetadata(['hostname' => 'node.local']);
+        $instance->getNode()->recordHeartbeat([], '1.0.0', '192.168.1.187');
+
+        $spec = (new InstanceQueryResolver())->resolve($instance, $this->createPortBlock($instance, 27021, 27023));
+        self::assertSame('192.168.1.187', $spec->getHost());
+        self::assertSame('node_ip', $spec->getExtra()['resolved_host_source']);
+    }
+
     public function testThrowsWhenBindAndNodeIpAreMissingInIsolatedNetwork(): void
     {
         $instance = $this->createInstance('cs2', 730, [

@@ -82,6 +82,15 @@ final class AgentLifecycleTest extends TestCase
         self::assertSame(1024, $protection->getDiskStat($agent)['free_bytes']);
     }
 
+    public function testHeartbeatWithoutMetadataRevokesTheRuntimeLimitCapability(): void
+    {
+        $agent = new Agent('runtime-limits', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
+        $agent->setMetadata(['instance_base_dirs' => ['/srv/games'], 'instance_runtime_limits' => true]);
+        $agent->recordHeartbeat([], 'old-agent', '127.0.0.1');
+        self::assertArrayNotHasKey('instance_runtime_limits', $agent->getMetadata());
+        self::assertSame(['/srv/games'], $agent->getMetadata()['instance_base_dirs']);
+    }
+
     public function testHeartbeatCannotCreatePanelManagedDiskMeasurements(): void
     {
         $agent = new Agent('unmeasured-disk', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);

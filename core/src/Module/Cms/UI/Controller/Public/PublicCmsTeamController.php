@@ -9,7 +9,7 @@ use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Cms\UI\Http\MaintenancePageResponseFactory;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\Site;
 use App\Repository\TeamGroupRepository;
 use App\Repository\TeamMemberRepository;
@@ -22,7 +22,7 @@ use Twig\Environment;
 #[Route(path: '/teams')]
 final class PublicCmsTeamController
 {
-    public function __construct(private readonly TeamMemberRepository $memberRepository, private readonly TeamGroupRepository $teamGroupRepository, private readonly SiteResolver $siteResolver, private readonly CmsFeatureToggle $featureToggle, private readonly CmsMaintenanceService $maintenanceService, private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory, private readonly ThemeResolver $themeResolver, private readonly CmsSettingsProvider $settingsProvider, private readonly Environment $twig, private readonly TranslatorInterface $translator) {}
+    public function __construct(private readonly TeamMemberRepository $memberRepository, private readonly TeamGroupRepository $teamGroupRepository, private readonly CmsSiteResolver $siteResolver, private readonly CmsFeatureToggle $featureToggle, private readonly CmsMaintenanceService $maintenanceService, private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory, private readonly ThemeResolver $themeResolver, private readonly CmsSettingsProvider $settingsProvider, private readonly Environment $twig, private readonly TranslatorInterface $translator) {}
 
     #[Route(path: '', name: 'public_cms_team_index', methods: ['GET'])]
     public function index(Request $request): Response

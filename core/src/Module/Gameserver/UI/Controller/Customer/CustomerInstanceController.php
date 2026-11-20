@@ -102,6 +102,7 @@ final class CustomerInstanceController
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly UrlGeneratorInterface $urlGenerator,
+        private readonly \Symfony\Component\Security\Csrf\CsrfTokenManagerInterface $csrf,
     ) {
     }
 
@@ -177,11 +178,20 @@ final class CustomerInstanceController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        if (\App\Module\Gameserver\Application\Configuration\GameSetupProfiles::hasNativeStartup($instance->getTemplate()) && !$this->csrf->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('source-setup-'.$id, $request->request->getString('_token')))) {
+            throw new AccessDeniedHttpException('Ungültiger Formular-Token. Bitte die Seite neu laden.');
+        }
         $requirements = $this->buildCustomerSetupRequirements($instance->getTemplate());
         $input = $request->request->all('vars');
+        foreach (array_keys($input) as $key) {
+            if (\App\Module\Gameserver\Application\Configuration\GameConfigurationFields::managed((string) $key)) {
+                throw new AccessDeniedHttpException('IP-Adresse, Ports und gebuchte Ressourcen werden vom Panel verwaltet.');
+            }
+        }
 
         $errors = [];
         $setupVars = $instance->getSetupVars();
+        $requestedSlots = null;
 
         foreach ($requirements['vars'] as $entry) {
             $key = $entry['key'];
@@ -189,10 +199,32 @@ final class CustomerInstanceController
                 continue;
             }
 
-            $value = is_scalar($input[$key]) ? (string) $input[$key] : '';
-            if ($value === '' && !$entry['required']) {
-                unset($setupVars[$key]);
+            if (!is_scalar($input[$key])) {
+                $errors[$key] = 'Bitte einen einzelnen Wert eingeben.';
                 continue;
+            }
+            $value = (string) $input[$key];
+            if ($value === '' && !$entry['required']) {
+                if ((\App\Module\Gameserver\Application\Configuration\SourceServerSetup::supports($instance->getTemplate()) && array_key_exists($key, \App\Module\Gameserver\Application\Configuration\SourceServerSetup::optionalArguments($instance->getTemplate()))) || array_key_exists($key, \App\Module\Gameserver\Application\Configuration\ValheimServerSetup::fields($instance->getTemplate()))) {
+                    // An explicit empty optional argument disables inherited
+                    // Steam/Workshop settings instead of restoring the default.
+                    $setupVars[$key] = '';
+                    if ('STEAM_GSLT' === $key) {
+                        $instance->setGslKey(null);
+                    }
+                } else {
+                    unset($setupVars[$key]);
+                }
+                continue;
+            }
+
+            if (\App\Module\Gameserver\Application\Configuration\GameConfigurationFields::slots($key)) {
+                $slots = filter_var($value, FILTER_VALIDATE_INT);
+                if (!is_int($slots) || $slots < 1 || $slots > $instance->getMaxSlots() || ($instance->isLockSlots() && $slots !== $instance->getCurrentSlots())) {
+                    $errors[$key] = 'Spielerzahl überschreitet das gebuchte Limit.';
+                    continue;
+                }
+                $requestedSlots = $slots;
             }
 
             if ($key === 'STEAM_LOGIN_MODE') {
@@ -213,6 +245,15 @@ final class CustomerInstanceController
             if ($validationError !== null) {
                 $errors[$key] = $validationError;
                 continue;
+            }
+            $native = array_replace(\App\Module\Gameserver\Application\Configuration\GameSetupProfiles::startup($instance->getTemplate()->getGameKey(), $key), \App\Module\Gameserver\Application\Configuration\GameSetupProfiles::nativeStartupFields($instance->getTemplate())[$key] ?? []);
+            $nativeValidation = JsonMap::fromValue($native['validation'] ?? null);
+            if (null !== $nativeValidation && $nativeValidation !== $entry['validation']) {
+                $nativeError = $this->setupChecker->validateRequirementValue(array_replace($entry, ['validation' => $nativeValidation, 'type' => $native['type'] ?? $entry['type']]), $value);
+                if (null !== $nativeError) {
+                    $errors[$key] = $nativeError;
+                    continue;
+                }
             }
 
             $setupVars[$key] = $entry['type'] === 'number' ? $value : $value;
@@ -238,6 +279,9 @@ final class CustomerInstanceController
             ], Response::HTTP_BAD_REQUEST);
         }
 
+        if (null !== $requestedSlots) {
+            $instance->setCurrentSlots($requestedSlots);
+        }
         $instance->setSetupVars($setupVars);
         $this->entityManager->persist($instance);
         $this->entityManager->flush();
@@ -254,6 +298,9 @@ final class CustomerInstanceController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        if (\App\Module\Gameserver\Application\Configuration\GameSetupProfiles::hasNativeStartup($instance->getTemplate()) && !$this->csrf->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('source-setup-'.$id, $request->request->getString('_token')))) {
+            throw new AccessDeniedHttpException('Ungültiger Formular-Token. Bitte die Seite neu laden.');
+        }
         $requirements = $this->buildCustomerSetupRequirements($instance->getTemplate());
         $input = $request->request->all('secrets');
 
@@ -275,6 +322,15 @@ final class CustomerInstanceController
             if ($validationError !== null) {
                 $errors[$key] = $validationError;
                 continue;
+            }
+
+            $nativeValidation = \App\Module\Gameserver\Application\Configuration\GameSetupProfiles::nativeStartupFields($instance->getTemplate())[$key]['validation'] ?? null;
+            if (null !== $nativeValidation) {
+                $nativeError = $this->setupChecker->validateRequirementValue(array_replace($entry, ['validation' => $nativeValidation]), $value);
+                if (null !== $nativeError) {
+                    $errors[$key] = $nativeError;
+                    continue;
+                }
             }
 
             $payload = $this->encryptionService->encrypt($value);
@@ -826,7 +882,7 @@ final class CustomerInstanceController
             FlashMessages::add($request, 'error', $error);
         }
 
-        return new RedirectResponse($this->urlGenerator->generate('customer_instance_tasks_page', ['id' => $instance->getId()]));
+        return new RedirectResponse($this->urlGenerator->generate('customer_instance_overview_page', ['id' => $instance->getId()]), Response::HTTP_SEE_OTHER);
     }
 
     private function guardSetupRequirements(Instance $instance, string $action): ?string
@@ -1030,7 +1086,7 @@ final class CustomerInstanceController
             'query_players_max' => isset($querySnapshot['max_players']) && is_numeric($querySnapshot['max_players']) ? (int) $querySnapshot['max_players'] : null,
             'query_checked_at' => $querySnapshot['checked_at'] ?? null,
             'query_reason' => $this->normalizeQueryReason(JsonMap::strings($querySnapshot)['error'] ?? null),
-            'booked_cpu_cores' => (float) $instance->getCpuLimit(),
+            'booked_cpu_cores' => (float) $instance->getCpuLimit() / 100.0,
             'booked_ram_bytes' => $bookedRamBytes,
             'booked_ram_mb' => $instance->getRamLimit(),
             'instance_cpu_percent' => $instanceMetric?->getCpuPercent(),
@@ -1709,6 +1765,14 @@ final class CustomerInstanceController
         };
     }
 
+    public function filesPage(Request $request, int $id): Response
+    {
+        if (!$this->appSettingsService->isCustomerDataManagerEnabled()) {
+            throw new AccessDeniedHttpException('Der Dateimanager ist deaktiviert.');
+        }
+        return $this->renderNamedTabPage($request, $id, 'files');
+    }
+
     private function renderNamedTabPage(Request $request, int $id, string $tab): Response
     {
         $customer = $this->requireCustomer($request);
@@ -1737,6 +1801,9 @@ final class CustomerInstanceController
         }
 
         $tab = strtolower(trim($tab));
+        if ('configs' === $tab) {
+            $tab = 'setup';
+        }
 
         return in_array($tab, $allowed, true) ? $tab : 'overview';
     }
@@ -1759,7 +1826,7 @@ final class CustomerInstanceController
     ): Response {
         $updateSchedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Update);
         $portBlock = $this->portBlockRepository->findByInstance($instance);
-        $instanceView = $this->normalizeInstance($instance, $updateSchedule, $portBlock, true);
+        $instanceView = $this->normalizeInstance($instance, $updateSchedule, $portBlock, $activeTab === 'overview');
 
         $configFiles = $this->normalizeConfigFiles($instance->getTemplate()->getConfigFiles());
         $restartSchedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Restart);
@@ -1781,18 +1848,19 @@ final class CustomerInstanceController
             ],
             'configFiles' => $configFiles,
             'pluginPaths' => $instance->getTemplate()->getPluginPaths(),
-            'availablePlugins' => $this->normalizePlugins($instance),
+            'availablePlugins' => $activeTab === 'addons' ? $this->normalizePlugins($instance) : [],
             'fastdl' => $this->normalizeFastdlSettings($instance->getTemplate()->getFastdlSettings()),
             'restartSchedule' => $restartScheduleView,
-            'backups' => $this->normalizeBackupDefinitions($customer, $instance),
-            'backupHistory' => $this->normalizeBackupsForInstance($customer, $instance),
-            'backupTargets' => $this->normalizeBackupTargets($customer),
-            'backupDefaults' => $this->normalizeBackupDefaults(),
-            'jobs' => $this->normalizeJobsForInstance($instance),
+            'backups' => $activeTab === 'backups' ? $this->normalizeBackupDefinitions($customer, $instance) : [],
+            'backupHistory' => $activeTab === 'backups' ? $this->normalizeBackupsForInstance($customer, $instance) : [],
+            'backupTargets' => $activeTab === 'backups' ? $this->normalizeBackupTargets($customer) : [],
+            'backupDefaults' => $activeTab === 'backups' ? $this->normalizeBackupDefaults() : [],
+            'jobs' => $activeTab === 'tasks' ? $this->normalizeJobsForInstance($instance) : [],
             'activeNav' => 'instances',
             'tabs' => $tabs,
             'activeTab' => $activeTab,
             'tabTemplate' => sprintf('customer/instances/tabs/%s.html.twig', $activeTab),
+            'usageHistory' => $activeTab === 'overview' ? $this->instanceMetricSampleRepository->findSparklineForInstanceSince($instance, new \DateTimeImmutable('-15 minutes'), 240) : [],
             'tabNotice' => $tabNotice,
             'tabError' => $tabError,
             'minecraftCatalog' => $this->minecraftCatalogService->getUiCatalog(),
@@ -1826,20 +1894,26 @@ final class CustomerInstanceController
             }
             $defaults[$key] = (string) ($entry['value'] ?? '');
         }
+        $defaults = array_replace($defaults, \App\Module\Gameserver\Application\Configuration\GameSetupProfiles::startupDefaults($instance));
         $defaults['SERVER_NAME'] = $instance->getServerName() ?? ($defaults['SERVER_NAME'] ?? '');
         $defaults['STEAM_GSLT'] = $instance->getGslKey() ?? ($defaults['STEAM_GSLT'] ?? '');
         $defaults['STEAM_ACCOUNT'] = $instance->getSteamAccount() ?? ($defaults['STEAM_ACCOUNT'] ?? '');
         $defaults['STEAM_LOGIN_MODE'] = $this->resolveSteamLoginMode($setupVars, $instance->getSteamAccount());
 
-        $varEntries = array_map(/** @param CustomerRequirement $entry */ function (array $entry) use ($setupVars, $messages, $defaults): array {
+        $varEntries = array_map(/** @param CustomerRequirement $entry */ function (array $entry) use ($setupVars, $messages, $defaults, $instance): array {
             $key = $entry['key'];
+            $startupProfile = array_replace(\App\Module\Gameserver\Application\Configuration\GameSetupProfiles::startup($instance->getTemplate()->getGameKey(), $key), \App\Module\Gameserver\Application\Configuration\GameSetupProfiles::nativeStartupFields($instance->getTemplate())[$key] ?? []);
+            $startupText = JsonMap::strings($startupProfile);
+            $options = array_values(array_filter(JsonArray::orEmpty($startupProfile['options'] ?? null), is_string(...)));
+            $options = array_values(array_filter($options, fn (string $option): bool => ('' === $option && !$entry['required']) || null === $this->setupChecker->validateRequirementValue($entry, $option)));
 
             return [
                 'key' => $key,
                 'label' => $entry['label'],
-                'type' => $entry['type'],
+                'type' => $startupText['type'] ?? $entry['type'],
                 'required' => $entry['required'],
                 'helptext' => $entry['helptext'],
+                'options' => $options,
                 'value' => $setupVars[$key] ?? ($defaults[$key] ?? ''),
                 'error' => $messages['vars']['errors'][$key] ?? null,
             ];
@@ -1859,9 +1933,30 @@ final class CustomerInstanceController
             ];
         }, $requirements['secrets']);
 
-        $configKeys = ['SERVER_NAME', 'SERVER_PASSWORD', 'RCON_PASSWORD'];
+        $sourceDefinitions = \App\Module\Gameserver\Application\Configuration\SourceServerSetup::fields($instance->getTemplate());
+        $sourceEntries = [];
+        foreach ($varEntries as $entry) {
+            if (!isset($sourceDefinitions[$entry['key']])) {
+                continue;
+            }
+            $slots = 'MAX_PLAYERS' === $entry['key'];
+            if ($slots) {
+                $entry['value'] = (string) $instance->getCurrentSlots();
+            }
+            $entry['readonly'] = $slots && $instance->isLockSlots();
+            $entry['min'] = $slots || 'TICKRATE' === $entry['key'] ? 1 : 0;
+            $entry['max'] = $slots ? $instance->getMaxSlots() : null;
+            $sourceEntries[] = $entry;
+        }
+        $valheimDefinitions = \App\Module\Gameserver\Application\Configuration\ValheimServerSetup::fields($instance->getTemplate());
+        $valheimKeys = [] !== $valheimDefinitions ? array_merge(['SERVER_NAME', 'WORLD_NAME', 'SERVER_PASSWORD'], array_keys($valheimDefinitions)) : [];
+        $valheimEntries = array_map(static function (array $entry) use ($instance): array {
+            $validation = JsonMap::fromValue(\App\Module\Gameserver\Application\Configuration\GameSetupProfiles::startup($instance->getTemplate()->getGameKey(), $entry['key'])['validation'] ?? null) ?? [];
+            return $entry + ['min' => $validation['min'] ?? 0, 'max' => $validation['max'] ?? 2147483647];
+        }, array_values(array_filter($varEntries, static fn (array $entry): bool => in_array($entry['key'], $valheimKeys, true))));
+        $configKeys = array_values(array_diff(['SERVER_NAME', 'SERVER_PASSWORD', 'RCON_PASSWORD'], $valheimKeys));
         $configEntries = array_values(array_filter($varEntries, fn (array $entry): bool => in_array($entry['key'], $configKeys, true)));
-        $variableEntries = array_values(array_filter($varEntries, fn (array $entry): bool => !in_array($entry['key'], $configKeys, true) && !$this->isPortKey($entry['key'])));
+        $variableEntries = array_values(array_filter($varEntries, fn (array $entry): bool => !in_array($entry['key'], $configKeys, true) && !$this->isPortKey($entry['key']) && !isset($sourceDefinitions[$entry['key']]) && !in_array($entry['key'], $valheimKeys, true)));
 
         $customerKeys = [];
         foreach (array_merge($requirements['vars'], $requirements['secrets']) as $entry) {
@@ -1879,6 +1974,10 @@ final class CustomerInstanceController
             'setupVars' => $varEntries,
             'setupConfigVars' => $configEntries,
             'setupVariableVars' => $variableEntries,
+            'setupAdvancedVarsError' => [] !== array_filter(array_merge($configEntries, $variableEntries), static fn (array $entry): bool => null !== $entry['error']),
+            'setupSourceVars' => $sourceEntries,
+            'setupValheimVars' => $valheimEntries,
+            'setupSourceEngine' => \App\Module\Gameserver\Application\Configuration\SourceServerSetup::source2($instance->getTemplate()) ? 'Source 2' : 'Source 1',
             'setupSecrets' => $secretEntries,
             'setupMissingLabels' => $missingLabels,
             'steamLoginMode' => $defaults['STEAM_LOGIN_MODE'],
@@ -1920,8 +2019,9 @@ final class CustomerInstanceController
     private function buildCustomerSetupRequirements(Template $template): array
     {
         $requirements = $this->setupChecker->getCustomerRequirements($template);
+        $allRequirements = $this->setupChecker->getRequirements($template);
         $existing = [];
-        foreach (array_merge($requirements['vars'], $requirements['secrets']) as $entry) {
+        foreach (array_merge($allRequirements['vars'], $allRequirements['secrets']) as $entry) {
             $existing[$entry['key']] = true;
         }
 
@@ -1954,6 +2054,34 @@ final class CustomerInstanceController
             }
         }
 
+        foreach (\App\Module\Gameserver\Application\Configuration\GameSetupProfiles::nativeStartupFields($template) as $key => $definition) {
+            if (!isset($existing[$key])) {
+                $requirements['vars'][] = ['key' => $key] + $definition;
+                $existing[$key] = true;
+            }
+        }
+        if (\App\Module\Gameserver\Application\Configuration\SourceServerSetup::supports($template) && \App\Module\Gameserver\Application\Configuration\SourceServerSetup::source2($template)) {
+            $requirements['vars'] = array_values(array_filter($requirements['vars'], static fn (array $entry): bool => 'TICKRATE' !== $entry['key']));
+        }
+        if (\App\Module\Gameserver\Application\Configuration\SourceServerSetup::supports($template)) {
+            $optional = \App\Module\Gameserver\Application\Configuration\SourceServerSetup::optionalArguments($template);
+            foreach (['vars', 'secrets'] as $scope) {
+                $requirements[$scope] = array_values(array_filter($requirements[$scope], static fn (array $entry): bool => !in_array($entry['key'], ['STEAM_GSLT', 'AUTHKEY', 'WORKSHOP_MAP', 'WORKSHOP_COLLECTION', 'GAMEMODE'], true) || isset($optional[$entry['key']])));
+            }
+        }
+        $protected = ['JAVA_XMS','JAVA_XMX','JAVA_BIN','RAM_LIMIT','CPU_LIMIT','DISK_LIMIT','INSTANCE_DIR','INSTALL_PATH','BASE_DIR','IP','SERVER_IP','BIND_IP','HOST_IP'];
+        foreach (['vars','secrets'] as $scope) {
+            $requirements[$scope] = array_values(array_filter($requirements[$scope], static fn (array $field): bool => !in_array(strtoupper($field['key']), $protected, true) && !\App\Module\Gameserver\Application\Configuration\GameConfigurationFields::managed($field['key']) && !\App\Module\Gameserver\Application\Configuration\GameSetupProfiles::isAdminOnly($template, $field['key'])));
+        }
+        foreach ($requirements['vars'] as &$entry) {
+            $meta = array_replace(\App\Module\Gameserver\Application\Configuration\GameSetupProfiles::startup($template->getGameKey(), $entry['key']), \App\Module\Gameserver\Application\Configuration\GameSetupProfiles::nativeStartupFields($template)[$entry['key']] ?? []);
+            $text = JsonMap::strings($meta);
+            $entry['label'] = $text['label'] ?? $entry['label'];
+            $entry['helptext'] = $text['helptext'] ?? $entry['helptext'];
+            $validation = JsonMap::fromValue($meta['validation'] ?? null);
+            if (null === $entry['validation'] && null !== $validation) { $entry['validation'] = $validation; }
+        }
+        unset($entry);
         return $requirements;
     }
 
@@ -2104,13 +2232,7 @@ final class CustomerInstanceController
 
     private function renderInstanceCard(Instance $instance, ?string $notice, ?string $error): Response
     {
-        $schedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Update);
-        $portBlock = $this->portBlockRepository->findByInstance($instance);
-
-        return new Response($this->twig->render('customer/instances/_card.html.twig', [
-            'instance' => $this->normalizeInstance($instance, $schedule, $portBlock, false, $notice, $error),
-            'minecraftCatalog' => $this->minecraftCatalogService->getUiCatalog(),
-        ]));
+        return $this->renderInstanceDetail($instance, $instance->getCustomer(), 'overview', $notice, $error);
     }
 
     private function prefersJsonResponse(Request $request): bool

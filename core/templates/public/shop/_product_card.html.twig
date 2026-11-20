@@ -1,0 +1,11 @@
+<article class="cms-product-card" data-shop-product="{{ product.id }}">
+    {% if product.imageUrl %}<img src="{{ product.imageUrl }}" alt="{{ product.name }}" loading="lazy" decoding="async" width="400" height="180">{% endif %}
+    <div class="cms-product-card__body"><p class="cms-eyebrow">{{ product.kind.label }}</p><h3>{{ product.name }}</h3><p class="cms-product-description">{{ product.description }}</p>
+        <p class="cms-product-availability">{{ rental_availability(product) }}</p>
+        <div class="cms-product-specs">{% if product.kind.value in ['gameserver','kvm'] %}<span>{{ product.cpuLimit }} CPU</span><span>{{ product.ramLimit }} GB RAM</span><span>{{ product.diskLimit }} GB SSD</span>{% elseif product.kind.value == 'webspace' %}<span>{{ product.diskLimit }} GiB Webspace</span><span>PHP {{ product.provisioningOptions.php_version|default('8.4') }}</span>{% elseif product.kind.value in ['teamspeak3','teamspeak6'] %}<span>{{ product.provisioningOptions.slots|default(32) }} Voice-Slots</span>{% endif %}</div>
+        {% set months = product.kind.value == 'domain' ? product.provisioningOptions.term_months|default(12) : 1 %}
+        <p class="cms-product-price">{{ ((product.priceMonthlyCents * months) / 100)|number_format(2, page_locale() == 'de' ? ',' : '.', page_locale() == 'de' ? '.' : ',') }} <small>{{ currency }}</small></p>
+        <p class="cms-product-term">{{ product.kind.value == 'domain' ? 'shop_domain_term'|cms_trans({'%months%':months}) : 'shop_minute_term'|cms_trans({}) }}</p>
+        {% if product.publicActive %}<a class="cms-button" href="{{ path('public_cms_shop_product',{id:product.id}) }}">{{ 'shop_configure'|cms_trans({}) }}</a>{% endif %}
+    </div>
+</article>

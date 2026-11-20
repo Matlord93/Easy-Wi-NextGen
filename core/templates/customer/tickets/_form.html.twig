@@ -1,5 +1,5 @@
 {% set locale = locale ?? page_locale() %}
-<div class="ng-card" style="overflow:hidden;">
+<div id="ticket-form" data-panel-validation class="ng-card" style="overflow:hidden;" hx-get="/tickets/form" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
 
     {# Header #}
     <div style="padding:16px 20px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;gap:12px;">

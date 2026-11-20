@@ -7,7 +7,7 @@ namespace App\Module\PanelCustomer\UI\Controller\Public;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Cms\Application\ThemeResolver;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -24,7 +24,7 @@ final class PublicProfileController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly ThemeResolver $themeResolver,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,

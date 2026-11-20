@@ -4,19 +4,13 @@
 {% set locale = page_locale() %}
 
 {% block content %}
-<div class="cust-page">
+<div class="pm-workspace" data-panel-list>
 
-    <div class="cust-hero">
-        <div class="cust-hero__inner">
-            <div>
-                <div class="cust-hero__label">{{ t('customer_nav_group_overview', locale) }}</div>
-                <h1 class="cust-hero__title">{{ t('customer_nav_activity', locale) }}</h1>
-                <p class="cust-hero__desc">{{ t('customer_activity_recent_activity_description', locale) }}</p>
-            </div>
-        </div>
-    </div>
+    <header class="pm-page-head"><div><h1>{{ t('customer_nav_activity',locale) }}</h1><p>{{ t('customer_activity_recent_activity_description',locale) }}</p></div><div class="pm-page-head__actions"><span class="ui-badge ui-badge--neutral">{{ entries|length }} {{ 'workspace_loaded_entries'|trans({},'panel_modules') }}</span></div></header>
 
-    <div class="cust-panel">
+
+    <div class="pm-filters ng-data-card"><input class="form-input" data-panel-filter aria-label="{{ 'workspace_activity_search'|trans({},'panel_modules') }}" placeholder="{{ 'workspace_activity_search'|trans({},'panel_modules') }}"></div>
+<div class="cust-panel">
         <div class="cust-panel__head">
             <div>
                 <h3 class="cust-panel__title">{{ t('customer_activity_recent_activity', locale) }}</h3>
@@ -25,16 +19,16 @@
         </div>
         <div class="cust-panel__body--flush">
             {% for entry in entries %}
-                <div style="padding:14px 18px;border-bottom:1px solid var(--ng-border);">
+                <div data-panel-row style="padding:14px 18px;border-bottom:1px solid var(--ng-border);">
                     <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
                         <div>
-                            <p style="margin:0;font-size:13px;font-weight:600;color:var(--ng-text);">{{ t('audit_event_' ~ entry.action|replace({'.': '_'}), locale) }}</p>
+                            <p style="margin:0;font-size:13px;font-weight:600;color:var(--ng-text);">{% set eventKey = 'audit_event_' ~ entry.action|replace({'.':'_'}) %}{% set eventLabel = t(eventKey,locale) %}{{ eventLabel == eventKey ? entry.action : eventLabel }}</p>
                             <p style="margin:2px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ entry.actor }}</p>
                         </div>
                         <span class="ui-badge ui-badge--neutral">{{ entry.created_at|date('Y-m-d H:i') }}</span>
                     </div>
                     {% if entry.payload %}
-                        <pre style="margin:10px 0 0;padding:10px 12px;border-radius:8px;background:var(--ng-surface-soft);font-size:11px;color:var(--ng-text-muted);overflow-x:auto;white-space:pre-wrap;word-break:break-all;">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+<details><summary class="pm-disclosure-title">{{ 'workspace_activity_details'|trans({},'panel_modules') }}</summary>                        <pre style="margin:10px 0 0;padding:10px 12px;border-radius:8px;background:var(--ng-surface-soft);font-size:11px;color:var(--ng-text-muted);overflow-x:auto;white-space:pre-wrap;word-break:break-all;">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre></details>
                     {% endif %}
                 </div>
             {% else %}
@@ -46,5 +40,6 @@
         </div>
     </div>
 
+<p class="pm-empty" data-panel-empty hidden>{{ t('no_results',locale) }}</p>
 </div>
 {% endblock %}

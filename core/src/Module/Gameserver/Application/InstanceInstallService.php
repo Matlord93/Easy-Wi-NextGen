@@ -6,7 +6,6 @@ namespace App\Module\Gameserver\Application;
 
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\ScalarValue;
-
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
@@ -47,20 +46,20 @@ final class InstanceInstallService
         }
 
         $nodeId = $instance->getNode()->getId();
-        if (trim($nodeId) === '') {
+        if ('' === trim($nodeId)) {
             return [
                 'is_ready' => false,
                 'error_code' => 'NODE_NOT_SET',
             ];
         }
 
-        if ($this->managedPayloadBuilder !== null && MinecraftCatalogService::channelFromResolver($instance) !== null && $this->resolveNodeOs($instance->getNode()) !== 'windows' && ($instance->getNode()->getMetadata()['minecraft_managed_install'] ?? false) !== true) {
+        if (null !== $this->managedPayloadBuilder && null !== MinecraftCatalogService::channelFromResolver($instance) && 'windows' !== $this->resolveNodeOs($instance->getNode()) && ($instance->getNode()->getMetadata()['minecraft_managed_install'] ?? false) !== true) {
             return ['is_ready' => false, 'error_code' => 'MINECRAFT_AGENT_UPDATE_REQUIRED'];
         }
 
         $supportedOs = $instance->getTemplate()->getSupportedOs();
         $nodeOs = $this->resolveNodeOs($instance->getNode());
-        if ($nodeOs === null || !in_array($nodeOs, $supportedOs, true)) {
+        if (null === $nodeOs || !in_array($nodeOs, $supportedOs, true)) {
             return [
                 'is_ready' => false,
                 'error_code' => 'TEMPLATE_OS_MISMATCH',
@@ -77,7 +76,7 @@ final class InstanceInstallService
      */
     private function resolveMissingRequirementErrorCode(Instance $instance, array $missing): string
     {
-        if ($missing === []) {
+        if ([] === $missing) {
             return 'MISSING_REQUIREMENTS';
         }
 
@@ -92,7 +91,7 @@ final class InstanceInstallService
             $type = $entry['type'];
             $key = $entry['key'];
             $scope = $scopes[$type][$key] ?? null;
-            if ($scope !== 'admin_only') {
+            if ('admin_only' !== $scope) {
                 $hasCustomerRequirement = true;
                 break;
             }
@@ -103,6 +102,7 @@ final class InstanceInstallService
 
     /**
      * @param array<int, array<string, mixed>> $requirements
+     *
      * @return array<string, string>
      */
     private function buildRequirementScopeMap(array $requirements): array
@@ -110,7 +110,7 @@ final class InstanceInstallService
         $map = [];
         foreach ($requirements as $entry) {
             $key = (string) ($entry['key'] ?? '');
-            if ($key === '') {
+            if ('' === $key) {
                 continue;
             }
             $map[$key] = (string) ($entry['scope'] ?? 'customer_allowed');
@@ -152,7 +152,7 @@ final class InstanceInstallService
             ];
         }
 
-        if (trim($installCommand) === '') {
+        if ('' === trim($installCommand)) {
             return [
                 'ok' => false,
                 'error_code' => 'INSTALL_COMMAND_MISSING',
@@ -160,7 +160,7 @@ final class InstanceInstallService
         }
 
         $startParams = trim($instance->getTemplate()->getStartParams());
-        if ($startParams === '') {
+        if ('' === $startParams) {
             return [
                 'ok' => false,
                 'error_code' => 'START_PARAMS_MISSING',
@@ -177,12 +177,19 @@ final class InstanceInstallService
             'port_block_id' => $portAllocation['port_block_id'],
         ];
 
-        if ($this->managedPayloadBuilder !== null && str_starts_with((string) ($instance->getTemplate()->getInstallResolver()['type'] ?? ''), 'minecraft') || ($this->managedPayloadBuilder !== null && ($instance->getTemplate()->getInstallResolver()['type'] ?? '') === 'papermc_paper')) {
+        if (SevenDaysToDiePorts::usesDefaultConfig($instance->getTemplate())) {
+            $payload['game_key'] = $instance->getTemplate()->getGameKey();
+            $payload['seven_days_to_die_managed_ports'] = 'true';
+        }
+
+        if (null !== $this->managedPayloadBuilder && str_starts_with((string) ($instance->getTemplate()->getInstallResolver()['type'] ?? ''), 'minecraft') || (null !== $this->managedPayloadBuilder && ($instance->getTemplate()->getInstallResolver()['type'] ?? '') === 'papermc_paper')) {
             try {
                 $managed = $this->managedPayloadBuilder->buildSniperInstallPayload($instance);
                 $this->minecraftReservations?->reserve($instance, $portAllocation['reservations']);
                 $payload = array_replace($payload, $managed, ['ports' => $portAllocation['ports'], 'port_reservations' => $portAllocation['reservations']]);
-            } catch (\RuntimeException $error) { return ['ok' => false, 'error_code' => 'MINECRAFT_CATALOG_UNAVAILABLE', 'message' => $error->getMessage()]; }
+            } catch (\RuntimeException $error) {
+                return ['ok' => false, 'error_code' => 'MINECRAFT_CATALOG_UNAVAILABLE', 'message' => $error->getMessage()];
+            }
         }
 
         if ($useSharedStorage) {
@@ -191,7 +198,7 @@ final class InstanceInstallService
                 ? $template
                 : ($this->templateRepository->findSharedStorageVariantForIdentity($template) ?? $template);
             $sharedPaths = $sharedTemplate->getSharedPaths();
-            if ($sharedPaths === []) {
+            if ([] === $sharedPaths) {
                 return [
                     'ok' => false,
                     'error_code' => 'SHARED_STORAGE_NOT_SUPPORTED',
@@ -208,6 +215,11 @@ final class InstanceInstallService
         ];
     }
 
+    public function reservePorts(Instance $instance): void
+    {
+        $this->allocateDefaultPorts($instance);
+    }
+
     /**
      * @return array{ports: array<array-key, int>, reservations: list<array{role: string, protocol: string,
      * port: int}>, port_block_id: string|null}
@@ -218,17 +230,19 @@ final class InstanceInstallService
         $requiredCount = count($requiredPorts);
 
         $portBlock = null;
-        if ($instance->getPortBlockId() !== null) {
+        if (null !== $instance->getPortBlockId()) {
             $portBlock = $this->portBlockRepository->find($instance->getPortBlockId());
         }
 
-        if ($portBlock === null && $requiredCount > 0) {
-            $pools = \App\Module\Ports\Application\GamePortPoolPolicy::select($this->portPoolRepository->findBy(['node' => $instance->getNode()]),$instance->getTemplate());
+        if (null === $portBlock && $requiredCount > 0) {
+            $pools = \App\Module\Ports\Application\GamePortPoolPolicy::select($this->portPoolRepository->findBy(['node' => $instance->getNode()]), $instance->getTemplate());
             foreach ($pools as $pool) {
                 try {
                     $portBlock = $this->portLeaseManager->allocateBlock($pool, $instance->getCustomer(), $requiredCount);
                 } catch (\RuntimeException $error) {
-                    if ($error instanceof \App\Module\Ports\Application\PortCheckUnavailable) { throw $error; }
+                    if ($error instanceof \App\Module\Ports\Application\PortCheckUnavailable) {
+                        throw $error;
+                    }
                     continue;
                 }
 
@@ -240,11 +254,11 @@ final class InstanceInstallService
             }
         }
 
-        if ($requiredCount > 0 && $portBlock === null) {
+        if ($requiredCount > 0 && null === $portBlock) {
             throw new \RuntimeException('No port pools available.');
         }
 
-        if ($requiredCount === 0 || $portBlock === null) {
+        if (0 === $requiredCount || null === $portBlock) {
             return [
                 'ports' => [],
                 'reservations' => [],
@@ -257,21 +271,22 @@ final class InstanceInstallService
             throw new \RuntimeException('Port block does not contain enough ports.');
         }
 
-        if ($instance->getAssignedPort() === null && isset($ports[0])) {
+        if (null === $instance->getAssignedPort() && isset($ports[0])) {
             $instance->setAssignedPort($ports[0]);
             $this->entityManager->persist($instance);
         }
 
         return [
             'ports' => array_slice($ports, 0, $requiredCount),
-            'reservations' => MinecraftPortPlan::withBedrockSignaling($instance->getTemplate(), $this->buildPortReservations($ports, $requiredPorts)),
+            'reservations' => SevenDaysToDiePorts::withTcpServices($instance->getTemplate(), MinecraftPortPlan::withBedrockSignaling($instance->getTemplate(), $this->buildPortReservations($ports, $requiredPorts))),
             'port_block_id' => $portBlock->getId(),
         ];
     }
 
     /**
-     * @param array<array-key, int> $ports
+     * @param array<array-key, int>                                         $ports
      * @param list<array{name:string,protocol:string,...<array-key,mixed>}> $requiredPorts
+     *
      * @return list<array{role: string, protocol: string, port: int}>
      */
     private function buildPortReservations(array $ports, array $requiredPorts): array
@@ -302,7 +317,7 @@ final class InstanceInstallService
         foreach (array_keys($envVars) as $entryKey) {
             $entry = JsonArray::orEmpty($envVars[$entryKey]);
             $key = trim((string) ($entry['key'] ?? ''));
-            if ($key === '') {
+            if ('' === $key) {
                 continue;
             }
             $vars[$key] = ScalarValue::text($entry['value'] ?? null);
@@ -312,26 +327,26 @@ final class InstanceInstallService
         $setupVars = $instance->getSetupVars();
         foreach (array_keys($setupVars) as $key) {
             $normalizedKey = trim((string) $key);
-            if ($normalizedKey === '') {
+            if ('' === $normalizedKey) {
                 continue;
             }
             $setupVarKeys[$normalizedKey] = true;
             $vars[$normalizedKey] = ScalarValue::text($setupVars[$key]);
         }
 
-        if ($instance->getSteamAccount() !== null && $instance->getSteamAccount() !== '') {
+        if (null !== $instance->getSteamAccount() && '' !== $instance->getSteamAccount()) {
             $vars['STEAM_ACCOUNT'] = $instance->getSteamAccount() ?? '';
         }
-        if ($instance->getGslKey() !== null && $instance->getGslKey() !== '') {
+        if (null !== $instance->getGslKey() && '' !== $instance->getGslKey()) {
             $vars['STEAM_GSLT'] = $instance->getGslKey() ?? '';
         }
-        if ($instance->getServerName() !== null && $instance->getServerName() !== '') {
+        if (null !== $instance->getServerName() && '' !== $instance->getServerName()) {
             $vars['SERVER_NAME'] = $instance->getServerName() ?? '';
         }
 
         $steamAccount = $vars['STEAM_ACCOUNT'] ?? '';
         $steamPassword = $vars['STEAM_PASSWORD'] ?? '';
-        if ($steamAccount !== '' && $steamPassword !== '') {
+        if ('' !== $steamAccount && '' !== $steamPassword) {
             $vars['STEAM_LOGIN'] = sprintf('%s %s', $steamAccount, $steamPassword);
         } else {
             $vars['STEAM_LOGIN'] = 'anonymous';
@@ -346,7 +361,7 @@ final class InstanceInstallService
         }
 
         foreach (['SERVER_PASSWORD', 'RCON_PASSWORD', 'ADMIN_PASSWORD', 'SERVER_ADMIN_PASSWORD'] as $passwordKey) {
-            if (!isset($setupVarKeys[$passwordKey]) && isset($vars[$passwordKey]) && strtolower($vars[$passwordKey]) === 'change-me') {
+            if (!isset($setupVarKeys[$passwordKey]) && isset($vars[$passwordKey]) && 'change-me' === strtolower($vars[$passwordKey])) {
                 unset($vars[$passwordKey]);
             }
         }
@@ -375,7 +390,7 @@ final class InstanceInstallService
         $placeholders = [];
         foreach ($instance->getSetupSecrets() as $key => $_payload) {
             $normalizedKey = trim((string) $key);
-            if ($normalizedKey === '') {
+            if ('' === $normalizedKey) {
                 continue;
             }
             $placeholders[] = [
@@ -393,6 +408,6 @@ final class InstanceInstallService
         $os = is_array($stats) ? (string) ($stats['os'] ?? '') : '';
         $os = strtolower(trim($os));
 
-        return $os !== '' ? $os : null;
+        return '' !== $os ? $os : null;
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\DownloadItem;
 use App\Repository\DownloadItemRepository;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -19,7 +19,7 @@ final class PublicDownloadController
 {
     public function __construct(
         private readonly DownloadItemRepository $downloadRepository,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         #[Autowire(service: 'limiter.public_downloads')]
         private readonly RateLimiterFactory $downloadsLimiter,
         private readonly Environment $twig,

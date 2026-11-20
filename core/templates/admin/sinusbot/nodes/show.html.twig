@@ -1,5 +1,6 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set activeNav = 'sinusbot' %}
 {% block content %}
 {% set locale = page_locale() %}
 {% set runningInstances = instances|filter(i => i.status == 'running')|length %}
@@ -9,97 +10,25 @@
 {% set runtimeBadge     = isOnline ? 'success' : 'danger' %}
 {% set runtimeLabel     = isOnline ? t('admin_sinusbot_kpi_online', locale) : t('admin_sinusbot_kpi_offline', locale) %}
 
-<div style="display:grid;grid-template-columns:220px minmax(0,1fr) 300px;gap:20px;align-items:start;">
-
-{# ─────────── Left sidebar ─────────── #}
-<aside style="position:sticky;top:20px;display:flex;flex-direction:column;gap:10px;">
-    <div class="ng-card" style="overflow:hidden;padding:16px;">
-        <a href="/admin/sinusbot/nodes" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ng-text-muted);text-decoration:none;margin-bottom:14px;">
-            <svg style="width:13px;height:13px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-            {{ t('admin_sinusbot_back_to_overview', locale) }}
-        </a>
-
-        <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:var(--ng-radius-sm);padding:12px;margin-bottom:12px;">
-            <div style="font-size:10px;font-weight:700;font-family:monospace;letter-spacing:.06em;color:var(--ng-text-muted);margin-bottom:4px;">SinusBot Node</div>
-            <h2 style="margin:0 0 8px;font-size:13px;font-weight:700;color:var(--ng-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ node.name }}</h2>
-            <div style="display:flex;gap:5px;flex-wrap:wrap;">
-                <span class="ui-badge ui-badge--{{ isMulti ? 'primary' : 'neutral' }}" style="font-size:10px;">{{ isMulti ? t('admin_sinusbot_mode_multi_label', locale) : t('admin_sinusbot_mode_solo_label', locale) }}</span>
-                <span class="ui-badge ui-badge--{{ runtimeBadge }}" style="font-size:10px;">{{ runtimeLabel }}</span>
-            </div>
-        </div>
-
-        <nav style="display:flex;flex-direction:column;gap:2px;">
-            <a href="#section-installation" class="sb-nav-link sb-nav-link--active">
-                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
-                {{ t('admin_sinusbot_installation_title', locale) }}
-            </a>
-            {% if isMulti %}
-            <a href="#section-instances" class="sb-nav-link">
-                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="7" cy="9" r="3"/><circle cx="17" cy="9" r="3"/><path stroke-linecap="round" d="M1 19c0-3 2.686-5 6-5M17 14c3.314 0 6 2 6 5"/></svg>
-                {{ t('admin_sinusbot_customer_instances_title', locale) }}
-            </a>
-            {% endif %}
-            <a href="#section-login" class="sb-nav-link">
-                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path stroke-linecap="round" d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                {{ t('admin_sinusbot_login_title', locale) }}
-            </a>
-            <a href="#section-jobs" class="sb-nav-link">
-                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                {{ t('admin_sinusbot_recent_jobs', locale) }}
-            </a>
-        </nav>
-    </div>
-</aside>
-
-{# ─────────── Main content ─────────── #}
-<main style="display:flex;flex-direction:column;gap:20px;min-width:0;">
+<div class="pm-workspace" data-panel-tabs="sinusbot-node">
+<div class="pm-music-flow">
 
     {# Hero #}
-    <section class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div>
-                    <div class="tkt-hero__breadcrumb">
-                        <a href="/admin/sinusbot/nodes">{{ t('admin_sinusbot_nodes_page_title', locale) }}</a>
-                        <span>/</span>
-                        <span>{{ node.name }}</span>
-                    </div>
-                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot" style="background:#f97316;"></span>
-                            SinusBot
-                        </div>
-                        <span class="ui-badge ui-badge--{{ isMulti ? 'primary' : 'neutral' }}" style="font-size:11px;">{{ isMulti ? t('admin_sinusbot_mode_multi_label', locale) : t('admin_sinusbot_mode_solo_label', locale) }}</span>
-                        <span class="ui-badge ui-badge--{{ runtimeBadge }}" style="font-size:11px;">{{ runtimeLabel }}</span>
-                    </div>
-                    <h1 class="tkt-hero__title" style="margin-top:10px;">{{ node.name }}</h1>
-                    <p class="tkt-hero__sub">{{ t('admin_sinusbot_intro', locale) }}</p>
-                </div>
-                {% if isMulti %}
-                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px;">
-                    <div class="tkt-kpi">
-                        <div class="tkt-kpi__label">{{ t('admin_sinusbot_kpi_instances', locale) }}</div>
-                        <div class="tkt-kpi__value">{{ totalInstances }}</div>
-                    </div>
-                    <div class="tkt-kpi tkt-kpi--open">
-                        <div class="tkt-kpi__label">{{ t('admin_sinusbot_kpi_online', locale) }}</div>
-                        <div class="tkt-kpi__value">{{ runningInstances }}</div>
-                    </div>
-                    <div class="tkt-kpi tkt-kpi--pending">
-                        <div class="tkt-kpi__label">{{ t('admin_sinusbot_kpi_offline', locale) }}</div>
-                        <div class="tkt-kpi__value">{{ totalInstances - runningInstances }}</div>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-        <div style="padding:10px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);display:flex;justify-content:flex-end;">
-            <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/delete" onsubmit="return confirm('{{ t('admin_sinusbot_delete_confirm', locale) }}');">
+<header class="pm-page-head"><div><h1>{{ node.name }}</h1><p>{{ t('admin_sinusbot_intro',locale) }}</p></div><div class="pm-page-head__actions"><a class="ui-button ui-button--ghost" href="/admin/sinusbot/nodes">{{ 'back'|trans({},'panel_modules') }}</a></div></header>
+<div class="pm-toolbar"><span class="ui-badge ui-badge--{{ runtimeBadge }}">{{ runtimeLabel }}</span><span class="ui-badge ui-badge--neutral">{{ isMulti ? t('admin_sinusbot_mode_multi_label',locale) : t('admin_sinusbot_mode_solo_label',locale) }}</span></div>
+{% if isMulti %}<div class="pm-stats">
+{% include 'components/panel/_stat.html.twig' with {value:totalInstances,label:t('admin_sinusbot_kpi_instances',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:runningInstances,label:t('admin_sinusbot_kpi_online',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:totalInstances - runningInstances,label:t('admin_sinusbot_kpi_offline',locale)} only %}
+</div>
+{% endif %}
+{% set nodeTabs = {overview:'overview'} %}{% if isMulti %}{% set nodeTabs = nodeTabs|merge({instances:'workspace_inventory'}) %}{% endif %}{% set nodeTabs = nodeTabs|merge({jobs:'tasks',manage:'management'}) %}
+{% include 'components/panel/_tabs.html.twig' with {panelKey:'sinusbot-node',panelTabs:nodeTabs} %}
+<section data-panel-section="manage" class="pm-toolbar"><form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/delete" onsubmit="return confirm('{{ t('admin_sinusbot_delete_confirm', locale) }}');">
                 <input type="hidden" name="_token" value="{{ csrf.delete }}">
                 <button class="ui-button ui-button--danger ui-button--sm" type="submit">{{ t('admin_sinusbot_delete', locale) }}</button>
-            </form>
-        </div>
-    </section>
+            </form></section>
+
 
     {# Flash messages #}
     {% for message in app.flashes('success') %}
@@ -110,7 +39,7 @@
     {% endfor %}
 
     {# ── Installation ── #}
-    <div id="section-installation" class="ng-data-card">
+    <div id="section-installation" data-panel-section="overview" class="ng-data-card">
         <div class="ng-data-card__header">
             <div style="display:flex;align-items:center;gap:10px;">
                 <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(249,115,22,.12);flex-shrink:0;">
@@ -156,7 +85,7 @@
 
     {# ── Customer instances (multi only) ── #}
     {% if isMulti %}
-    <div id="section-instances" class="ng-data-card">
+    <div id="section-instances" data-panel-section="instances" class="ng-data-card">
         <div class="ng-data-card__header">
             <div style="display:flex;align-items:center;gap:10px;">
                 <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(99,102,241,.12);flex-shrink:0;">
@@ -302,7 +231,7 @@
     {% endif %}
 
     {# ── Recent jobs ── #}
-    <details id="section-jobs" class="ng-data-card">
+    <details open id="section-jobs" data-panel-section="jobs" class="ng-data-card">
         <summary style="padding:16px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;user-select:none;">
             <div style="display:flex;align-items:center;gap:10px;">
                 <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(100,116,139,.1);flex-shrink:0;">
@@ -348,7 +277,7 @@
     </details>
 
     {# ── User management ── #}
-    <details class="ng-data-card">
+    <details class="ng-data-card" data-panel-section="manage">
         <summary style="padding:16px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;user-select:none;">
             <div style="display:flex;align-items:center;gap:10px;">
                 <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(100,116,139,.1);flex-shrink:0;">
@@ -367,13 +296,13 @@
         </div>
     </details>
 
-</main>
+</div>
 
 {# ─────────── Right sidebar ─────────── #}
-<aside style="position:sticky;top:20px;display:flex;flex-direction:column;gap:12px;">
+<aside class="pm-music-flow">
 
     {# Quick actions #}
-    <div class="ng-card" style="overflow:hidden;">
+    <div data-panel-section="manage" class="ng-card" style="overflow:hidden;">
         <div style="padding:13px 18px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;gap:8px;">
             <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color:var(--ng-text-muted);"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             <h3 style="margin:0;font-size:13px;font-weight:700;color:var(--ng-text);">{{ t('admin_sinusbot_quick_actions', locale) }}</h3>
@@ -404,7 +333,7 @@
     </div>
 
     {# Login credentials #}
-    <div id="section-login" class="ng-card" style="overflow:hidden;">
+    <div id="section-login" data-panel-section="manage" class="ng-card" style="overflow:hidden;">
         <div style="padding:13px 18px;border-bottom:1px solid var(--ng-border);">
             <h3 style="margin:0;font-size:13px;font-weight:700;color:var(--ng-text);">{{ t('admin_sinusbot_login_title', locale) }}</h3>
             <p style="margin:2px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('admin_sinusbot_login_desc', locale) }}</p>
@@ -445,7 +374,7 @@
     </div>
 
     {# Service info #}
-    <div id="section-service" class="ng-card" style="overflow:hidden;">
+    <div id="section-service" data-panel-section="manage" class="ng-card" style="overflow:hidden;">
         <div style="padding:13px 18px;border-bottom:1px solid var(--ng-border);">
             <h3 style="margin:0;font-size:13px;font-weight:700;color:var(--ng-text);">{{ t('admin_sinusbot_service_title', locale) }}</h3>
         </div>

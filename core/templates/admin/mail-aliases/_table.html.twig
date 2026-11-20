@@ -1,4 +1,4 @@
-<div id="mail-aliases-table"
+<div id="mail-aliases-table" class="ng-data-card" data-panel-list
     hx-get="/admin/mail-aliases/table"
     hx-trigger="mail-aliases-changed from:body"
     hx-swap="outerHTML">
@@ -16,6 +16,7 @@
         >{{ t('refresh', page_locale()) }}</button>
     </div>
 </div>
+<div class="pm-filters"><label class="sr-only" for="mail-alias-search">{{ 'search'|trans({},'panel_modules') }}</label><input class="form-input" id="mail-alias-search" type="search" data-panel-filter placeholder="{{ 'workspace_alias_search'|trans({},'panel_modules') }}"></div>
 <div class="cust-ws-table-wrap">
     <table class="cust-table">
         <thead>
@@ -29,7 +30,7 @@
         </thead>
         <tbody>
             {% for alias in aliases %}
-                <tr>
+                <tr data-panel-row>
                     <td>
                         <div style="font-weight:600;color:var(--ng-text);">{{ alias.address }}</div>
                         <div style="font-size:11px;color:var(--ng-text-muted);">{{ alias.domain.name }}</div>
@@ -58,6 +59,7 @@
                             <button
                                 class="ui-button ui-button--ghost ui-button--sm"
                                 hx-get="/admin/mail-aliases/{{ alias.id }}/edit"
+                                data-panel-reveal="create"
                                 hx-target="#mail-alias-form"
                                 hx-swap="outerHTML"
                             >{{ t('edit', page_locale()) }}</button>

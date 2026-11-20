@@ -13,62 +13,22 @@
     'installing':   'info'
 } %}
 
-<div style="display:flex;flex-direction:column;gap:20px;">
+<div class="pm-workspace ">
 
     {# ── Hero ── #}
-    <section class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:16px;">
-                    <div>
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot"></span>
-                            Musicbots
-                        </div>
-                        <h1 class="tkt-hero__title" style="margin-top:10px;">Musicbot-Instanzen</h1>
-                        <p class="tkt-hero__sub">Native Musicbots ohne SinusBot- oder TS3AudioBot-Backend.</p>
-                    </div>
-                    <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;">
-                        <div class="tkt-kpi">
-                            <div class="tkt-kpi__label">Gesamt</div>
-                            <div class="tkt-kpi__value">{{ summary.total }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--resolved">
-                            <div class="tkt-kpi__label">Running</div>
-                            <div class="tkt-kpi__value">{{ summary.running }}</div>
-                        </div>
-                        <div class="tkt-kpi">
-                            <div class="tkt-kpi__label">Stopped</div>
-                            <div class="tkt-kpi__value">{{ summary.stopped }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--open">
-                            <div class="tkt-kpi__label">Error</div>
-                            <div class="tkt-kpi__value">{{ summary.error }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--pending">
-                            <div class="tkt-kpi__label">Provisioning</div>
-                            <div class="tkt-kpi__value">{{ summary.provisioning }}</div>
-                        </div>
-                        <div class="tkt-kpi">
-                            <div class="tkt-kpi__label">Nodes</div>
-                            <div class="tkt-kpi__value">{{ summary.nodes }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div style="display:flex;gap:12px;padding:14px 20px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);align-items:center;justify-content:space-between;">
-            <span style="font-size:11px;color:var(--ng-text-muted);">Alle nativen Musicbot-Instanzen auf allen Nodes</span>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <a href="{{ path('admin_musicbot_limits') }}" class="ui-button ui-button--ghost ui-button--sm">Kundenlimits</a>
-                <a href="{{ path('admin_musicbot_teamspeak_backend') }}" class="ui-button ui-button--ghost ui-button--sm">TeamSpeak Client Backend</a>
-                <a href="{{ path('admin_musicbot_new') }}" class="ui-button ui-button--primary ui-button--sm">Musicbot erstellen</a>
-            </div>
-        </div>
-    </section>
+    <header class="pm-page-head"><div><h1>{{ 'workspace_music_admin'|trans({},'panel_modules') }}</h1><p>{{ 'workspace_music_admin_intro'|trans({},'panel_modules') }}</p></div><div class="pm-page-head__actions"><a class="ui-button ui-button--primary" href="{{ path('admin_musicbot_new') }}">{{ 'workspace_music_create'|trans({},'panel_modules') }}</a></div></header>
+<div class="pm-stats">
+{% include 'components/panel/_stat.html.twig' with {value:summary.total,label:'workspace_inventory'|trans({},'panel_modules')} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.running,label:'workspace_music_running'|trans({},'panel_modules')} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.stopped,label:'workspace_music_stopped'|trans({},'panel_modules')} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.error,label:'workspace_music_error'|trans({},'panel_modules')} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.provisioning,label:'workspace_music_provisioning'|trans({},'panel_modules')} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.nodes,label:'nodes'|trans({},'panel_modules')} only %}
+</div>
+
 
     {# ── Instance list ── #}
-    <section class="ng-card" style="overflow:hidden;">
+    <section class="ng-card" style="overflow:hidden;" data-panel-list>
         <div class="tkt-filter-bar">
             <div class="tkt-filter-bar__top">
                 <div>
@@ -79,6 +39,7 @@
             </div>
         </div>
 
+        <div class="pm-filters"><input class="form-input" data-panel-filter aria-label="{{ 'workspace_music_search'|trans({},'panel_modules') }}" placeholder="{{ 'workspace_music_search'|trans({},'panel_modules') }}"></div>
         <table class="ui-table" style="width:100%;">
             <thead>
                 <tr>
@@ -96,7 +57,7 @@
             {% for row in rows %}
                 {% set instance = row.instance %}
                 {% set statusClass = statusMap[instance.status.value] ?? 'neutral' %}
-                <tr>
+                <tr data-panel-row>
                     <td>
                         <a href="{{ path('admin_musicbot_show', {id: instance.id}) }}" style="font-weight:600;color:var(--ng-text);text-decoration:none;">{{ instance.name }}</a>
                         <br>

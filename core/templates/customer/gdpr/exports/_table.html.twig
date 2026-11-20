@@ -1,6 +1,6 @@
 <div id="gdpr-export-table"
     hx-get="/gdpr/exports/table"
-    hx-trigger="gdpr-export-updated from:body"
+    hx-trigger="gdpr-export-updated[event.target.getAttribute('hx-target') != '#gdpr-export-table'] from:body"
     hx-swap="outerHTML">
 <div class="cust-ws-table-wrap">
     <table class="cust-table">

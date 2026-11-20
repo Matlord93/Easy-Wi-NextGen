@@ -9,7 +9,7 @@ use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Cms\UI\Http\MaintenancePageResponseFactory;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\CmsEvent;
 use App\Module\Core\Domain\Entity\Site;
 use App\Repository\CmsEventRepository;
@@ -24,7 +24,7 @@ final class PublicCmsEventsController
 {
     public function __construct(
         private readonly CmsEventRepository $eventRepository,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly CmsFeatureToggle $featureToggle,
         private readonly CmsMaintenanceService $maintenanceService,
         private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory,

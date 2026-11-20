@@ -7,8 +7,9 @@
     {% block head %}{% endblock %}
     <link rel="stylesheet" href="{{ asset('ui.css') }}">
     <link rel="stylesheet" href="{{ asset('themes/nexus-gaming/css/theme.css') }}">
+    <link rel="stylesheet" href="{{ asset('workspace-public.css') }}">
 </head>
-<body class="ng-body ng-portal-body">
+<body class="easywi-workspace-public ng-body ng-portal-body">
 
 {% set clanName = app_setting('branding_name', 'Easy-Wi NextGen') %}
 {% set currentUser = current_user() %}

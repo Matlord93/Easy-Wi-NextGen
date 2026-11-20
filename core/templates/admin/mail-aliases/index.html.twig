@@ -1,79 +1,20 @@
 {% extends 'admin/base.html.twig' %}
-
 {% set pageTitle = t('admin_mail_aliases_title', page_locale()) %}
-{% set pageSubtitle = t('admin_mail_aliases_intro', page_locale()) %}
 {% set activeNav = 'mail-aliases' %}
 {% set locale = page_locale() %}
-{% set topbarActions %}
-    <button
-        class="ui-button ui-button--ghost ui-button--sm"
-        hx-get="/admin/mail-aliases/table"
-        hx-target="#mail-aliases-table"
-        hx-swap="outerHTML"
-    >{{ t('refresh', locale) }}</button>
-    <button
-        class="ui-button ui-button--primary ui-button--sm"
-        hx-get="/admin/mail-aliases/form"
-        hx-target="#mail-alias-form"
-        hx-swap="outerHTML"
-    >{{ t('admin_mail_aliases_new', locale) }}</button>
-{% endset %}
-
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
-
-    {# ── Hero with KPI ── #}
-    <section class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:16px;">
-                    <div>
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot"></span>
-                            {{ t('admin_mail_aliases_hero_label', locale) }}
-                        </div>
-                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_mail_aliases_title', locale) }}</h1>
-                        <p class="tkt-hero__sub">{{ t('admin_mail_aliases_hero_intro', locale) }}</p>
-                    </div>
-                    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
-                        <div class="tkt-kpi">
-                            <div class="tkt-kpi__label">{{ t('admin_mail_aliases_total', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.total }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--resolved">
-                            <div class="tkt-kpi__label">{{ t('admin_status_enabled', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.enabled }}</div>
-                        </div>
-                        <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
-                            <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('admin_status_disabled', locale) }}</div>
-                            <div class="tkt-kpi__value" style="color:var(--aw-status-danger, #fca5a5);">{{ summary.disabled }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--open">
-                            <div class="tkt-kpi__label">{{ t('admin_mail_aliases_destinations', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.destinations }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <div class="ng-layout-2col">
-        <div id="mail-alias-form" class="ng-data-card">
-            <div class="ng-data-card__body">
-                {% include 'admin/mail-aliases/_form.html.twig' with { domains: domains, form: form } %}
-            </div>
-        </div>
-
-        <div id="mail-aliases-table" class="ng-data-card"
-             hx-get="/admin/mail-aliases/table"
-             hx-trigger="mail-aliases-changed from:body"
-             hx-swap="outerHTML">
-            <div class="ng-data-card__body--flush">
-                {% include 'admin/mail-aliases/_table.html.twig' with { aliases: aliases } %}
-            </div>
-        </div>
+<div class="pm-workspace" data-panel-tabs="admin-mail-aliases">
+    <header class="pm-page-head">
+        <div><h1>{{ pageTitle }}</h1><p>{{ t('admin_mail_aliases_hero_intro',locale) }}</p></div>
+        <a class="ui-button ui-button--primary" href="#pm-admin-mail-aliases-create" hx-get="/admin/mail-aliases/form" hx-target="#mail-alias-form" hx-swap="outerHTML" data-panel-reveal="create">+ {{ t('admin_mail_aliases_new',locale) }}</a>
+    </header>
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'admin-mail-aliases',panelTabs:{overview:'workspace_inventory',create:'workspace_alias_editor'}} %}
+    <div class="pm-stats pm-stats--four">
+        {% for label,value in {admin_mail_aliases_total:summary.total,admin_status_enabled:summary.enabled,admin_status_disabled:summary.disabled,admin_mail_aliases_destinations:summary.destinations} %}
+            {% include 'components/panel/_stat.html.twig' with {value:value,label:t(label,locale)} only %}
+        {% endfor %}
     </div>
-
+    <section data-panel-section="overview">{% include 'admin/mail-aliases/_table.html.twig' with {aliases:aliases} %}</section>
+    <section data-panel-section="create">{% include 'admin/mail-aliases/_form.html.twig' with {domains:domains,form:form} %}</section>
 </div>
 {% endblock %}

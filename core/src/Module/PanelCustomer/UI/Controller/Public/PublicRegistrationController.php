@@ -11,7 +11,7 @@ use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\LocalAntiAbuseService;
 use App\Module\Core\Application\MailService;
 use App\Module\Core\Application\MathCaptchaService;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -39,7 +39,7 @@ final class PublicRegistrationController
         private readonly SessionTokenGenerator $tokenGenerator,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly CmsMaintenanceService $maintenanceService,
         private readonly ThemeResolver $themeResolver,
         private readonly MailService $mailService,

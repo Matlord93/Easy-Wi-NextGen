@@ -32,6 +32,8 @@ final readonly class ProxmoxGuestAgent
             try {
                 $report = VmFilesystemUsage::fromQga($this->api->guestAgentRead($connection, $node, $vmId, 'get-fsinfo'));
             } catch (ProxmoxApiException) {
+                // An inactive/hung guest agent must not delay every monitoring tick.
+                $item->expiresAfter(300);
                 $report = VmFilesystemUsage::unavailable();
             }
 

@@ -48,7 +48,7 @@ final class GameTemplateSeedCatalog
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/game/cs2.sh -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} -maxplayers {{MAX_PLAYERS}} +map {{MAP}} -tickrate {{TICKRATE}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}} -authkey {{AUTHKEY}} +host_workshop_map {{WORKSHOP_MAP}}',
+                '{{INSTANCE_DIR}}/game/cs2.sh -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} -maxplayers {{MAX_PLAYERS}} +map {{MAP}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}} -authkey {{AUTHKEY}} +host_workshop_map {{WORKSHOP_MAP}}',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CS2'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -56,7 +56,6 @@ final class GameTemplateSeedCatalog
                     ['key' => 'STEAM_GSLT', 'value' => ''],
                     ['key' => 'MAX_PLAYERS', 'value' => '16'],
                     ['key' => 'MAP', 'value' => 'de_dust2'],
-                    ['key' => 'TICKRATE', 'value' => '128'],
                     ['key' => 'GAME_TYPE', 'value' => '0'],
                     ['key' => 'GAME_MODE', 'value' => '0'],
                     ['key' => 'AUTHKEY', 'value' => ''],
@@ -90,11 +89,14 @@ final class GameTemplateSeedCatalog
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                     ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds_run -game csgo -console -usercon -tickrate 128 -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +tv_port {{PORT_TV}} +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" -authkey {{AUTHKEY}} +host_workshop_map {{WORKSHOP_MAP}}',
+                '{{INSTANCE_DIR}}/srcds_run -game csgo -console -usercon -tickrate {{TICKRATE}} -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +tv_port {{PORT_TV}} -maxplayers_override {{MAX_PLAYERS}} +map {{MAP}} +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" -authkey {{AUTHKEY}} +host_workshop_map {{WORKSHOP_MAP}}',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CSGO'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'MAX_PLAYERS', 'value' => '16'],
+                    ['key' => 'MAP', 'value' => 'de_dust2'],
+                    ['key' => 'TICKRATE', 'value' => '128'],
                     ['key' => 'STEAM_GSLT', 'value' => ''],
                     ['key' => 'AUTHKEY', 'value' => ''],
                     ['key' => 'WORKSHOP_MAP', 'value' => ''],
@@ -395,7 +397,7 @@ final class GameTemplateSeedCatalog
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/VRisingServer -persistentDataPath ./save-data -serverName "{{SERVER_NAME}}"',
+                '{{INSTANCE_DIR}}/VRisingServer -persistentDataPath ./save-data -serverName "{{SERVER_NAME}}" -gamePort {{PORT_GAME}} -queryPort {{PORT_QUERY}}',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi V Rising'],
                 ],
@@ -421,7 +423,7 @@ final class GameTemplateSeedCatalog
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/VRisingServer.exe -persistentDataPath .\\save-data -serverName "{{SERVER_NAME}}"',
+                '{{INSTANCE_DIR}}/VRisingServer.exe -persistentDataPath .\\save-data -serverName "{{SERVER_NAME}}" -gamePort {{PORT_GAME}} -queryPort {{PORT_QUERY}}',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi V Rising'],
                 ],
@@ -533,8 +535,8 @@ final class GameTemplateSeedCatalog
                 'steam',
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
-                    ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
-                    ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
+                    ['name' => 'query', 'label' => 'Steam (UDP) / Web Dashboard (TCP)', 'protocol' => 'udp'],
+                    ['name' => 'rcon', 'label' => 'LiteNetLib (UDP) / Telnet (TCP)', 'protocol' => 'tcp'],
                 ],
                 '{{INSTANCE_DIR}}/startserver.sh -configfile=serverconfig.xml -quit -batchmode -nographics -dedicated',
                 [
@@ -762,7 +764,7 @@ final class GameTemplateSeedCatalog
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/game/bin/win64/cs2.exe -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} -maxplayers {{MAX_PLAYERS}} +map {{MAP}} -tickrate {{TICKRATE}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}} -authkey {{AUTHKEY}} +host_workshop_map {{WORKSHOP_MAP}}',
+                '{{INSTANCE_DIR}}/game/bin/win64/cs2.exe -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} -maxplayers {{MAX_PLAYERS}} +map {{MAP}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}} -authkey {{AUTHKEY}} +host_workshop_map {{WORKSHOP_MAP}}',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CS2'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -1675,12 +1677,44 @@ final class GameTemplateSeedCatalog
 
         $catalog = $this->sharedPathCatalog();
         foreach ($templates as &$tpl) {
+            $correctedFiles = [];
+            foreach ($tpl['config_files'] as $file) {
+                $path = \App\Infrastructure\Config\JsonMap::strings($file)['path'] ?? '';
+                foreach (\App\Module\Gameserver\Application\Configuration\GameSetupProfiles::configurationPaths($tpl['game_key'], $path) as $correctedPath) {
+                    $correctedFiles[] = array_replace($file, ['path' => $correctedPath, 'description' => $correctedPath !== $path ? basename($correctedPath) : ($file['description'] ?? basename($correctedPath))]);
+                }
+            }
+            $tpl['config_files'] = $correctedFiles;
             $gameKey = $tpl['game_key'];
             if ($gameKey !== '' && isset($catalog[$gameKey])) {
                 $tpl['shared_paths'] = $catalog[$gameKey];
             }
         }
         unset($tpl);
+
+        foreach ($templates as &$sourceTemplate) {
+            $sourceGame = preg_replace('/_windows$/D', '', $sourceTemplate['game_key']);
+            if (!in_array($sourceGame, ['cs2', 'csgo_legacy', 'css', 'tf2', 'hl2dm', 'l4d', 'l4d2', 'dods', 'garrys_mod'], true)) {
+                continue;
+            }
+            $optional = \App\Module\Gameserver\Application\Configuration\SourceServerSetup::optionalArgumentsForGame($sourceTemplate['game_key']);
+            $optionalKeys = ['STEAM_GSLT', 'AUTHKEY', 'WORKSHOP_MAP', 'WORKSHOP_COLLECTION', 'GAMEMODE'];
+            foreach (['STEAM_GSLT' => '+sv_setsteamaccount', 'AUTHKEY' => '-authkey', 'WORKSHOP_MAP' => '+host_workshop_map'] as $key => $flag) {
+                $sourceTemplate['start_params'] = preg_replace('/\s+'.preg_quote($flag, '/').'\s+\{\{'.$key.'\}\}/', '', $sourceTemplate['start_params']) ?? $sourceTemplate['start_params'];
+            }
+            foreach ($optional as $key => $flag) {
+                $sourceTemplate['start_params'] .= ' '.$flag.' {{'.$key.'}}';
+            }
+            $sourceTemplate['env_vars'] = array_values(array_filter($sourceTemplate['env_vars'], static fn (array $entry): bool => !in_array($entry['key'] ?? '', $optionalKeys, true)));
+            foreach (array_keys($optional) as $key) {
+                $sourceTemplate['env_vars'][] = ['key' => $key, 'value' => ''];
+            }
+            if (!preg_match('/(?:^|\s)[+-]ip\s+/', $sourceTemplate['start_params'])) {
+                $sourceTemplate['start_params'] .= ' +ip 0.0.0.0';
+            }
+            $sourceTemplate['start_params'] .= ' +exec server.cfg';
+        }
+        unset($sourceTemplate);
 
         return $templates;
     }

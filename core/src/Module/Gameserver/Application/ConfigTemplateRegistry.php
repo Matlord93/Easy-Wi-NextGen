@@ -141,14 +141,13 @@ final class ConfigTemplateRegistry
         if ($family === 'source' && str_ends_with($normalized, 'server.cfg')) {
             return [
                 'apply_mode' => 'merge_kv',
-                'template_content' => "hostname \"{{server_name}}\"\nsv_password \"{{server_password}}\"\nrcon_password \"{{rcon_password}}\"\nsv_maxplayers {{max_slots}}\n",
+                'template_content' => "hostname \"{{server_name}}\"\nsv_password \"{{server_password}}\"\nrcon_password \"{{rcon_password}}\"\n",
                 'fields' => [
                     ['key' => 'hostname', 'label' => 'Hostname', 'type' => 'string', 'min' => 3, 'max' => 64],
                     ['key' => 'sv_password', 'label' => 'Server Password', 'type' => 'string', 'secret' => true],
                     ['key' => 'rcon_password', 'label' => 'RCON Password', 'type' => 'string', 'secret' => true],
                     ['key' => 'sv_lan', 'label' => 'LAN', 'type' => 'bool'],
                     ['key' => 'sv_region', 'label' => 'Region', 'type' => 'int'],
-                    ['key' => 'sv_maxplayers', 'label' => 'Max Players', 'type' => 'int', 'min' => 1, 'max' => 128],
                     ['key' => 'sv_tags', 'label' => 'Tags', 'type' => 'string'],
                     ['key' => 'sv_cheats', 'label' => 'Cheats', 'type' => 'bool'],
                     ['key' => 'sv_downloadurl', 'label' => 'Download URL', 'type' => 'string'],

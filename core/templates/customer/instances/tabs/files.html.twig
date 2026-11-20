@@ -1,39 +1,170 @@
-<div class="space-y-5">
-    {# ─── Header ─── #}
-    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
-        <div class="flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-center gap-2">
-                <svg class="h-5 w-5 text-indigo-400" fill="currentColor" viewBox="0 0 16 16"><path d="M.54 3.87.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.826a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31zM2.19 4a1 1 0 0 0-.996 1.09l.637 7a1 1 0 0 0 .995.91h10.348a1 1 0 0 0 .995-.91l.637-7A1 1 0 0 0 13.81 4H2.19zm4.69-1.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707z"/></svg>
-                <div>
-                    <h2 class="text-sm font-semibold text-slate-200">{{ t('customer_instance_tab_files', page_locale()) }}</h2>
-                    <p class="text-xs text-slate-500">{{ t('customer_instance_files_tab_intro', page_locale()) }}</p>
+{% set locale = page_locale() %}
+    {% set fileI18n = {
+        accessUnavailable: t('customer_instance_files_access_unavailable', locale),
+        missingMountData: t('customer_instance_files_missing_mount_data', locale),
+        saving: t('customer_instance_files_saving', locale),
+        save: t('customer_instance_files_save', locale),
+        editTitle: t('customer_instance_files_edit_title', locale),
+        fileSaved: t('customer_instance_files_saved', locale),
+        root: t('customer_instance_files_root', locale),
+        noFiles: t('customer_instance_files_none', locale),
+        directory: t('customer_instance_files_type_directory', locale),
+        file: t('customer_instance_files_type_file', locale),
+        open: t('customer_instance_files_open', locale),
+        download: t('customer_instance_files_download', locale),
+        edit: t('customer_instance_files_edit', locale),
+        rename: t('customer_instance_files_rename', locale),
+        delete: t('customer_instance_files_delete', locale),
+        passwordLabel: t('customer_instance_files_sftp_password', locale),
+        host: t('customer_instance_files_sftp_host', locale),
+        port: t('customer_instance_files_sftp_port', locale),
+        backend: t('customer_instance_files_sftp_backend', locale),
+        user: t('customer_instance_files_sftp_username', locale),
+        rootPath: t('customer_instance_files_sftp_root', locale),
+        status: t('customer_instance_files_sftp_status', locale),
+        statusNeedsAttention: t('customer_instance_files_sftp_status_needs_attention', locale),
+        statusReady: t('customer_instance_files_sftp_status_ready', locale),
+        provisioning: t('customer_instance_files_sftp_provisioning', locale),
+        accessLoadFailed: t('customer_instance_files_access_load_failed', locale),
+        cwd: t('customer_instance_files_cwd', locale),
+        folderName: t('customer_instance_files_folder_name_prompt', locale),
+        newName: t('customer_instance_files_new_name_prompt', locale),
+        deleteConfirm: t('customer_instance_files_delete_confirm', locale),
+        revealing: t('customer_instance_files_sftp_revealing', locale),
+        revealPassword: t('customer_instance_files_sftp_reveal_password', locale),
+        resetting: t('customer_instance_files_sftp_resetting', locale),
+        resetPassword: t('customer_instance_files_sftp_reset', locale),
+        passwordCopied: t('customer_instance_files_sftp_password_copied', locale),
+        passwordCopyFailed: t('customer_instance_files_sftp_password_copy_failed', locale)
+    } %}
+
+    <div class="cust-page"
+         id="gameserver-files-app"
+         data-instance-id="{{ instance.id }}"
+         data-files-list-url="{{ path('customer_instance_files_api_list', {id: instance.id}) }}"
+         data-files-health-url="{{ path('customer_instance_files_api_health', {id: instance.id}) }}"
+         data-files-upload-url="{{ path('customer_instance_files_api_upload', {id: instance.id}) }}"
+         data-files-download-url="{{ path('customer_instance_files_api_download', {id: instance.id}) }}"
+         data-files-mkdir-url="{{ path('customer_instance_files_api_mkdir', {id: instance.id}) }}"
+         data-files-rename-url="{{ path('customer_instance_files_api_rename', {id: instance.id}) }}"
+         data-files-delete-url="{{ path('customer_instance_files_api_delete', {id: instance.id}) }}"
+         data-files-content-url="{{ path('customer_instance_files_api_content', {id: instance.id}) }}"
+         data-url-access-health="{{ path('instances_access_health', {id: instance.id}) }}"
+         data-url-access-reveal="{{ path('instances_access_reveal', {id: instance.id}) }}"
+         data-url-access-reset="{{ path('instances_access_reset', {id: instance.id}) }}"
+         data-i18n="{{ fileI18n|json_encode|e('html_attr') }}">
+
+                {# ─── Fehleranzeige ─── #}
+                <div id="gameserver-files-inline-error" class="ng-alert ng-alert--danger" style="display:none;margin-bottom:1rem"></div>
+
+                {# ─── Aktions-Leiste ─── #}
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem">
+                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" id="gf-up">{{ t('customer_instance_files_up', locale) }}</button>
+                    <button type="button" class="ui-button ui-button--primary ui-button--sm" id="gf-refresh">{{ t('customer_instance_files_refresh', locale) }}</button>
+                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" id="gf-mkdir">{{ t('customer_instance_files_new_folder', locale) }}</button>
+                    <div style="margin-left:auto;font-size:.75rem;color:var(--ng-text-muted)" id="gf-cwd"></div>
                 </div>
+
+                {# ─── Breadcrumbs ─── #}
+                <div style="margin-top:.75rem;font-size:.8rem;color:var(--ng-text-muted)" id="gf-breadcrumbs"></div>
+
+                {# ─── SFTP + Hinweis ─── #}
+                <div class="cust-grid-2" style="margin-top:1rem">
+                    <div class="cust-panel">
+                        <div class="cust-panel__head">
+                            <h3 class="cust-panel__title">{{ t('customer_instance_files_sftp_title', locale) }}</h3>
+                        </div>
+                        <div class="cust-panel__body">
+                            <div id="gf-access-meta" style="font-size:.875rem;color:var(--ng-text-base)">
+                                <div>{{ t('customer_instance_files_sftp_loading', locale) }}</div>
+                            </div>
+                            <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem">
+                                <button type="button" class="ui-button ui-button--ghost ui-button--sm" id="gf-access-reveal">{{ t('customer_instance_files_sftp_reveal_password', locale) }}</button>
+                                <button type="button" class="ui-button ui-button--primary ui-button--sm" id="gf-access-reset">{{ t('customer_instance_files_sftp_reset', locale) }}</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cust-panel">
+                        <div class="cust-panel__head">
+                            <h3 class="cust-panel__title">{{ t('customer_instance_files_hint_title', locale) }}</h3>
+                        </div>
+                        <div class="cust-panel__body" style="font-size:.875rem;color:var(--ng-text-muted)">
+                            {{ t('customer_instances_files_sftp_hint', locale) }}
+                        </div>
+                    </div>
+                </div>
+
+                {# ─── Dateiliste ─── #}
+                <div class="cust-ws-table-wrap" style="margin-top:1rem">
+                    <table class="cust-table">
+                        <thead>
+                        <tr>
+                            <th>{{ t('customer_files_name', locale) }}</th>
+                            <th>{{ t('customer_files_type', locale) }}</th>
+                            <th>{{ t('customer_files_size', locale) }}</th>
+                            <th>{{ t('customer_files_modified', locale) }}</th>
+                            <th>{{ t('customer_voice_col_actions', locale) }}</th>
+                        </tr>
+                        </thead>
+                        <tbody id="gf-list">
+                        <tr><td colspan="5" class="cust-table__empty">{{ t('customer_instance_files_loading', locale) }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                {# ─── Datei-Upload ─── #}
+                <div style="margin-top:1rem;padding:1rem;border:1px dashed var(--ng-border);border-radius:.5rem">
+                    <label style="font-size:.875rem;color:var(--ng-text-base)">{{ t('customer_instance_files_upload_file', locale) }}</label>
+                    <input type="file" id="gf-upload" style="display:block;margin-top:.5rem;width:100%;font-size:.875rem;color:var(--ng-text-muted)">
+                </div>
+
+    {# ─── Editor-Modal ─── #}
+    <div id="gf-editor-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-950/70 p-4">
+        <div class="w-full max-w-4xl rounded-lg border border-slate-700 bg-slate-900 p-4 shadow-xl">
+            <div class="flex items-center justify-between">
+                <h4 class="text-base font-semibold text-slate-100" id="gf-editor-title">{{ t('customer_instance_files_edit_file', locale) }}</h4>
+                <button type="button" class="ui-button ui-button--ghost" id="gf-editor-close">{{ t('customer_instance_files_sftp_close', locale) }}</button>
             </div>
-            <a href="{{ path('customer_instance_files', {id: instance.id}) }}"
-               class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500">
-                <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 16 16"><path d="M11 2H9v3h2V2zm-2 3H6.5l3 3.3 3-3.3H10V2H8v3zm-2 1H2.5a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5V6a.5.5 0 0 0-.5-.5H11V7h2v8H3V7h2v-.5a.5.5 0 0 0-.5-.5H5V6zm3 3a.5.5 0 0 1 .5.5v2.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7 12.293V9.5A.5.5 0 0 1 8 9z"/></svg>
-                {{ t('customer_instance_files_open_manager', page_locale()) }}
-            </a>
+            <div id="gf-editor-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
+            <textarea id="gf-editor-content" class="mt-3 h-[420px] w-full rounded-lg border border-slate-700 bg-slate-950 p-3 font-mono text-sm text-slate-100"></textarea>
+            <div class="mt-3 flex justify-end gap-2">
+                <button type="button" class="ui-button ui-button--ghost" id="gf-editor-cancel">{{ t('customer_files_cancel', locale) }}</button>
+                <button type="button" class="ui-button ui-button--primary" id="gf-editor-save">{{ t('customer_instance_files_save', locale) }}</button>
+            </div>
         </div>
     </div>
 
-    {# ─── Hinweis ─── #}
-    <div class="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
-        <div class="flex items-start gap-3">
-            <svg class="mt-0.5 h-5 w-5 shrink-0 text-indigo-400" fill="currentColor" viewBox="0 0 16 16"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
-            <div>
-                <p class="text-sm font-semibold text-slate-200">{{ t('customer_instance_files_tip_title', page_locale()) }}</p>
-                <p class="mt-1 text-xs text-slate-400">{{ t('customer_instance_files_tip_body', page_locale()) }}</p>
+    {# ─── Passwort-Modal ─── #}
+    <div id="gf-password-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-950/70 p-4">
+        <div class="w-full max-w-lg rounded-lg border border-slate-700 bg-slate-900 p-4 shadow-xl">
+            <div class="flex items-center justify-between gap-4">
+                <div>
+                    <h4 class="text-base font-semibold text-slate-100">{{ t('customer_instances_files_sftp_password_title', locale) }}</h4>
+                    <p class="mt-1 text-xs text-slate-400">{{ t('customer_instances_files_sftp_password_hint', locale) }}</p>
+                </div>
+                <button type="button" class="ui-button ui-button--ghost" data-gf-password-close aria-label="{{ t('customer_instances_files_sftp_close_aria', locale) }}">×</button>
+            </div>
+            <div class="mt-4 grid gap-2 rounded-lg border border-slate-700 bg-slate-950/60 p-3 text-sm text-slate-200 sm:grid-cols-3">
+                <div>{{ t('customer_instance_files_sftp_host', locale) }}: <span class="font-semibold" id="gf-password-host">—</span></div>
+                <div>{{ t('customer_instance_files_sftp_port', locale) }}: <span class="font-semibold" id="gf-password-port">—</span></div>
+                <div>{{ t('customer_instance_files_sftp_username', locale) }}: <span class="font-semibold" id="gf-password-user">—</span></div>
+            </div>
+            <label for="gf-password-value" class="mt-4 block text-sm font-semibold text-slate-200">{{ t('customer_instances_files_sftp_password_label', locale) }}</label>
+            <input id="gf-password-value" type="text" readonly class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 font-mono text-sm text-slate-100">
+            <div id="gf-password-error" class="hidden"></div>
+            <div class="mt-4 flex flex-wrap justify-end gap-2">
+                <button type="button" class="ui-button ui-button--ghost" data-gf-password-close>{{ t('customer_instances_files_sftp_close', locale) }}</button>
+                <button type="button" class="ui-button ui-button--primary" id="gf-password-copy">{{ t('customer_instances_files_sftp_copy', locale) }}</button>
             </div>
         </div>
     </div>
 
-    {# ─── SFTP-Hinweis ─── #}
-    <div class="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{{ t('customer_instance_sftp_title', locale) }}</p>
-        <p class="mt-2 text-xs text-slate-400">
-            {{ t('customer_instance_sftp_info', locale) }}
-            {{ t('customer_instance_sftp_no_ftp', locale) }}
-        </p>
-    </div>
+    {# ─── Toast ─── #}
+    <div id="gameserver-files-toast" class="hidden fixed bottom-4 right-4 z-50 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-xl"></div>
+
+    <script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
+    <script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
+    <script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
+    <script src="{{ asset('js/gameserver-files-app.js') }}"></script>
+
 </div>

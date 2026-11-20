@@ -3,43 +3,21 @@
 {% set activeNav = 'mail' %}
 
 {% block content %}
-<div class="cust-page">
+{% set submittedCreate = app.request and app.request.isMethod('POST') and app.request.attributes.get('_route') == 'customer_mail_create' %}
+<div class="cust-page pm-tab-layout" data-panel-tabs="mail-index">
 
-    {# ── Hero ── #}
-    <div class="cust-hero">
-        <div class="cust-hero__inner">
-            <div>
-                <div class="cust-hero__label">{{ t('customer_mail_kicker', page_locale()) }}</div>
-                <h1 class="cust-hero__title">{{ t('customer_mail_title', page_locale()) }}</h1>
-                <p class="cust-hero__desc">{{ t('customer_mail_description', page_locale()) }}</p>
-            </div>
-            <div class="cust-hero__actions">
-                {% set roundcube_url = (roundcube_bindings|first).url ?? '/roundcube' %}
-                <a href="{{ roundcube_url }}" class="ui-button ui-button--primary" target="_blank" rel="noopener noreferrer">
-                    <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/></svg>
-                    {{ t('customer_mail_roundcube_link', page_locale()) }}
-                </a>
-            </div>
+    <header class="pm-page-head">
+        <div><h1>{{ t('customer_mail_title',page_locale()) }}</h1><p>{{ t('customer_mail_description',page_locale()) }}</p></div>
+        <div class="pm-page-head__actions">
+            {% set roundcube_url = (roundcube_bindings|first).url ?? '/roundcube' %}
+            <a class="ui-button ui-button--ghost" href="{{ roundcube_url }}" target="_blank" rel="noopener noreferrer">{{ t('customer_mail_roundcube_link',page_locale()) }} ↗</a>
+            <a class="ui-button ui-button--primary" href="#pm-mail-index-create">+ {{ t('customer_mail_create_title',page_locale()) }}</a>
         </div>
-
-        {# Stats #}
-        <div class="cust-hero__stats" style="grid-template-columns:repeat(3,1fr);max-width:480px;">
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_mail_mailboxes_label', page_locale()) }}</div>
-                <div class="cust-hero__stat-value">{{ mailboxes|length }}</div>
-                <div class="cust-hero__stat-sub">{{ t('customer_mail_stat_mailbox_sub', page_locale()) }}</div>
-            </div>
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_mail_stat_alias_label', page_locale()) }}</div>
-                <div class="cust-hero__stat-value">{{ aliases|length }}</div>
-                <div class="cust-hero__stat-sub">{{ t('customer_mail_stat_alias_sub', page_locale()) }}</div>
-            </div>
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_mail_stat_domain_label', page_locale()) }}</div>
-                <div class="cust-hero__stat-value">{{ domains|length }}</div>
-                <div class="cust-hero__stat-sub">{{ t('customer_mail_stat_domain_sub', page_locale()) }}</div>
-            </div>
-        </div>
+    </header>
+    <div class="pm-stats">
+        {% include 'components/panel/_stat.html.twig' with {value:mailboxes|length,label:t('customer_mail_mailboxes_label',page_locale())} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:aliases|length,label:t('customer_mail_stat_alias_label',page_locale())} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:domains|length,label:t('customer_mail_stat_domain_label',page_locale())} only %}
     </div>
 
     {# Errors #}
@@ -53,9 +31,10 @@
         </div>
     {% endif %}
 
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'mail-index',panelTabs:{overview:'mailboxes',aliases:'aliases',connection:'connection',create:'create'}} %}
     {# Roundcube bindings #}
     {% if roundcube_bindings is defined and roundcube_bindings is not empty %}
-        <div class="cust-panel">
+        <div class="cust-panel" data-panel-section="connection">
             <div class="cust-panel__head">
                 <div>
                     <h3 class="cust-panel__title">{{ t('customer_mail_webmail_accesses_title', page_locale()) }}</h3>
@@ -80,25 +59,26 @@
     {# ── Mailbox erstellen + Liste ── #}
     <div class="cust-grid-2">
         {# Create form #}
-        <div class="cust-form-card">
+        <div class="cust-form-card" data-panel-section="create">
             <div class="cust-form-card__head">
                 <h3 class="cust-form-card__title">{{ t('customer_mail_create_title', page_locale()) }}</h3>
                 <p class="cust-form-card__sub">{{ t('customer_mail_create_description', page_locale()) }}</p>
             </div>
-            <form method="post" action="{{ path('customer_mail_create') }}" class="cust-form-card__body">
+            <form method="post" action="{{ path('customer_mail_create') }}#pm-mail-index-create" class="cust-form-card__body">
                 <input type="hidden" name="_token" value="{{ csrf.mailbox_create }}">
+                {% if domains is empty %}<p role="status">{{ 'mail_domain_required'|trans({},'panel_modules') }}</p>{% endif %}
                 <div>
                     <label class="cust-form-label">{{ t('customer_mail_domain_label', page_locale()) }}</label>
                     <select name="domain_id" required>
                         <option value="">{{ t('customer_mail_domain_placeholder', page_locale()) }}</option>
                         {% for domain in domains %}
-                            <option value="{{ domain.id }}">{{ domain.name }}</option>
+                            <option value="{{ domain.id }}"{% if submittedCreate and app.request.request.get('domain_id') == domain.id %} selected{% endif %}>{{ domain.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div>
                     <label class="cust-form-label">{{ t('customer_mail_local_part_label', page_locale()) }}</label>
-                    <input type="text" name="local_part" placeholder="{{ t('customer_mail_local_part_example', page_locale()) }}" required>
+                    <input type="text" name="local_part" value="{{ submittedCreate ? app.request.request.get('local_part','') : '' }}" placeholder="{{ t('customer_mail_local_part_example', page_locale()) }}" required>
                 </div>
                 <div class="cust-form-row">
                     <div>
@@ -107,11 +87,11 @@
                     </div>
                     <div>
                         <label class="cust-form-label">{{ t('customer_mail_quota_label', page_locale()) }} (MB)</label>
-                        <input type="number" min="0" name="quota" value="0" required>
+                        <input type="number" min="0" name="quota" value="{{ submittedCreate ? app.request.request.get('quota','0') : '0' }}" required>
                     </div>
                 </div>
                 <input type="hidden" name="enabled" value="1">
-                <button type="submit" class="ui-button ui-button--primary" style="width:100%;">
+                <button type="submit" {{ domains is empty ? 'disabled' : '' }} class="ui-button ui-button--primary" style="width:100%;">
                     <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
                     {{ t('customer_mail_create_action', page_locale()) }}
                 </button>
@@ -119,7 +99,7 @@
         </div>
 
         {# Mailbox list #}
-        <div class="cust-panel">
+        <div class="cust-panel" data-panel-section="overview">
             <div class="cust-panel__head">
                 <div>
                     <h3 class="cust-panel__title">{{ t('customer_mail_overview', page_locale()) }}</h3>
@@ -133,29 +113,29 @@
                         {{ t('customer_mail_empty', page_locale()) }}
                     </div>
                 {% else %}
-                    <div class="cust-mail-list">
-                        {% for mailbox in mailboxes %}
-                            <div class="cust-mail-item" style="border-radius:0;border-left:none;border-right:none;border-top:none;">
-                                <div class="cust-mail-item__head">
-                                    <div>
-                                        <div class="cust-mail-item__address">{{ mailbox.address }}</div>
-                                        <div class="cust-mail-item__meta">
-                                            {{ mailbox.domain }} · {{ mailbox.quota }} MB ·
-                                            <span class="ui-badge ui-badge--{{ mailbox.enabled ? 'success' : 'neutral' }}">{{ mailbox.enabled ? t('customer_mail_status_active', page_locale()) : t('customer_mail_status_inactive', page_locale()) }}</span>
-                                        </div>
-                                    </div>
-                                    <form method="post" action="{{ path('customer_mail_delete', { id: mailbox.id }) }}" onsubmit="return confirm('{{ t('customer_mail_delete_confirm', page_locale()) }}');">
-                                        <input type="hidden" name="_token" value="{{ csrf.mailboxes[mailbox.id].delete ?? '' }}">
-                                        <button type="submit" class="ui-button ui-button--danger ui-button--sm">{{ t('customer_mail_delete_action', page_locale()) }}</button>
-                                    </form>
-                                </div>
-                                <form method="post" action="{{ path('customer_mail_password_reset', { id: mailbox.id }) }}" class="cust-mail-item__pw-row">
-                                    <input type="hidden" name="_token" value="{{ csrf.mailboxes[mailbox.id].password ?? '' }}">
-                                    <input type="password" name="password" minlength="8" placeholder="{{ t('customer_mail_password_placeholder', page_locale()) }}" style="flex:1;min-width:0;">
-                                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_mail_password_reset_action', page_locale()) }}</button>
-                                </form>
-                            </div>
-                        {% endfor %}
+                    <div data-panel-list>
+                        <div class="pm-filters"><label class="sr-only" for="customer-mailbox-search">{{ 'search'|trans({},'panel_modules') }}</label><input class="form-input" id="customer-mailbox-search" type="search" data-panel-filter placeholder="{{ 'workspace_mailbox_search'|trans({},'panel_modules') }}"></div>
+                        <div class="infra-table-wrap"><table class="cust-table">
+                            <thead><tr><th>{{ t('customer_mail_mailboxes_label',page_locale()) }}</th><th>{{ t('customer_mailbox_detail_quota',page_locale()) }}</th><th>Status</th><th>{{ 'actions'|trans({},'panel_modules') }}</th></tr></thead>
+                            <tbody>{% for mailbox in mailboxes %}<tr data-panel-row>
+                                <td><a class="pm-server-name" href="{{ path('customer_mailbox_detail',{id:mailbox.id}) }}">{{ mailbox.address }}</a><small class="pm-cell-sub">{{ mailbox.domain }}</small></td>
+                                <td>{{ mailbox.quota }} MB</td>
+                                <td><span class="ui-badge ui-badge--{{ mailbox.enabled ? 'success' : 'neutral' }}">{{ mailbox.enabled ? t('customer_mail_status_active',page_locale()) : t('customer_mail_status_inactive',page_locale()) }}</span></td>
+                                <td><div class="pm-table-actions">
+                                    <a class="ui-button ui-button--ghost" href="{{ path('customer_mailbox_detail',{id:mailbox.id}) }}">{{ 'management'|trans({},'panel_modules') }}</a>
+                                    <details class="pm-actions-menu"><summary aria-label="{{ 'workspace_service_details'|trans({},'panel_modules') }}">•••</summary><div>
+                                        <form method="post" action="{{ path('customer_mail_password_reset',{id:mailbox.id}) }}" class="pm-mail-password">
+                                            <input type="hidden" name="_token" value="{{ csrf.mailboxes[mailbox.id].password ?? '' }}">
+                                            <label for="mailbox-password-{{ mailbox.id }}">{{ t('customer_mail_password_reset_action',page_locale()) }}</label><input id="mailbox-password-{{ mailbox.id }}" type="password" name="password" minlength="8" required autocomplete="new-password" placeholder="{{ t('customer_mail_password_placeholder',page_locale()) }}">
+                                            <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_mail_password_reset_action',page_locale()) }}</button>
+                                        </form>
+                                        <form method="post" action="{{ path('customer_mail_delete',{id:mailbox.id}) }}" onsubmit="return confirm('{{ t('customer_mail_delete_confirm',page_locale())|e('js') }}');">
+                                            <input type="hidden" name="_token" value="{{ csrf.mailboxes[mailbox.id].delete ?? '' }}"><button type="submit" class="ui-button ui-button--danger ui-button--sm">{{ t('customer_mail_delete_action',page_locale()) }}</button>
+                                        </form>
+                                    </div></details>
+                                </div></td>
+                            </tr>{% endfor %}</tbody>
+                        </table></div>
                     </div>
                 {% endif %}
             </div>
@@ -165,7 +145,7 @@
     {# ── Alias erstellen + Liste ── #}
     <div class="cust-grid-2">
         {# Alias create #}
-        <div class="cust-form-card">
+        <div class="cust-form-card" data-panel-section="aliases">
             <div class="cust-form-card__head">
                 <h3 class="cust-form-card__title">{{ t('customer_mail_alias_create_title', page_locale()) }}</h3>
                 <p class="cust-form-card__sub">{{ t('customer_mail_alias_create_desc', page_locale()) }}</p>
@@ -199,7 +179,7 @@
         </div>
 
         {# Alias list #}
-        <div class="cust-panel">
+        <div class="cust-panel" data-panel-section="aliases">
             <div class="cust-panel__head">
                 <div>
                     <h3 class="cust-panel__title">{{ t('customer_mail_alias_list_title', page_locale()) }}</h3>
@@ -250,7 +230,7 @@
     </div>
 
     {# ── Mail-Server Einstellungen ── #}
-    <div class="cust-panel">
+    <div class="cust-panel" data-panel-section="connection">
         <div class="cust-panel__head">
             <div>
                 <h3 class="cust-panel__title">{{ t('customer_mail_settings_title', page_locale()) }}</h3>

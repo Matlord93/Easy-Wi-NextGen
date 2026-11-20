@@ -5,7 +5,7 @@
 {% set activeNav = 'settings' %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:1.5rem;">
+<div class="pm-workspace pm-settings-page">
 
     {# Alerts #}
     {% if errors is not empty %}
@@ -26,11 +26,9 @@
         </div>
     {% endif %}
 
+<header class="pm-page-head"><div><h1>{{ t('admin_settings_title',page_locale()) }}</h1><p>{{ t('admin_settings_description',page_locale()) }}</p></div><div class="pm-page-head__actions"></div></header>
     <div class="ng-card" style="border:1px solid var(--ng-border);border-radius:var(--ng-radius);background:var(--ng-surface);">
-        <div style="padding:1.5rem;border-bottom:1px solid var(--ng-border);">
-            <h2 style="font-size:1.125rem;font-weight:700;color:var(--ng-text);margin:0 0 0.25rem;">{{ t('admin_settings_title', page_locale()) }}</h2>
-            <p style="color:var(--ng-text-muted);margin:0;font-size:0.875rem;">{{ t('admin_settings_description', page_locale()) }}</p>
-        </div>
+
         <div style="padding:1.5rem;">
 
             {# Tab navigation #}
@@ -45,20 +43,21 @@
                 { key: 'agent', label: t('admin_webinterface_tab_agent', page_locale()) },
                 { key: 'mail_templates', label: t('admin_settings_mail_templates_tab', page_locale()) }
             ] %}
-            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--ng-border);">
+            <nav class="pm-module-nav pm-settings-nav" aria-label="{{ 'workspace_settings'|trans({},'panel_modules') }}">
                 {% for tab in tabs %}
                     <a
                         href="{{ path('admin_settings', {tab: tab.key}) }}"
-                        style="border-radius:999px;padding:0.375rem 1rem;font-size:0.75rem;font-weight:600;text-decoration:none;transition:background 0.15s;{% if activeTab == tab.key %}background:var(--ng-primary-soft);color:var(--ng-primary);border:1px solid var(--ng-primary);{% else %}background:var(--ng-surface-soft);color:var(--ng-text-muted);border:1px solid var(--ng-border);{% endif %}"
+                        {% if activeTab == tab.key %}aria-current="page"{% endif %}
                     >
                         {{ tab.label }}
                     </a>
                 {% endfor %}
-            </div>
+            </nav>
 
-            <form method="post" action="{{ path('admin_settings_update') }}">
+            {% if activeTab != 'mail_templates' %}<form method="post" action="{{ path('admin_settings_update') }}">
                 <input type="hidden" name="tab" value="{{ activeTab }}">
                 {% if activeTab == 'logging' %}<input type="hidden" name="_token" value="{{ csrf_token('admin_settings_logging') }}">{% endif %}
+            {% endif %}
 
                 {# ── General ── #}
                 {% if activeTab == 'general' %}
@@ -562,7 +561,7 @@
                         <a href="/admin" class="ui-button ui-button--ghost">{{ t('admin_settings_back', page_locale()) }}</a>
                     </div>
                 {% endif %}
-            </form>
+            {% if activeTab != 'mail_templates' %}</form>{% endif %}
 
         </div>
     </div>

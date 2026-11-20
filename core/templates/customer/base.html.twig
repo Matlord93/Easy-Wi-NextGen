@@ -22,9 +22,12 @@
     <link rel="stylesheet" href="{{ asset('themes/nexus-gaming/css/theme.css') }}">
     <link rel="stylesheet" href="{{ asset('themes/nexus-gaming/css/panel.css') }}">
     {% endif %}
+    <link rel="stylesheet" href="{{ asset('panel-modules.css') }}">
+    <script src="{{ asset('js/panel-modules.js') }}" defer></script>
     <script src="{{ asset('htmx.min.js') }}" defer></script>
+    {% block head %}{% endblock %}
 </head>
-<body class="customer-interface ng-shell{% if _isNexus %} theme-nexus-gaming ng-body{% endif %}">
+<body class="customer-interface ng-shell panel-modules{% if _isNexus %} theme-nexus-gaming ng-body{% endif %}">
 
 {% set activeNav = activeNav|default('') %}
 
@@ -83,15 +86,15 @@
     dot:          '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3"/></svg>'
 } %}
 
+{% set customerKvm = customer_has_module('kvm') %}
+{% set customerProxmox = customer_has_module('proxmox') %}
 {% set infrastructureItems = [
-    customer_has_module('kvm') ? { key: 'kvm', label: 'KVM', href: path('customer_kvm'), iconSvg: icon.database } : null,
-    customer_has_module('proxmox') ? { key: 'proxmox', label: 'pve.my_guests'|trans({}, 'proxmox'), href: path('customer_proxmox'), iconSvg: icon.database } : null,
-    moduleGame and customerHasGame ? { key: 'gameservers', label: t('customer_nav_game_servers', page_locale()), href: path('customer_instances'),    iconSvg: icon.gamepad } : null,
-    showVoiceserver and customerHasVoice ? { key: 'voiceservers', label: t('customer_nav_voice_servers', page_locale()), href: voiceserverUrl, iconSvg: icon.voice } : null,
-    moduleSinusbot and customerHasSinusbot ? { key: 'sinusbot', label: t('customer_nav_sinusbot', page_locale()), href: path('customer_sinusbot_index'), iconSvg: icon.sinusbot } : null,
-    moduleMusicbot and customerHasMusicbot ? { key: 'musicbots', label: t('customer_nav_musicbots', page_locale()), href: path('customer_musicbot_index'), iconSvg: icon.sinusbot } : null
+    moduleGame and customerHasGame ? {key:activeNav in ['instances','gameservers'] ? activeNav : 'gameservers',label:t('customer_nav_game_servers',page_locale()),href:path('customer_instances'),iconSvg:icon.gamepad} : null,
+    showVoiceserver and customerHasVoice ? {key:'voiceservers',label:'voice'|trans({},'panel_modules'),href:voiceserverUrl,iconSvg:icon.voice} : null,
+    customerKvm or customerProxmox ? {key:activeNav in ['kvm','proxmox'] ? activeNav : 'virtual-servers',label:'virtual_servers'|trans({},'panel_modules'),href:path((activeNav == 'kvm' or not customerProxmox) and customerKvm ? 'customer_kvm' : 'customer_proxmox'),iconSvg:icon.database} : null,
+    moduleSinusbot and customerHasSinusbot ? {key:'sinusbot',label:t('customer_nav_sinusbot',page_locale()),href:path('customer_sinusbot_index'),iconSvg:icon.sinusbot} : null,
+    moduleMusicbot and customerHasMusicbot ? {key:'musicbots',label:t('customer_nav_musicbots',page_locale()),href:path('customer_musicbot_index'),iconSvg:icon.sinusbot} : null
 ]|filter(v => v) %}
-
 {% set serviceItems = [
     moduleWeb and customerHasWeb ? { key: 'webspaces', label: t('customer_nav_webspace', page_locale()), href: path('customer_webspace'), iconSvg: icon.globe } : null,
     customerHasDatabase ? { key: 'databases', label: t('customer_nav_databases', page_locale()), href: path('customer_databases'), iconSvg: icon.database } : null
@@ -123,19 +126,14 @@
         ]|filter(v => v)
     },
     infrastructureItems is not empty ? {
-        label: t('customer_nav_group_infrastructure', page_locale()),
+        label: 'servers'|trans({}, 'panel_modules'),
         open: true,
         items: infrastructureItems
     } : null,
-    serviceItems is not empty ? {
-        label: t('customer_nav_group_services', page_locale()),
+    serviceItems is not empty or domainItems is not empty ? {
+        label: 'hosting'|trans({}, 'panel_modules'),
         open: true,
-        items: serviceItems
-    } : null,
-    domainItems is not empty ? {
-        label: t('customer_nav_group_domains_mail', page_locale()),
-        open: false,
-        items: domainItems
+        items: serviceItems|merge(domainItems|filter(item => item.key == 'mail'))|merge(domainItems|filter(item => item.key != 'mail'))
     } : null,
     {
         label: t('customer_nav_group_support', page_locale()),
@@ -181,6 +179,7 @@
             profile: profileSummary
         } %}
         <div class="ng-content">
+            {% if activeNav in ['kvm','proxmox'] %}<nav class="pm-module-nav" aria-label="{{ 'virtual_servers'|trans({},'panel_modules') }}">{% if customerProxmox %}<a href="{{ path('customer_proxmox') }}"{% if activeNav == 'proxmox' %} aria-current="page"{% endif %}>Proxmox</a>{% endif %}{% if customerKvm %}<a href="{{ path('customer_kvm') }}"{% if activeNav == 'kvm' %} aria-current="page"{% endif %}>KVM</a>{% endif %}</nav>{% endif %}
             {% block content %}{% endblock %}
         </div>
     </main>

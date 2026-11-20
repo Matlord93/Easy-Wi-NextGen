@@ -39,13 +39,74 @@ class ShopProductVariant
         }
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getProduct(): ShopProduct { return $this->product; }
-    public function getSku(): string { return $this->sku; }
-    public function getName(): string { return $this->name; }
-    public function getPriceMonthlyCents(): int { return $this->priceMonthlyCents; }
-    public function getCpuLimit(): int { return $this->cpuLimit; }
-    public function getRamLimit(): int { return $this->ramLimit; }
-    public function getDiskLimit(): int { return $this->diskLimit; }
-    public function isActive(): bool { return $this->active; }
+    public function update(string $name, int $price, int $cpu, int $ram, int $disk, bool $active): void
+    {
+        if ('' === trim($name) || mb_strlen($name) > 120 || $price < 0 || $price > 2_147_483_647 || $cpu < 1 || $cpu > 21_474_836 || $ram < 1 || $ram > 2_097_151 || $disk < 1 || $disk > 2_097_151) {
+            throw new \InvalidArgumentException('Invalid variant configuration.');
+        }
+        $this->name = trim($name);
+        $this->priceMonthlyCents = $price;
+        $this->cpuLimit = $cpu;
+        $this->ramLimit = $ram;
+        $this->diskLimit = $disk;
+        $this->active = $active;
+    }
+
+    #[ORM\Column(nullable: true)] private ?int $slots = null;
+    public function getSlots(): ?int
+    {
+        return $this->slots;
+    }
+
+    public function setSlots(?int $slots): void
+    {
+        if (null !== $slots && ($slots < 1 || $slots > 1024)) {
+            throw new \InvalidArgumentException('Invalid voice slot count.');
+        } $this->slots = $slots;
+    }
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function getProduct(): ShopProduct
+    {
+        return $this->product;
+    }
+
+    public function getSku(): string
+    {
+        return $this->sku;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function getPriceMonthlyCents(): int
+    {
+        return $this->priceMonthlyCents;
+    }
+
+    public function getCpuLimit(): int
+    {
+        return $this->cpuLimit;
+    }
+
+    public function getRamLimit(): int
+    {
+        return $this->ramLimit;
+    }
+
+    public function getDiskLimit(): int
+    {
+        return $this->diskLimit;
+    }
+
+    public function isActive(): bool
+    {
+        return $this->active;
+    }
 }

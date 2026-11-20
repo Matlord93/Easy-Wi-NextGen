@@ -4,44 +4,15 @@
 {% block title %}{{ t('customer_gdpr_consents_page_title', locale) }}{% endblock %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
+<div class="pm-workspace pm-account-page">
 
     {# ── Hero / KPI ── #}
-    <div class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:6px;">
-                    <div class="tkt-hero__pill">
-                        <span class="tkt-hero__pill-dot" style="background:#a78bfa;"></span>
-                        {{ t('customer_nav_group_gdpr', locale) }}
-                    </div>
-                    <h1 class="tkt-hero__title">{{ t('customer_gdpr_consents_title', locale) }}</h1>
-                    <p class="tkt-hero__sub">{{ t('customer_gdpr_consents_intro', locale) }}</p>
-                </div>
-                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:16px;">
-                    <div class="tkt-kpi">
-                        <div class="tkt-kpi__label">{{ t('customer_gdpr_consents_history_title', locale) }}</div>
-                        <div class="tkt-kpi__value">{{ logs|length }}</div>
-                    </div>
-                    <div class="tkt-kpi tkt-kpi--open">
-                        <div class="tkt-kpi__label">{{ t('customer_gdpr_consents_form_type', locale) }}</div>
-                        <div class="tkt-kpi__value">{{ types|length }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div style="padding:14px 16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-            <button type="button" class="ui-button ui-button--ghost ui-button--sm"
-                hx-get="/gdpr/consents/table"
-                hx-target="#consent-table"
-                hx-swap="outerHTML">
-                ↻ {{ t('refresh', locale) }}
-            </button>
-        </div>
-    </div>
+    <header class="pm-page-head"><div><h1>{{ t('customer_gdpr_consents_title',locale) }}</h1><p>{{ t('customer_gdpr_consents_intro',locale) }}</p></div><div class="pm-page-head__actions"><button class="ui-button ui-button--ghost" hx-get="/gdpr/consents/table" hx-target="#consent-table" hx-swap="outerHTML">{{ t('refresh',locale) }}</button></div></header>
+{% include 'customer/profile/_nav.html.twig' with {accountNav:'consents'} %}
+
 
     {# ── Two-column layout: history + form ── #}
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start;">
+    <div class="pm-operations-grid">
 
         {# ── Consent history table ── #}
         <div class="ng-card" style="overflow:hidden;">
@@ -59,12 +30,7 @@
                     </button>
                 </div>
             </div>
-            <div id="consent-table"
-                hx-get="/gdpr/consents/table"
-                hx-trigger="consent-log-updated from:body"
-                hx-swap="outerHTML">
-                {% include 'customer/gdpr/consents/_table.html.twig' with { logs: logs, typeStyles: typeStyles } %}
-            </div>
+            {% include 'customer/gdpr/consents/_table.html.twig' with { logs: logs, typeStyles: typeStyles } %}
         </div>
 
         {# ── Record consent form ── #}

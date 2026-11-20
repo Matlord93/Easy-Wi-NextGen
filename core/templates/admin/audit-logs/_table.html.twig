@@ -1,7 +1,12 @@
-<div id="audit-logs-table"
-    hx-get="/admin/audit-logs/table"
+{% set auditQuery = {action: filters.action, actor: filters.actor, since: filters.since ? filters.since|date('c') : ''}|url_encode %}
+<div id="audit-logs-table" class="ng-data-card"
+    hx-get="/admin/audit-logs/table?{{ auditQuery }}"
     hx-trigger="every 60s"
     hx-swap="outerHTML">
+<div class="ng-data-card__header">
+    <div><h2 class="ng-data-card__title">{{ t('admin_audit_logs_recent_entries', page_locale()) }}</h2><p class="ng-data-card__sub">{{ 'workspace_audit_limit'|trans({}, 'panel_modules') }}</p></div>
+    <button class="ui-button ui-button--ghost ui-button--sm" hx-get="/admin/audit-logs/table?{{ auditQuery }}" hx-target="#audit-logs-table" hx-swap="outerHTML">{{ t('refresh', page_locale()) }}</button>
+</div>
 <div class="cust-ws-table-wrap">
     <table class="cust-table">
         <thead>
@@ -21,7 +26,7 @@
                     <div style="font-weight:600;font-size:13px;">{{ log.actor }}</div>
                     <div style="font-size:11px;color:var(--color-text-muted,#64748b);">{{ log.actorType ?? t('admin_audit_logs_system_actor', page_locale()) }}</div>
                 </td>
-                <td style="font-weight:600;font-size:13px;">{{ t('audit_event_' ~ log.action|replace({'.': '_'}), page_locale()) }}</td>
+                <td style="font-weight:600;font-size:13px;">{% set actionKey = 'audit_event_' ~ log.action|replace({'.':'_'}) %}{% set actionLabel = t(actionKey, page_locale()) %}{{ actionLabel == actionKey ? log.action : actionLabel }}</td>
                 <td>
                     <details style="font-size:12px;">
                         <summary style="cursor:pointer;color:#6366f1;font-weight:600;">{{ t('admin_audit_logs_view_payload', page_locale()) }}</summary>

@@ -1,0 +1,338 @@
+navigation: Modulnavigation
+servers: Server
+hosting: Hosting
+management: Verwaltung
+overview: Übersicht
+console: Konsole
+files: Dateien
+configuration: Konfiguration
+backups: Backups
+administration: Verwaltung
+settings: Einstellungen
+activity: Aktivität
+network: Netzwerk
+snapshots: Snapshots
+domains_ssl: Domains & SSL
+automation: Automatisierung
+logs: Protokolle
+connection: Verbindung
+access: Zugänge
+security: Sicherheit
+dns_policy: DNS & Richtlinien
+tables: Tabellen
+databases: Datenbanken
+nodes: Hostsysteme
+assignments: Zuweisungen
+gameservers: Gameserver
+voice: Voice / TeamSpeak
+virtual_servers: Virtuelle Server
+edit: Bearbeiten
+save: Änderungen speichern
+saved: Änderungen gespeichert.
+back: Zur Übersicht
+tasks: Aufgaben
+templates: Templates
+channels: Kanäle
+participants: Teilnehmer
+permissions: Rechte
+snapshots_voice: Sicherung
+create: Anlegen
+customer: Kunde
+public_host: Öffentliche Verbindungsadresse
+actions: Aktionen
+start: Starten
+stop: Stoppen
+restart: Neu starten
+confirm_action: Aktion für diesen Server bestätigen
+panel_name: Anzeigename
+resource_hint: Die bestehenden Limits lassen sich hier erhöhen. Verkleinerungen bleiben zum Schutz vorhandener Daten gesperrt.
+guide: Hilfe und Einrichtung
+search: Suchen
+empty: Noch keine Einträge vorhanden.
+resources: Ressourcen
+voice_host_hint: Diese Adresse wird Kunden zum Verbinden angezeigt. Netzwerk- und Query-Einstellungen werden am zugehörigen Node verwaltet.
+mailboxes: Postfächer
+aliases: Aliase
+mail_setup_required: Für diese Domain muss zuerst ein Mailserver im Panel hinterlegt werden. Bitte die Administration kontaktieren.
+mail_domain_required: Zum Erstellen eines Postfachs muss dir eine Domain mit eingerichtetem Mailserver zugewiesen sein.
+database_setup_required: Es ist noch kein aktives Datenbanksystem eingerichtet. Bitte die Administration kontaktieren.
+reseller_customers: Kunden
+reseller_scope: Verwalte die deinem Resellerkonto zugeordneten Kunden.
+reseller_create: Kunden anlegen
+email: E-Mail-Adresse
+temporary_password: Temporäres Passwort
+mail_servers: Mailserver
+mail_servers_hint: Verbindungsdaten, Bereitstellungsagenten und Kundendomains verwalten.
+provisioning_agent: Agent für die Bereitstellung
+select: Bitte auswählen
+action_queued: Der Auftrag wurde vorgemerkt. Der Serverstatus wird nach der Ausführung durch den Agenten aktualisiert.
+db_node_editor: Datenbankserver bearbeiten
+db_node_engine: Datenbanksystem
+db_node_admin_user: Administrativer Datenbankbenutzer
+db_node_admin_secret: Passwort für den Adminzugriff
+db_node_secret_hint: Leer lassen, um das gespeicherte Passwort beizubehalten. Es wird hier niemals angezeigt.
+db_node_ca_cert: CA-Zertifikat
+db_node_active: Aktiv
+db_node_inactive: Deaktiviert
+db_node_health: Verbindungsprüfung
+db_node_checked: Zuletzt geprüft
+db_node_config_hint: Diese Einstellungen gelten für künftige Datenbankaufträge. Nach Änderungen an Verbindungsdaten ist eine erneute Verbindungsprüfung erforderlich.
+db_node_target_bound: Diesem Server sind bereits Datenbanken zugeordnet. Host, Port, Datenbanksystem und Agent können erst nach einer Datenmigration geändert werden.
+db_node_invalid_name: Bitte einen Namen mit höchstens 120 Zeichen eingeben.
+db_node_invalid_engine: Bitte ein unterstütztes Datenbanksystem auswählen.
+db_node_invalid_host: Bitte einen Hostnamen oder eine IP-Adresse ohne Protokoll oder Pfad eingeben.
+db_node_invalid_port: Der Port muss eine ganze Zahl zwischen 1 und 65535 sein.
+db_node_invalid_agent: Bitte einen Agenten mit Datenbankrolle auswählen.
+db_node_invalid_tls: Bitte einen gültigen TLS-Modus auswählen.
+db_node_invalid_fields: Benutzername, CA-Konfiguration oder Tags überschreiten die zulässige Länge.
+db_node_secret_failed: Das neue Passwort konnte nicht verschlüsselt gespeichert werden. Bitte die Schlüsselkonfiguration prüfen.
+db_node_tls_off: Deaktiviert
+db_node_tls_required: Erforderlich
+db_node_tls_verify_ca: CA prüfen
+db_node_tls_verify_full: CA und Hostnamen prüfen
+db_node_health_unknown: Noch nicht geprüft
+db_node_health_healthy: Verbindung erreichbar
+db_node_health_unhealthy: Prüfung fehlgeschlagen
+workspace_search: Bereiche durchsuchen …
+workspace_search_empty: Keine passenden Bereiche gefunden.
+workspace_game_intro: Bestand und Kundenzuweisungen
+workspace_voice_intro: Voice-Server, Versionen und Kundenzuweisungen
+workspace_voice_servers: Voice-Server
+workspace_online: Online
+workspace_pending: Bereitstellung offen
+workspace_operations: Betriebsdetails und Hinweise
+workspace_details: Details
+workspace_notices: Hinweise
+workspace_server_search: Server oder Kunde suchen …
+workspace_all_versions: Alle Versionen
+workspace_service_details: Service-Informationen und weitere Aktionen
+workspace_cpu_cores: gebuchte CPU-Kerne
+workspace_storage: Speicher
+workspace_usage: Auslastung (CPU / RAM)
+workspace_metrics_empty: Es liegen noch nicht genügend Messwerte vor.
+workspace_metrics_window: Messwerte der letzten 15 Minuten
+workspace_open_tables: Tabellen öffnen
+workspace_copy: Kopieren
+workspace_created: Erstellt
+workspace_updated: Zuletzt geändert
+workspace_service_info: Service-Informationen
+workspace_storage_limit: Speicherkontingent
+workspace_ssl_active: Gültig
+workspace_primary_domain: Primärdomain
+workspace_application: PHP & Anwendung
+workspace_configured: Eingerichtet
+workspace_not_configured: Nicht eingerichtet
+workspace_connections: Verbindungen
+workspace_connection_search: Verbindung suchen …
+workspace_unavailable: Nicht verfügbar
+workspace_mailbox_editor: Anlegen / Bearbeiten
+workspace_mailbox_search: Postfach oder Domain suchen …
+workspace_active_nodes: Aktive Hostsysteme
+workspace_inventory: Bestand
+workspace_alias_editor: Anlegen / Bearbeiten
+workspace_alias_search: Alias oder Zieladresse suchen …
+workspace_dns_editor: Anlegen / Bearbeiten
+workspace_dns_search: Domain, Eintrag oder Ziel suchen …
+workspace_active: Aktiv
+workspace_domain_search: Domain oder Webspace suchen …
+workspace_billing_actions: Weitere Aktionen
+workspace_invoices: Rechnungen
+workspace_credit_notes: Gutschriften
+workspace_billing_intro: Deine Rechnungen, Zahlungen und Dokumente im Überblick.
+workspace_payment_open: Zahlung offen
+workspace_invoice_search: Rechnung suchen …
+workspace_all_statuses: Alle Status
+workspace_invoice_items: Rechnungspositionen
+workspace_payment_method: Zahlungsart
+workspace_ticket_tools: Vorlagen & Schnellantworten
+workspace_oldest_ticket: Ältestes offenes Ticket
+workspace_invoice_archive: Dokumentenarchiv
+workspace_document_preview: Dokumentvorschau
+workspace_invoice_adjustments: Gutschrift / Storno
+workspace_shop_editor: Anlegen / Bearbeiten
+workspace_listed_entries: Einträge in dieser Übersicht
+workspace_inactive: Inaktiv
+workspace_catalog_search: Produkt, Kategorie oder Kennung suchen …
+workspace_page_editor: Seite anlegen / bearbeiten
+workspace_add_block: Block hinzufügen
+workspace_content_blocks: Inhaltsblöcke
+workspace_block_editor: Block anlegen / bearbeiten
+workspace_shop_title: Shop und Mietverträge
+workspace_shop_intro: Produkte auswählen, Verträge verwalten und Bestellungen verfolgen.
+workspace_my_contracts: Meine Mietverträge
+workspace_wallet: Guthaben und Buchungen
+workspace_catalog: Produktkatalog
+workspace_orders: Bestellungen
+workspace_prepaid_services: Vorausbezahlte Systeme
+workspace_products_on_page: Produkte auf dieser Seite
+workspace_orders_on_page: Bestellungen auf dieser Seite
+workspace_contract_intro: Deine Dienste, Laufzeiten und Kosten im Überblick.
+workspace_rent_product: Produkt mieten
+workspace_cost_overview: Kostenübersicht
+workspace_contracts_on_page: Verträge auf dieser Seite
+workspace_active_on_page: Aktiv auf dieser Seite
+workspace_ended_on_page: Beendet auf dieser Seite
+workspace_contract_search: Vertrag, Dienst oder Kunde suchen …
+workspace_contract: Vertrag
+workspace_product_type: Produktart
+workspace_billing_mode: Abrechnung
+workspace_term: Tarif / Laufzeit
+workspace_wallet_intro: Guthaben je Währung, laufende Nutzung und Zahlungsbelege.
+workspace_current_usage: Laufende Nutzung
+workspace_transactions: Buchungen
+workspace_topups: Aufladungen
+workspace_categories: Kategorien
+workspace_contracts: Mietverträge
+workspace_variants: Produktvarianten
+workspace_coupons: Gutscheine
+workspace_customer_accounts: Kundenkonten
+workspace_account_booking: Kontobuchung
+workspace_capacity: Verkaufskapazitäten
+workspace_retention: Aufbewahrung
+workspace_attention: Bearbeitungsbedarf
+workspace_shop_products: Shop-Produkte
+workspace_shop_products_intro: Produkte, Sichtbarkeit und Ressourcenvorgaben verwalten.
+workspace_shop_categories: Shop-Kategorien
+workspace_shop_categories_intro: Kategorien und Reihenfolge im Shop verwalten.
+workspace_user_create: Benutzer anlegen
+workspace_ssh_approvals: SSH-Freigaben
+workspace_job_data: Auftragsdaten und Ergebnis
+workspace_logs: Protokolle
+workspace_audit_showing: Treffer in dieser Auswahl
+workspace_audit_limit: Bis zu 50 aktuelle Treffer. Filter gelten auch beim Nachladen und für den CSV-Export.
+workspace_since: Seit
+workspace_filter: Filtern
+workspace_backup_scope: Die letzten 100 Sicherungen mit Status, Ziel und Speicherangaben.
+workspace_backup_search: Sicherung, Kunde, Ziel oder Status suchen …
+workspace_backup_targets_intro: Sicherungsziele und Verbindungen verwalten und prüfen.
+workspace_backup_targets: Sicherungsziele
+workspace_settings: Einstellungen
+workspace_history: Verlauf
+workspace_checksum: Prüfsumme
+workspace_scheduled_tasks: Geplante Aufgaben
+workspace_job_queue: Auftragswarteschlange
+workspace_schedule_search: Aufgabe, Modul, Typ oder Status suchen …
+workspace_schedule_timing: Zeitplanung
+workspace_schedule_result: Letztes Ergebnis
+workspace_music_admin: "Musicbot-Instanzen"
+workspace_music_admin_intro: "Kunden, Bereitstellung und Status der nativen Musicbots."
+workspace_music_customer: "Meine Musicbots"
+workspace_music_customer_intro: "Musik, Warteschlangen und Verbindungen deiner Bots verwalten."
+workspace_music_create: "Musicbot anlegen"
+workspace_music_create_intro: "Bot, Ressourcen und Verbindungen einrichten."
+workspace_music_running: "Läuft"
+workspace_music_stopped: "Gestoppt"
+workspace_music_error: "Fehler"
+workspace_music_provisioning: "In Bereitstellung"
+workspace_music_search: "Bot, Kunde, Node oder Status suchen …"
+workspace_music_slots: "Bots genutzt"
+workspace_music_backend_intro: "TeamSpeak-Client-Anbindung je Node einrichten und prüfen."
+workspace_last_check: "Letzte Prüfung"
+workspace_music_plugins: "Plugins"
+workspace_music_plugins_intro: "Registrierte Manifeste und freigegebene Funktionen verwalten."
+workspace_music_limits: "Kundenlimits"
+workspace_music_limits_intro: "Ressourcen und verfügbare Funktionen je Kunde festlegen. Leere Felder verwenden den Standard; -1 bedeutet unbegrenzt."
+workspace_music_runtime: "Runtime"
+workspace_music_output: "Audioausgabe"
+workspace_music_playback: "Wiedergabe"
+workspace_music_queue: "Warteschlange"
+workspace_music_connections: "Verbindungen"
+workspace_music_radio_intro: "Sender, Favoriten und Wiedergabe verwalten."
+workspace_music_library: "Musik"
+workspace_music_monitoring: "Überwachung"
+workspace_music_sections: "Musicbot-Bereiche"
+workspace_services: "Dienste"
+workspace_activity: "Aktivität und Support"
+workspace_billing: "Abrechnung"
+workspace_news: "Neuigkeiten"
+workspace_radio_catalog: Katalog öffnen
+workspace_music_unreported: Keine Statusmeldung
+workspace_profile: "Profil"
+workspace_account_security: "Kontosicherheit"
+workspace_account_navigation: "Konto und Datenschutz"
+workspace_consents: "Einwilligungen"
+workspace_data_exports: "Datenexporte"
+workspace_account_deletion: "Kontolöschung"
+workspace_loaded_entries: "Geladene Einträge"
+workspace_activity_search: "Ereignis, Akteur oder Datum suchen …"
+workspace_activity_details: "Ereignisdetails"
+workspace_ddos: "DDoS-Schutz"
+workspace_firewall: "Firewall"
+workspace_fail2ban: "Fail2ban"
+workspace_security_events: "Sicherheitsereignisse"
+workspace_ruleset: "Regelwerk"
+workspace_providers: "Anbieter"
+workspace_notification_search: "Benachrichtigung oder Datum suchen …"
+workspace_all_messages: "Alle Meldungen"
+workspace_notification_scope: "Die letzten 40 Meldungen. Suche, Filter und Kennzahlen beziehen sich auf diese Ansicht."
+workspace_reauthentication: Identitätsbestätigung
+workspace_identity_confirmed: Bestätigt
+workspace_identity_required: Erforderlich
+workspace_cms_preview: "Seitenvorschau"
+workspace_cms_preview_description: "Gespeicherte CMS-Inhalte prüfen, ohne sie zu veröffentlichen."
+workspace_cms_preview_settings: "Darstellung"
+workspace_cms_preview_saved: "Die Vorschau zeigt den zuletzt gespeicherten Stand. Änderungen im Editor zuerst speichern. Links, Formulare und Skripte sind in der Vorschau deaktiviert. Die Auswahl hier ändert keine Website-Einstellungen."
+workspace_cms_preview_module: "Diese Adresse gehört zu einem Modul. Die Vorschau zeigt nur den CMS-Seiteninhalt; der öffentliche Modulbereich wird dadurch nicht ersetzt."
+workspace_cms_preview_theme: "Theme"
+workspace_cms_preview_scheme: "Darstellung"
+workspace_cms_preview_light: "Hell"
+workspace_cms_preview_dark: "Dunkel"
+workspace_cms_preview_viewport: "Bildschirmgröße"
+workspace_cms_preview_apply: "Vorschau aktualisieren"
+workspace_cms_check_title: "Links und Medien prüfen"
+workspace_cms_check_hints: "Hinweise"
+workspace_cms_check_refresh: "Erneut prüfen"
+workspace_cms_check_description: "%checked% lokale Verweise geprüft, %skipped% Verweise zur manuellen Prüfung. Die Prüfung nutzt den gespeicherten Stand. Externe Ziele, Sprungmarken und Moduldetails werden nicht aufgerufen. Hinweise verhindern das Speichern oder Veröffentlichen nicht."
+workspace_cms_check_truncated: "Die Prüfung wurde begrenzt. Sehr große Inhalte und weitere Verweise bitte zusätzlich manuell prüfen."
+workspace_cms_check_source: "Bereich"
+workspace_cms_check_target: "Ziel"
+workspace_cms_check_hint: "Hinweis"
+workspace_cms_check_settings: "CMS-Einstellungen"
+workspace_cms_check_source_block: "Inhaltsblock"
+workspace_cms_check_source_navigation: "Navigation"
+workspace_cms_check_source_footer: "Fußzeile"
+workspace_cms_check_source_logo: "Logo"
+workspace_cms_check_page_missing: "Keine veröffentlichte CMS-Seite dieser Website unter dieser Adresse gefunden."
+workspace_cms_check_page_draft: "Diese CMS-Seite ist noch ein Entwurf und für Besucher nicht erreichbar."
+workspace_cms_check_module_disabled: "Der verlinkte Modulbereich ist deaktiviert. Freigabe oder Verweis prüfen."
+workspace_cms_check_media_missing: "Die lokale Mediendatei fehlt oder liegt außerhalb der freigegebenen öffentlichen Ablage."
+workspace_cms_check_invalid_url: "Der Verweis hat ein ungültiges oder ungeeignetes URL-Format."
+workspace_cms_check_invalid_path: "Der Pfad enthält ungültige Zeichen. Den gespeicherten Verweis prüfen."
+workspace_cms_check_clear: "Bei den geprüften lokalen Verweisen wurden keine Auffälligkeiten gefunden."
+workspace_cms_media_pick: "Bild auswählen"
+workspace_cms_media_title: "Bild aus der Mediathek auswählen"
+workspace_cms_media_search: "Suchen"
+workspace_cms_media_search_hint: "Titel, Alternativtext oder Dateipfad"
+workspace_cms_media_refresh: "Neu laden"
+workspace_cms_media_scope: "Verfügbare Bilder dieser Website. Die Auswahl wird erst mit dem Block gespeichert. Eigene Bildpfade bleiben möglich."
+workspace_cms_media_choose: "Bild übernehmen"
+workspace_cms_media_empty: "Keine passenden verfügbaren Bilder gefunden. Prüfe gegebenenfalls die nächste Seite oder lade ein Bild in der Medienverwaltung hoch."
+workspace_cms_media_pages: "Seiten der Mediathek"
+workspace_cms_media_previous: "Zurück"
+workspace_cms_media_next: "Weiter"
+workspace_cms_media_page: "Seite %page%"
+workspace_cms_media_loading: "Bilder werden geladen …"
+workspace_cms_media_error: "Die Bilder konnten nicht geladen werden. Bitte die Auswahl erneut öffnen."
+workspace_cms_media_manage: "Medien verwalten"
+workspace_cms_media_close: "Schließen"
+workspace_cms_library_title: "Medien"
+workspace_cms_library_description: "Dateien und Bildangaben dieser Website verwalten."
+workspace_cms_library_upload: "Datei hochladen"
+workspace_cms_library_saved: "Medienangaben gespeichert."
+workspace_cms_library_loaded: "in dieser Ansicht"
+workspace_cms_library_page_scope: "Bis zu 24 Einträge pro Seite. Suche und Anzeige beziehen sich auf die aktuelle Website."
+workspace_cms_library_preview: "Vorschau"
+workspace_cms_library_metadata: "Titel und Alternativtext"
+workspace_cms_library_file: "Datei"
+workspace_cms_library_delete: "Datei löschen"
+workspace_cms_library_empty: "Keine passenden Medien dieser Website gefunden."
+workspace_cms_library_reselect: "Bitte die Datei vor dem erneuten Absenden wieder auswählen."
+workspace_cms_library_name: "Titel"
+workspace_cms_library_alt: "Alternativtext"
+workspace_cms_library_edit: "Medienangaben bearbeiten"
+workspace_cms_library_edit_hint: "Titel und Alternativtext anpassen. Dateipfad und Website bleiben erhalten."
+workspace_cms_library_block_texts: "Bereits in Inhaltsblöcken gespeicherte Bildtexte bleiben erhalten. Neue Auswahlen verwenden die aktuellen Medienangaben."
+workspace_cms_library_title_long: "Der Titel darf höchstens 180 Zeichen enthalten."
+workspace_cms_library_alt_long: "Der Alternativtext darf höchstens 180 Zeichen enthalten."
+workspace_cms_library_file_error: "Bitte eine Datei auswählen beziehungsweise den fehlgeschlagenen Upload wiederholen."
+workspace_cms_library_cancel: "Abbrechen"

@@ -6,9 +6,10 @@ namespace App\Module\Cms\UI\Controller\Admin;
 
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Http\RequestActor;
-
 use App\Module\Cms\Application\CmsSettingsProvider;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CustomWebsiteDirectory;
+use App\Module\Core\Application\ModuleRegistry;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\CmsPage;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
@@ -17,6 +18,8 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
@@ -24,11 +27,14 @@ use Twig\Environment;
 final class AdminCmsSettingsController
 {
     public function __construct(
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly CmsSettingsProvider $settingsProvider,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly ModuleRegistry $modules,
+        private readonly CsrfTokenManagerInterface $csrf,
+        private readonly CustomWebsiteDirectory $website,
     ) {
     }
 
@@ -41,7 +47,7 @@ final class AdminCmsSettingsController
         }
 
         $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
+        if (null === $site) {
             return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
@@ -49,7 +55,9 @@ final class AdminCmsSettingsController
 
         return new Response($this->twig->render('admin/cms/settings/index.html.twig', [
             'activeNav' => 'cms-settings',
-            'saved' => $request->query->get('saved') === '1',
+            'saved' => '1' === $request->query->get('saved'),
+            'cms_enabled' => $this->modules->isEnabled('cms'),
+            'custom_website_path' => $this->website->path(),
             'current_theme' => $settings?->getActiveTheme() ?? '',
             'branding' => $this->settingsProvider->getBranding($site),
             'module_toggles' => $this->settingsProvider->getModuleToggles($site),
@@ -76,13 +84,17 @@ final class AdminCmsSettingsController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
+        if (!$this->csrf->isTokenValid(new CsrfToken('cms-settings', (string) $request->request->get('_token', '')))) {
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
+        }
+
         $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
+        if (null === $site) {
             return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
         }
 
         $theme = trim((string) $request->request->get('active_theme', ''));
-        $theme = $theme === '' ? null : $theme;
+        $theme = '' === $theme ? null : $theme;
 
         $branding = [
             'logo_path' => trim((string) $request->request->get('logo_path', '')),
@@ -97,7 +109,7 @@ final class AdminCmsSettingsController
 
         $toggles = [];
         foreach (CmsSettingsProvider::DEFAULT_MODULE_TOGGLES as $key => $_default) {
-            $toggles[$key] = $request->request->get(sprintf('toggle_%s', $key)) === '1';
+            $toggles[$key] = '1' === $request->request->get(sprintf('toggle_%s', $key));
         }
 
         $headerLinks = $this->decodeLinks((string) $request->request->get('header_links_json', '[]'));
@@ -105,7 +117,7 @@ final class AdminCmsSettingsController
         $impressumContent = (string) $request->request->get('impressum_content', '');
         $datenschutzContent = (string) $request->request->get('datenschutz_content', '');
 
-        $site->setMaintenanceEnabled($request->request->get('maintenance_enabled') === '1');
+        $site->setMaintenanceEnabled('1' === $request->request->get('maintenance_enabled'));
         $site->setMaintenanceMessage((string) $request->request->get('maintenance_message', ''));
         $site->setMaintenanceGraphicPath((string) $request->request->get('maintenance_graphic_path', ''));
         $site->setMaintenanceAllowlist((string) $request->request->get('maintenance_allowlist', ''));
@@ -117,6 +129,26 @@ final class AdminCmsSettingsController
         $this->entityManager->flush();
 
         return new RedirectResponse('/admin/cms/settings?saved=1');
+    }
+
+    #[Route(path: '/mode', name: 'admin_cms_mode_save', methods: ['POST'])]
+    public function mode(Request $request): Response
+    {
+        $actor = RequestActor::user($request);
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+        if (!$this->csrf->isTokenValid(new CsrfToken('cms-mode', $request->request->getString('_token')))) {
+            return new Response('Invalid CSRF token.', Response::HTTP_FORBIDDEN);
+        }
+        $enabled = $request->request->getBoolean('enabled');
+        if (!$enabled) {
+            $this->website->prepare();
+        }
+        $this->modules->setEnabled('cms', $enabled, $actor);
+        $this->entityManager->flush();
+
+        return new RedirectResponse('/admin/cms/settings?saved=1', Response::HTTP_SEE_OTHER);
     }
 
     private function ensureRequiredPagesExist(Site $site): void
@@ -150,7 +182,7 @@ final class AdminCmsSettingsController
     private function parseDateTime(string $value): ?\DateTimeImmutable
     {
         $value = trim($value);
-        if ($value === '') {
+        if ('' === $value) {
             return null;
         }
 

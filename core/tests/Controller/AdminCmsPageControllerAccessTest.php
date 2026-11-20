@@ -59,8 +59,8 @@ final class AdminCmsPageControllerAccessTest extends TestCase
         $pageRepository = $this->newInstanceWithoutConstructor(CmsPageRepository::class);
         /** @var CmsBlockRepository $blockRepository */
         $blockRepository = $this->newInstanceWithoutConstructor(CmsBlockRepository::class);
-        /** @var \App\Module\Core\Application\SiteResolver $siteResolver */
-        $siteResolver = $this->newInstanceWithoutConstructor(\App\Module\Core\Application\SiteResolver::class);
+        /** @var \App\Module\Cms\Application\CmsSiteResolver $siteResolver */
+        $siteResolver = $this->newInstanceWithoutConstructor(\App\Module\Cms\Application\CmsSiteResolver::class);
         /** @var EntityManagerInterface $entityManager */
         $entityManager = $this->newInstanceWithoutConstructor(\Doctrine\ORM\EntityManager::class);
         /** @var \App\Module\Core\Application\AuditLoggerInterface $auditLogger */
@@ -73,6 +73,7 @@ final class AdminCmsPageControllerAccessTest extends TestCase
             $auditLogger,
             $twig,
             $this->createStub(TranslatorInterface::class),
+            $this->newInstanceWithoutConstructor(\App\Module\Cms\Application\CmsContentCheck::class),
         );
     }
 

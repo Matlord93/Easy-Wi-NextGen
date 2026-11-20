@@ -1,0 +1,23 @@
+{% trans_default_domain 'panel_modules' %}
+<div data-cms-media-results data-cms-media-field="{{ field }}">
+    <form class="cms-media-picker__search" hx-get="{{ path('admin_cms_media_picker') }}" hx-target="#cms-media-picker-content" hx-swap="innerHTML">
+        <input type="hidden" name="field" value="{{ field }}">
+        <label class="form-field"><span class="form-label">{{ 'workspace_cms_media_search'|trans }}</span><input type="search" name="q" value="{{ search }}" maxlength="100" class="form-input" placeholder="{{ 'workspace_cms_media_search_hint'|trans }}" autofocus></label>
+        <button type="submit" class="ui-button ui-button--primary">{{ 'workspace_cms_media_search'|trans }}</button>
+        <button type="button" class="ui-button ui-button--ghost" hx-get="{{ path('admin_cms_media_picker',{field:field,q:search}) }}" hx-target="#cms-media-picker-content" hx-swap="innerHTML">{{ 'workspace_cms_media_refresh'|trans }}</button>
+    </form>
+    <p class="text-sm">{{ 'workspace_cms_media_scope'|trans }}</p>
+    <div class="cms-media-picker__grid">
+        {% for image in images %}
+            <button type="button" class="cms-media-picker__image" data-cms-media-select data-cms-media-id="{{ image.id }}" data-cms-media-path="{{ image.path }}" data-cms-media-alt="{{ image.alt }}">
+                <img src="{{ image.raster ? path('admin_cms_media_thumbnail', {id: image.id, variant: 'picker'}) : image.path }}" alt="" loading="lazy" decoding="async" width="200" height="120">
+                <strong>{{ image.title }}</strong><span>{{ image.path }}</span><span class="ui-button ui-button--ghost ui-button--sm">{{ 'workspace_cms_media_choose'|trans }}</span>
+            </button>
+        {% else %}<p>{{ 'workspace_cms_media_empty'|trans }}</p>{% endfor %}
+    </div>
+    <nav class="cms-media-picker__pagination" aria-label="{{ 'workspace_cms_media_pages'|trans }}">
+        {% if current_page > 1 %}<button type="button" class="ui-button ui-button--ghost" hx-get="{{ path('admin_cms_media_picker',{field:field,q:search,page:current_page-1}) }}" hx-target="#cms-media-picker-content" hx-swap="innerHTML">{{ 'workspace_cms_media_previous'|trans }}</button>{% endif %}
+        <span>{{ 'workspace_cms_media_page'|trans({'%page%':current_page}) }}</span>
+        {% if has_next %}<button type="button" class="ui-button ui-button--ghost" hx-get="{{ path('admin_cms_media_picker',{field:field,q:search,page:current_page+1}) }}" hx-target="#cms-media-picker-content" hx-swap="innerHTML">{{ 'workspace_cms_media_next'|trans }}</button>{% endif %}
+    </nav>
+</div>

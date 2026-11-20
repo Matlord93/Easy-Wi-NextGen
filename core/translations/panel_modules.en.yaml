@@ -1,0 +1,338 @@
+navigation: Module navigation
+servers: Servers
+hosting: Hosting
+management: Management
+overview: Overview
+console: Console
+files: Files
+configuration: Configuration
+backups: Backups
+administration: Management
+settings: Settings
+activity: Activity
+network: Network
+snapshots: Snapshots
+domains_ssl: Domains & SSL
+automation: Automation
+logs: Logs
+connection: Connection
+access: Credentials
+security: Security
+dns_policy: DNS & policies
+tables: Tables
+databases: Databases
+nodes: Hosts
+assignments: Assignments
+gameservers: Game servers
+voice: Voice / TeamSpeak
+virtual_servers: Virtual servers
+edit: Edit
+save: Save changes
+saved: Changes saved.
+back: Back to overview
+tasks: Tasks
+templates: Templates
+channels: Channels
+participants: Participants
+permissions: Permissions
+snapshots_voice: Recovery
+create: Create
+customer: Customer
+public_host: Public connection address
+actions: Actions
+start: Start
+stop: Stop
+restart: Restart
+confirm_action: Confirm this action for the server
+panel_name: Display name
+resource_hint: You can increase the existing limits here. Reductions remain blocked to protect existing data.
+guide: Help and setup
+search: Search
+empty: No entries yet.
+resources: Resources
+voice_host_hint: Customers use this address to connect. Network and query settings are managed on the associated node.
+mailboxes: Mailboxes
+aliases: Aliases
+mail_setup_required: A mail server must be configured for this domain first. Please contact the administrator.
+mail_domain_required: Creating a mailbox requires an assigned domain with a configured mail server.
+database_setup_required: No active database system is configured yet. Please contact the administrator.
+reseller_customers: Customers
+reseller_scope: Manage the customers assigned to your reseller account.
+reseller_create: Create customer
+email: Email address
+temporary_password: Temporary password
+mail_servers: Mail servers
+mail_servers_hint: Manage connection settings, provisioning agents and customer domains.
+provisioning_agent: Provisioning agent
+select: Please select
+action_queued: The action has been queued. The server status updates after the agent completes it.
+db_node_editor: Edit database server
+db_node_engine: Database engine
+db_node_admin_user: Administrative database user
+db_node_admin_secret: Password for the admin connection
+db_node_secret_hint: Leave blank to keep the stored password. It is never displayed here.
+db_node_ca_cert: CA certificate
+db_node_active: Active
+db_node_inactive: Inactive
+db_node_health: Connection check
+db_node_checked: Last checked
+db_node_config_hint: These settings apply to future database jobs. Connection settings must be checked again after they change.
+db_node_target_bound: Databases are already assigned to this server. Changing its host, port, engine or agent requires migrating those databases first.
+db_node_invalid_name: Enter a name of at most 120 characters.
+db_node_invalid_engine: Select a supported database engine.
+db_node_invalid_host: Enter a hostname or IP address without a protocol or path.
+db_node_invalid_port: The port must be an integer between 1 and 65535.
+db_node_invalid_agent: Select an agent with the database role.
+db_node_invalid_tls: Select a valid TLS mode.
+db_node_invalid_fields: The username, CA configuration or tags exceed the permitted length.
+db_node_secret_failed: The new password could not be encrypted. Check the encryption key configuration.
+db_node_tls_off: Disabled
+db_node_tls_required: Required
+db_node_tls_verify_ca: Verify CA
+db_node_tls_verify_full: Verify CA and hostname
+db_node_health_unknown: Not checked yet
+db_node_health_healthy: Connection reachable
+db_node_health_unhealthy: Check failed
+workspace_search: Search sections …
+workspace_search_empty: No matching sections found.
+workspace_game_intro: Inventory and customer assignments
+workspace_voice_intro: Voice servers, versions and customer assignments
+workspace_voice_servers: Voice servers
+workspace_online: Online
+workspace_pending: Provisioning pending
+workspace_operations: Operations and notices
+workspace_details: Details
+workspace_notices: Notices
+workspace_server_search: Search servers or customers …
+workspace_all_versions: All versions
+workspace_service_details: Service information and more actions
+workspace_cpu_cores: allocated CPU cores
+workspace_storage: Storage
+workspace_usage: Usage (CPU / RAM)
+workspace_metrics_empty: Not enough measurements are available yet.
+workspace_metrics_window: Measurements from the last 15 minutes
+workspace_open_tables: Open tables
+workspace_copy: Copy
+workspace_created: Created
+workspace_updated: Last updated
+workspace_service_info: Service information
+workspace_storage_limit: Storage allowance
+workspace_ssl_active: Valid
+workspace_primary_domain: Primary domain
+workspace_application: PHP & application
+workspace_configured: Configured
+workspace_not_configured: Not configured
+workspace_connections: Connections
+workspace_connection_search: Search connections …
+workspace_unavailable: Unavailable
+workspace_mailbox_editor: Create / edit
+workspace_mailbox_search: Search mailboxes or domains …
+workspace_active_nodes: Active hosts
+workspace_inventory: Inventory
+workspace_alias_editor: Create / edit
+workspace_alias_search: Search aliases or destinations …
+workspace_dns_editor: Create / edit
+workspace_dns_search: Search domains, records or destinations …
+workspace_active: Active
+workspace_domain_search: Search domains or webspaces …
+workspace_billing_actions: More actions
+workspace_invoices: Invoices
+workspace_credit_notes: Credit notes
+workspace_billing_intro: Your invoices, payments and documents in one place.
+workspace_payment_open: Awaiting payment
+workspace_invoice_search: Search invoices …
+workspace_all_statuses: All statuses
+workspace_invoice_items: Invoice items
+workspace_payment_method: Payment method
+workspace_ticket_tools: Templates & quick replies
+workspace_oldest_ticket: Oldest open ticket
+workspace_invoice_archive: Document archive
+workspace_document_preview: Document preview
+workspace_invoice_adjustments: Credit / cancellation
+workspace_shop_editor: Create / edit
+workspace_listed_entries: Entries in this view
+workspace_inactive: Inactive
+workspace_catalog_search: Search products, categories or identifiers …
+workspace_page_editor: Create / edit page
+workspace_add_block: Add block
+workspace_content_blocks: Content blocks
+workspace_block_editor: Create / edit block
+workspace_shop_title: Shop and rental contracts
+workspace_shop_intro: Choose products, manage contracts and track orders.
+workspace_my_contracts: My rental contracts
+workspace_wallet: Balance and transactions
+workspace_catalog: Product catalogue
+workspace_orders: Orders
+workspace_prepaid_services: Prepaid services
+workspace_products_on_page: Products on this page
+workspace_orders_on_page: Orders on this page
+workspace_contract_intro: Your services, terms and costs in one place.
+workspace_rent_product: Rent a product
+workspace_cost_overview: Cost overview
+workspace_contracts_on_page: Contracts on this page
+workspace_active_on_page: Active on this page
+workspace_ended_on_page: Ended on this page
+workspace_contract_search: Search contracts, services or customers …
+workspace_contract: Contract
+workspace_product_type: Product type
+workspace_billing_mode: Billing
+workspace_term: Rate / term
+workspace_wallet_intro: Balances by currency, current usage and payment records.
+workspace_current_usage: Current usage
+workspace_transactions: Transactions
+workspace_topups: Top-ups
+workspace_categories: Categories
+workspace_contracts: Rental contracts
+workspace_variants: Product variants
+workspace_coupons: Coupons
+workspace_customer_accounts: Customer accounts
+workspace_account_booking: Account adjustment
+workspace_capacity: Sales capacity
+workspace_retention: Retention
+workspace_attention: Needs attention
+workspace_shop_products: Shop products
+workspace_shop_products_intro: Manage products, visibility and resource limits.
+workspace_shop_categories: Shop categories
+workspace_shop_categories_intro: Manage shop categories and their display order.
+workspace_user_create: Create user
+workspace_ssh_approvals: SSH approvals
+workspace_job_data: Job data and result
+workspace_logs: Logs
+workspace_audit_showing: Entries in this selection
+workspace_audit_limit: Up to 50 recent matches. Filters also apply to refreshes and CSV export.
+workspace_since: Since
+workspace_filter: Apply filters
+workspace_backup_scope: The latest 100 backups with status, destination and storage details.
+workspace_backup_search: Search backup, customer, destination or status …
+workspace_backup_targets_intro: Manage and check backup destinations and connections.
+workspace_backup_targets: Backup destinations
+workspace_settings: Settings
+workspace_history: History
+workspace_checksum: Checksum
+workspace_scheduled_tasks: Scheduled tasks
+workspace_job_queue: Job queue
+workspace_schedule_search: Search task, module, type or status …
+workspace_schedule_timing: Timing
+workspace_schedule_result: Last result
+workspace_music_admin: "Musicbot instances"
+workspace_music_admin_intro: "Customers, provisioning and status of native musicbots."
+workspace_music_customer: "My musicbots"
+workspace_music_customer_intro: "Manage music, queues and connections for your bots."
+workspace_music_create: "Create musicbot"
+workspace_music_create_intro: "Configure the bot, resources and connections."
+workspace_music_running: "Running"
+workspace_music_stopped: "Stopped"
+workspace_music_error: "Errors"
+workspace_music_provisioning: "Provisioning"
+workspace_music_search: "Search bot, customer, node or status …"
+workspace_music_slots: "bots used"
+workspace_music_backend_intro: "Configure and check the TeamSpeak client connection for each node."
+workspace_last_check: "Last check"
+workspace_music_plugins: "Plugins"
+workspace_music_plugins_intro: "Manage registered manifests and enabled features."
+workspace_music_limits: "Customer limits"
+workspace_music_limits_intro: "Set resources and available features per customer. Empty fields use the default; -1 means unlimited."
+workspace_music_runtime: "Runtime"
+workspace_music_output: "Audio output"
+workspace_music_playback: "Playback"
+workspace_music_queue: "Queue"
+workspace_music_connections: "Connections"
+workspace_music_radio_intro: "Manage stations, favourites and playback."
+workspace_music_library: "Music"
+workspace_music_monitoring: "Monitoring"
+workspace_music_sections: "Musicbot sections"
+workspace_services: "Services"
+workspace_activity: "Activity and support"
+workspace_billing: "Billing"
+workspace_news: "News"
+workspace_radio_catalog: Open catalogue
+workspace_music_unreported: No status reported
+workspace_profile: "Profile"
+workspace_account_security: "Account security"
+workspace_account_navigation: "Account and privacy"
+workspace_consents: "Consents"
+workspace_data_exports: "Data exports"
+workspace_account_deletion: "Account deletion"
+workspace_loaded_entries: "Loaded entries"
+workspace_activity_search: "Search event, actor or date …"
+workspace_activity_details: "Event details"
+workspace_ddos: "DDoS protection"
+workspace_firewall: "Firewall"
+workspace_fail2ban: "Fail2ban"
+workspace_security_events: "Security events"
+workspace_ruleset: "Ruleset"
+workspace_providers: "Providers"
+workspace_notification_search: "Search notification or date …"
+workspace_all_messages: "All notifications"
+workspace_notification_scope: "The latest 40 notifications. Search, filters and counts apply to this view."
+workspace_reauthentication: Identity confirmation
+workspace_identity_confirmed: Confirmed
+workspace_identity_required: Required
+workspace_cms_preview: "Page preview"
+workspace_cms_preview_description: "Review saved CMS content without publishing it."
+workspace_cms_preview_settings: "Appearance"
+workspace_cms_preview_saved: "The preview shows the last saved version. Save editor changes first. Links, forms and scripts are disabled in the preview. These selections do not change website settings."
+workspace_cms_preview_module: "This address belongs to a module. The preview only shows CMS page content; it does not replace the public module."
+workspace_cms_preview_theme: "Theme"
+workspace_cms_preview_scheme: "Appearance"
+workspace_cms_preview_light: "Light"
+workspace_cms_preview_dark: "Dark"
+workspace_cms_preview_viewport: "Screen size"
+workspace_cms_preview_apply: "Update preview"
+workspace_cms_check_title: "Check links and media"
+workspace_cms_check_hints: "notices"
+workspace_cms_check_refresh: "Check again"
+workspace_cms_check_description: "%checked% local references checked, %skipped% references require manual review. Checks use the saved version. External targets, anchors and module details are not requested. Notices do not prevent saving or publishing."
+workspace_cms_check_truncated: "The check was limited. Please also review very large content and additional references manually."
+workspace_cms_check_source: "Area"
+workspace_cms_check_target: "Target"
+workspace_cms_check_hint: "Notice"
+workspace_cms_check_settings: "CMS settings"
+workspace_cms_check_source_block: "Content block"
+workspace_cms_check_source_navigation: "Navigation"
+workspace_cms_check_source_footer: "Footer"
+workspace_cms_check_source_logo: "Logo"
+workspace_cms_check_page_missing: "No published CMS page for this website was found at this address."
+workspace_cms_check_page_draft: "This CMS page is still a draft and is unavailable to visitors."
+workspace_cms_check_module_disabled: "The linked module is disabled. Check the module settings or reference."
+workspace_cms_check_media_missing: "The local media file is missing or outside the allowed public directory."
+workspace_cms_check_invalid_url: "The reference has an invalid or unsuitable URL format."
+workspace_cms_check_invalid_path: "The path contains invalid characters. Review the saved reference."
+workspace_cms_check_clear: "No issues were found in the local references checked."
+workspace_cms_media_pick: "Choose image"
+workspace_cms_media_title: "Choose an image from the media library"
+workspace_cms_media_search: "Search"
+workspace_cms_media_search_hint: "Title, alternative text or file path"
+workspace_cms_media_refresh: "Reload"
+workspace_cms_media_scope: "Available images for this website. The selection is only saved with the block. You can still enter your own image paths."
+workspace_cms_media_choose: "Use image"
+workspace_cms_media_empty: "No matching available images found. Check the next page or upload an image in media management."
+workspace_cms_media_pages: "Media library pages"
+workspace_cms_media_previous: "Previous"
+workspace_cms_media_next: "Next"
+workspace_cms_media_page: "Page %page%"
+workspace_cms_media_loading: "Loading images …"
+workspace_cms_media_error: "Images could not be loaded. Please reopen the image picker."
+workspace_cms_media_manage: "Manage media"
+workspace_cms_media_close: "Close"
+workspace_cms_library_title: "Media"
+workspace_cms_library_description: "Manage files and image metadata for this website."
+workspace_cms_library_upload: "Upload file"
+workspace_cms_library_saved: "Media metadata saved."
+workspace_cms_library_loaded: "in this view"
+workspace_cms_library_page_scope: "Up to 24 entries per page. Search and results belong to the current website."
+workspace_cms_library_preview: "Preview"
+workspace_cms_library_metadata: "Title and alternative text"
+workspace_cms_library_file: "File"
+workspace_cms_library_delete: "Delete file"
+workspace_cms_library_empty: "No matching media found for this website."
+workspace_cms_library_reselect: "Please select the file again before submitting."
+workspace_cms_library_name: "Title"
+workspace_cms_library_alt: "Alternative text"
+workspace_cms_library_edit: "Edit media metadata"
+workspace_cms_library_edit_hint: "Update title and alternative text. File path and website remain unchanged."
+workspace_cms_library_block_texts: "Image text already saved in content blocks is preserved. New selections use the current media metadata."
+workspace_cms_library_title_long: "The title must not exceed 180 characters."
+workspace_cms_library_alt_long: "The alternative text must not exceed 180 characters."
+workspace_cms_library_file_error: "Please select a file or retry the failed upload."
+workspace_cms_library_cancel: "Cancel"

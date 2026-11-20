@@ -6,7 +6,7 @@ namespace App\Module\Cms\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\TeamMember;
 use App\Module\Core\Domain\Entity\User;
@@ -27,7 +27,7 @@ final class AdminCmsTeamController
     public function __construct(
         private readonly TeamMemberRepository $teamRepository,
         private readonly TeamGroupRepository $teamGroupRepository,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
@@ -112,7 +112,7 @@ final class AdminCmsTeamController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $member = $this->teamRepository->find($id);
+        $member = $this->findForSite($request, $id);
         if (!$member instanceof TeamMember) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
@@ -131,7 +131,7 @@ final class AdminCmsTeamController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $member = $this->teamRepository->find($id);
+        $member = $this->findForSite($request, $id);
         if (!$member instanceof TeamMember) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
@@ -159,11 +159,12 @@ final class AdminCmsTeamController
             return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
         }
 
-        $member = $this->teamRepository->find($id);
-        if ($member instanceof TeamMember) {
-            $this->entityManager->remove($member);
-            $this->entityManager->flush();
+        $member = $this->findForSite($request, $id);
+        if (!$member instanceof TeamMember) {
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
+        $this->entityManager->remove($member);
+        $this->entityManager->flush();
 
         return new RedirectResponse('/admin/cms/team');
     }
@@ -197,7 +198,7 @@ final class AdminCmsTeamController
     {
         if (!$this->isAdmin($request)) { return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
 
-        $group = $this->teamGroupRepository->find($id);
+        $group = $this->findGroupForSite($request, $id);
         if (!$group instanceof TeamGroup) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
@@ -227,12 +228,27 @@ final class AdminCmsTeamController
     public function deleteGroup(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) { return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN); }
-        $group = $this->teamGroupRepository->find($id);
-        if ($group instanceof TeamGroup) {
-            $this->entityManager->remove($group);
-            $this->entityManager->flush();
+        $group = $this->findGroupForSite($request, $id);
+        if (!$group instanceof TeamGroup) {
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
+        $this->entityManager->remove($group);
+        $this->entityManager->flush();
         return new RedirectResponse('/admin/cms/team');
+    }
+
+    private function findForSite(Request $request, int $id): ?TeamMember
+    {
+        $site = $this->siteResolver->resolve($request);
+
+        return $site instanceof Site ? $this->teamRepository->findOneBy(['id' => $id, 'site' => $site]) : null;
+    }
+
+    private function findGroupForSite(Request $request, int $id): ?TeamGroup
+    {
+        $site = $this->siteResolver->resolve($request);
+
+        return $site instanceof Site ? $this->teamGroupRepository->findOneBy(['id' => $id, 'site' => $site]) : null;
     }
 
     private function isAdmin(Request $request): bool

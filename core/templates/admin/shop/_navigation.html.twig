@@ -1,0 +1,6 @@
+<nav class="pm-shop-nav" aria-label="Shop-Verwaltung">
+{% set current = app.request.pathInfo %}
+{% for item in [
+ ['admin_rental_products','Produkte','products'],['admin_shop_categories','Kategorien','categories'],['admin_shop_manage','Varianten','manage'],['admin_shop_coupons','Gutscheine','coupons'],['admin_shop_orders','Bestellungen','orders'],['admin_rental_contracts','Verträge','contracts'],['admin_rental_operations','Betrieb & Kapazitäten','operations'],['admin_shop_registrar','Domain-Registrar','registrar'],['admin_shop_settings','Zahlungsarten','settings']
+] %}{% set route = item[0] %}{% set label = item[1] %}{% set match = item[2] %}<a href="{{ path(route) }}"{% if (match == 'products' and (current starts with '/admin/shop/rental-products' or current == '/admin/shop/products')) or (match == 'manage' and (current starts with '/admin/shop/manage' or '/variants' in current)) or (match not in ['products','manage'] and current starts with '/admin/shop/' ~ match) %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+</nav>

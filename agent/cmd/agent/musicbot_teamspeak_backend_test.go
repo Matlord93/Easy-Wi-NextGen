@@ -42,7 +42,12 @@ func TestTeamspeakBackendNonExecutablePath(t *testing.T) {
 	t.Parallel()
 	job := teamspeakBackendJob(t, "mock")
 	path := job.Payload["backend_path"].(string)
-	if err := os.Chmod(path, 0o644); err != nil {
+	// Break the fixture hard link before changing permissions: other tests
+	// execute the shared, immutable fixture inode in parallel.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("not executable\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	result := handleMusicbotTeamspeakBackendValidate(job)
@@ -479,8 +484,10 @@ func teamspeakBackendJob(t *testing.T, mode string) jobs.Job {
 	if err := os.WriteFile(opus, []byte("mock opus library"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	script := mockTeamspeakClientScript(mode)
-	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+	// Publish a link to a fixture closed before any test subprocess starts.
+	// A newly written script can otherwise hit ETXTBSY when a concurrent
+	// fork briefly inherits another thread's writable file descriptor.
+	if err := os.Link(filepath.Join(teamspeakClientFixtureDir, mode), bin); err != nil {
 		t.Fatal(err)
 	}
 	return jobs.Job{ID: "job-ts-backend", Type: "musicbot.teamspeak_backend.validate", Payload: map[string]any{

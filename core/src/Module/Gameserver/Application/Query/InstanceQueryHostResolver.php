@@ -49,13 +49,14 @@ final class InstanceQueryHostResolver
         $metadata = $node->getMetadata();
         $metadata = JsonArray::orEmpty($metadata);
 
-        foreach (['primary_ip', 'node_ip', 'ip', 'public_ip', 'external_ip', 'query_ip', 'advertise_ip', 'advertised_ip', 'host', 'hostname', 'fqdn', 'domain', 'dns_name'] as $metadataKey) {
+        $addressKeys = ['primary_ip', 'node_ip', 'ip', 'public_ip', 'external_ip', 'query_ip', 'advertise_ip', 'advertised_ip'];
+        foreach ($addressKeys as $metadataKey) {
             $candidate = trim((string) ($metadata[$metadataKey] ?? ''));
             if ($networkMode === 'isolated' && $this->isIpv6Candidate($candidate)) {
                 continue;
             }
             $resolved = $this->resolveHost($candidate);
-            if ($resolved !== null) {
+            if (null !== $resolved && false !== filter_var($resolved, \FILTER_VALIDATE_IP)) {
                 return [
                     'host' => $resolved,
                     'source' => 'node_ip',
@@ -94,6 +95,13 @@ final class InstanceQueryHostResolver
             }
         }
 
+        foreach ([...$addressKeys, 'host', 'hostname', 'fqdn', 'domain', 'dns_name'] as $metadataKey) {
+            $host = $this->resolveHost(ScalarValue::text($metadata[$metadataKey] ?? null));
+            if (null !== $host && ('isolated' !== $networkMode || !$this->isIpv6Candidate($host))) {
+                return ['host' => $host, 'source' => 'node_ip', 'network_mode' => $networkMode, 'missing_fields' => []];
+            }
+        }
+
         if ($networkMode === 'host') {
             return [
                 'host' => '127.0.0.1',
@@ -114,7 +122,7 @@ final class InstanceQueryHostResolver
     private function resolveHost(string $candidate): ?string
     {
         $host = trim($candidate);
-        if ($host === '' || $this->isLoopbackHost($host)) {
+        if (in_array($host, ['', '0.0.0.0', '::', '[::]'], true) || $this->isLoopbackHost($host)) {
             return null;
         }
 
@@ -162,9 +170,13 @@ final class InstanceQueryHostResolver
 
     private function isLoopbackHost(string $host): bool
     {
-        $normalized = strtolower(trim($host));
+        $normalized = strtolower(trim($host, '[]'));
+        $packed = inet_pton($normalized);
+        if (false !== $packed && str_starts_with($packed, str_repeat("\x00", 10)."\xff\xff\x7f")) {
+            return true;
+        }
 
-        return $normalized === 'localhost'
+        return in_array($normalized, ['localhost', 'localhost.'], true)
             || $normalized === '::1'
             || str_starts_with($normalized, '127.');
     }

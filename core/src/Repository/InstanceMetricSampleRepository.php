@@ -230,7 +230,7 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
             ->getArrayResult(), static fn (array $row): array => [
                 'sample_id' => MetricSampleRow::integer($row['sample_id'] ?? null),
                 'instance_id' => MetricSampleRow::integer($row['instance_id'] ?? null),
-                'customer_id' => MetricSampleRow::text($row['customer_id'] ?? null),
+                'customer_id' => (string) MetricSampleRow::integer($row['customer_id'] ?? null),
                 'customer_email' => MetricSampleRow::text($row['customer_email'] ?? null),
                 'node_id' => MetricSampleRow::text($row['node_id'] ?? null),
                 'node_name' => MetricSampleRow::nullableText($row['node_name'] ?? null),

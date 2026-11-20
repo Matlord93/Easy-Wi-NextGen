@@ -2,15 +2,11 @@
 {% set pageTitle = 'Musicbot Kundenlimits' %}
 {% set pageSubtitle = 'Tarife, Quotas und Feature-Flags pro Kunde verwalten.' %}
 {% set activeNav = 'musicbots' %}
+{% set activeNav = 'musicbots' %}
 {% block content %}
-<div class="ng-card" style="padding:18px;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px;">
-        <div>
-            <h1 style="margin:0 0 6px;">Musicbot Kundenlimits</h1>
-            <p style="margin:0;color:var(--ng-text-muted);">Leere Felder verwenden den sicheren Standard. Der Wert <code>-1</code> bedeutet unbegrenzt.</p>
-        </div>
-        <a class="ui-button ui-button--ghost" href="/admin/musicbots">Zurück</a>
-    </div>
+<div class="pm-workspace">
+<header class="pm-page-head"><div><h1>{{ 'workspace_music_limits'|trans({},'panel_modules') }}</h1><p>{{ 'workspace_music_limits_intro'|trans({},'panel_modules') }}</p></div><div class="pm-page-head__actions"></div></header>
+
 
     <div class="ng-alert ng-alert--info" style="margin-bottom:16px;">
         Standard: {{ defaults.max_musicbots }} Bot, {{ defaults.max_tracks }} Tracks, {{ defaults.max_storage_mb }} MB Speicher,

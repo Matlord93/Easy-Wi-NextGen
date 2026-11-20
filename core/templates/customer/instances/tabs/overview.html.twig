@@ -1,11 +1,11 @@
 {% set locale = page_locale() %}
 
+{% include 'customer/instances/_resource_overview.html.twig' %}
 {# ─── Power Panel ─── #}
 <div
     id="gameserver-overview-mount"
     class="cust-panel"
     data-power-url="{{ path('customer_instance_power_api', {id: instance.id}) }}"
-    data-power-redirect-url="{{ path('customer_instance_tasks_page', {id: instance.id}) }}"
     data-url-query="{{ path('customer_instance_query_api_v2', {id: instance.id}) }}"
     data-i18n="{{ {
         working: t('customer_instances_overview_working', locale),
@@ -46,15 +46,13 @@
         </div>
     </div>
 
-    <div id="gameserver-overview-error" style="display:none"></div>
+    <div id="gameserver-overview-error" class="hidden ng-alert ng-alert--danger" role="alert"></div>
 </div>
 
-{# ─── Detail Card ─── #}
-<div id="instance-card-{{ instance.id }}">
-    {% include 'customer/instances/_card.html.twig' with { instance: instance } %}
-</div>
-
-<script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
-<script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
-<script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
+<div class="pm-console-service-grid"><div class="pm-console-preview">{% include 'customer/instances/tabs/console.html.twig' %}</div>{% include 'customer/instances/_service_info.html.twig' %}</div>
+<section class="cust-panel"><div class="cust-panel__head"><h2 class="cust-panel__title">Verwaltung</h2></div><div class="cust-panel__body gs-actions">
+<a class="ui-button ui-button--ghost" href="{{ path('customer_instance_reinstall_page',{id:instance.id}) }}">Installation / Spielversion</a><a class="ui-button ui-button--ghost" href="{{ path('customer_instance_detail',{id:instance.id,tab:'setup'}) }}">Server konfigurieren</a>
+<form method="post" action="{{ path('customer_instance_update',{id:instance.id}) }}"><button class="ui-button ui-button--ghost" type="submit">Update anfordern</button></form>
+{% if instance.previous_build_id or instance.previous_version %}<form method="post" action="{{ path('customer_instance_rollback',{id:instance.id}) }}"><button class="ui-button ui-button--ghost" type="submit">Vorherige Version wiederherstellen</button></form>{% endif %}
+</div></section>
 <script src="{{ asset('js/gameserver/overview-app.js') }}"></script>

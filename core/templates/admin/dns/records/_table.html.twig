@@ -1,3 +1,4 @@
+<div id="dns-records-table" class="ng-data-card" data-panel-list hx-get="/admin/dns/records/table" hx-trigger="dns-records-changed from:body" hx-swap="outerHTML">
 <div class="ng-data-card__header">
     <div>
         <h2 class="ng-data-card__title">{{ t('admin_dns_inventory_title', page_locale()) }}</h2>
@@ -12,6 +13,7 @@
         >{{ t('refresh', page_locale()) }}</button>
     </div>
 </div>
+<div class="pm-filters"><label class="sr-only" for="dns-record-search">{{ 'search'|trans({},'panel_modules') }}</label><input class="form-input" id="dns-record-search" type="search" data-panel-filter placeholder="{{ 'workspace_dns_search'|trans({},'panel_modules') }}"></div>
 <div class="cust-ws-table-wrap">
     <table class="cust-table">
         <thead>
@@ -28,7 +30,7 @@
         </thead>
         <tbody>
         {% for record in records %}
-            <tr>
+            <tr data-panel-row>
                 <td>
                     <div class="font-semibold" style="color:var(--ng-text);">{{ record.domain.name }}</div>
                     <div style="font-size:11px;color:var(--ng-text-muted);">{{ t('admin_label_id', page_locale()) }} {{ record.domain.id }}</div>
@@ -45,7 +47,7 @@
                     <div class="flex items-center gap-2">
                         <button
                             class="ui-button ui-button--ghost ui-button--sm"
-                            hx-get="/admin/dns/records/{{ record.id }}/edit"
+                            hx-get="/admin/dns/records/{{ record.id }}/edit" data-panel-reveal="create"
                             hx-target="#dns-record-form"
                             hx-swap="outerHTML"
                         >{{ t('edit', page_locale()) }}</button>
@@ -64,4 +66,6 @@
         {% endfor %}
         </tbody>
     </table>
+</div>
+
 </div>

@@ -13,9 +13,13 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\InstanceInstallService;
+use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
+use App\Module\Gameserver\Application\Query\InstanceQueryResolver;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Gameserver\Application\TemplateInstallResolverInterface;
 use App\Module\Ports\Application\PortLeaseManagerInterface;
+use App\Module\Ports\Domain\Entity\PortBlock;
+use App\Module\Ports\Domain\Entity\PortPool;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
 use App\Repository\SharedStorageTemplateLocatorInterface;
@@ -24,6 +28,54 @@ use PHPUnit\Framework\TestCase;
 
 final class InstanceInstallServiceTest extends TestCase
 {
+    public function testSevenDaysInstallationAndRestartUseTheSameExistingPortBlock(): void
+    {
+        $instance = $this->buildInstance([], ['linux'], 'linux', startParams: '{{INSTANCE_DIR}}/startserver.sh -configfile=serverconfig.xml -quit -batchmode -nographics -dedicated');
+        $template = $instance->getTemplate();
+        $template->setGameKey('seven_days_to_die');
+        $template->setSteamAppId(294420);
+        $template->setRequiredPorts([
+            ['name' => 'game', 'protocol' => 'udp'],
+            ['name' => 'query', 'protocol' => 'udp'],
+            ['name' => 'rcon', 'protocol' => 'tcp'],
+        ]);
+        $instance->getNode()->recordHeartbeat(['os' => 'linux'], '1.0.0', '192.0.2.1');
+        $pool = new PortPool($instance->getNode(), '7DTD', 'games', 27000, 27100);
+        $block = new PortBlock($pool, $instance->getCustomer(), 27021, 27023);
+        $instance->setPortBlockId($block->getId());
+        $blocks = $this->createStub(PortBlockRepositoryInterface::class);
+        $blocks->method('find')->willReturn($block);
+        $blocks->method('findByInstance')->willReturn($block);
+        $resolver = $this->createStub(TemplateInstallResolverInterface::class);
+        $resolver->method('resolveInstallCommand')->willReturn('install');
+        $resolver->method('resolveUpdateCommand')->willReturn('update');
+        $locator = $this->createStub(SharedStorageTemplateLocatorInterface::class);
+        $installer = new InstanceInstallService(new SetupChecker(), $this->createStub(PortPoolRepositoryInterface::class), $blocks, $this->createStub(PortLeaseManagerInterface::class), $resolver, $locator, $this->createStub(EntityManagerInterface::class));
+        $builder = new InstanceJobPayloadBuilder($resolver, $blocks, $locator);
+
+        $install = $installer->prepareInstall($instance);
+        self::assertTrue($install['ok']);
+        $runtime = $builder->buildRuntimePayload($instance);
+        foreach ([$install['payload'], $runtime, $builder->buildSniperUpdatePayload($instance)] as $payload) {
+            self::assertSame('seven_days_to_die', $payload['game_key']);
+            self::assertSame('true', $payload['seven_days_to_die_managed_ports']);
+            self::assertSame([27021, 27022, 27023], $payload['ports']);
+            $ports = array_column($payload['port_reservations'], null, 'role');
+            self::assertSame(['role' => 'game', 'protocol' => 'udp', 'port' => 27021], $ports['game']);
+            self::assertSame(['role' => 'game_tcp', 'protocol' => 'tcp', 'port' => 27021], $ports['game_tcp']);
+            self::assertSame(['role' => 'webdashboard', 'protocol' => 'tcp', 'port' => 27022], $ports['webdashboard']);
+            self::assertSame(['role' => 'telnet', 'protocol' => 'tcp', 'port' => 27023], $ports['telnet']);
+            self::assertSame(['role' => 'litenetlib', 'protocol' => 'udp', 'port' => 27023], $ports['litenetlib']);
+        }
+        $instance->setSetupVars(['GAME_PORT' => '26900', 'SV_QUERYPORT' => '27022']);
+        self::assertSame(27021, (new InstanceQueryResolver())->resolve($instance, $block)->getPort());
+
+        $template->setStartParams('custom-wrapper --config settings.xml');
+        $custom = $builder->buildRuntimePayload($instance);
+        self::assertArrayNotHasKey('seven_days_to_die_managed_ports', $custom);
+        self::assertSame(['game', 'query', 'rcon'], array_column($custom['port_reservations'], 'role'));
+    }
+
     public function testInstallStatusRequiresSetupCompletion(): void
     {
         $service = $this->buildService();

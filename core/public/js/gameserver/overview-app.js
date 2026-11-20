@@ -16,7 +16,6 @@
     const stateEl = document.getElementById('gameserver-overview-state');
     const queryCard = document.querySelector('[data-instance-query]');
     const buttons = Array.from(root.querySelectorAll('[data-power-action]'));
-    const redirectUrl = root.dataset.powerRedirectUrl || '';
     const queryUrl = root.dataset.urlQuery || '';
 
     const defaultI18n = {
@@ -102,8 +101,8 @@
             el.textContent = statusLabel;
         });
 
-        const players = Number.isFinite(Number(query.players?.online)) ? Number(query.players.online) : null;
-        const maxPlayers = Number.isFinite(Number(query.players?.max)) ? Number(query.players.max) : null;
+        const players = query.players?.online != null && Number.isFinite(Number(query.players.online)) ? Number(query.players.online) : null;
+        const maxPlayers = query.players?.max != null && Number.isFinite(Number(query.players.max)) ? Number(query.players.max) : null;
         const playersKnown = players !== null && maxPlayers !== null && maxPlayers > 0;
         playersEls.forEach((el) => {
             el.textContent = playersKnown ? `${players} / ${maxPlayers}` : tr('unknown');
@@ -131,11 +130,13 @@
         });
     };
 
+    let queryPending = false;
     const fetchQuery = async () => {
-        if (!queryUrl) {
+        if (!queryUrl || document.hidden || !root.isConnected || queryPending) {
             return;
         }
 
+        queryPending = true;
         try {
             const payload = await apiClient.request(queryUrl);
             errors.clearInline(inlineError);
@@ -147,9 +148,9 @@
             }
             errors.showAll(inlineError, error);
             const ctxQuery = error?.context?.query;
-            if (ctxQuery) {
-                updateQueryUi(ctxQuery);
-            }
+            updateQueryUi(ctxQuery || { online: null });
+        } finally {
+            queryPending = false;
         }
     };
 
@@ -165,10 +166,6 @@
                     body: JSON.stringify({ action }),
                 });
                 applyState(payload.data || {});
-                if (redirectUrl !== '') {
-                    window.location.assign(redirectUrl);
-                    return;
-                }
                 errors.showToast({
                     message: tr('actionQueued', { action }),
                     error_code: 'OK',
@@ -183,5 +180,7 @@
     });
 
     void fetchQuery();
-    window.setInterval(fetchQuery, 10000);
+    const poll = window.setInterval(fetchQuery, 10000);
+    window.addEventListener('pagehide', () => window.clearInterval(poll), {once: true});
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) void fetchQuery(); });
 })();

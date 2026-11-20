@@ -1,6 +1,7 @@
 {% set locale = page_locale() %}
 <div
     id="gameserver-console"
+    data-game-key="{{ instance.template.game_key|lower }}"
     data-url-command="{{ path('customer_instance_console_command_v2', {id: instance.id}) }}"
     data-live-url="/console/live/{{ instance.id }}"
     data-csrf-token="{{ csrf_token('instance_console_' ~ instance.id) }}"

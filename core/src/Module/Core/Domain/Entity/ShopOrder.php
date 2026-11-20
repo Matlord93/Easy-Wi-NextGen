@@ -16,6 +16,9 @@ use Doctrine\ORM\Mapping as ORM;
  */
 #[ORM\Entity(repositoryClass: ShopOrderRepository::class)]
 #[ORM\Table(name: 'shop_orders')]
+#[ORM\UniqueConstraint(name: 'uniq_shop_order_request', columns: ['request_key'])]
+#[ORM\UniqueConstraint(name: 'uniq_shop_order_renewal', columns: ['rental_id', 'renewal_for'])]
+#[ORM\Index(name: 'idx_shop_order_processing', columns: ['status', 'created_at'])]
 class ShopOrder
 {
     #[ORM\Id]
@@ -52,6 +55,87 @@ class ShopOrder
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
+
+    #[ORM\OneToOne(mappedBy: 'order', targetEntity: ShopContract::class)] private ?ShopContract $contract = null;
+    public function getContract(): ?ShopContract
+    {
+        return $this->contract;
+    }
+
+    public function setContract(ShopContract $contract): void
+    {
+        $this->contract = $contract;
+    }
+
+    #[ORM\ManyToOne(targetEntity: Invoice::class), ORM\JoinColumn(nullable: true)] private ?Invoice $invoice = null;
+    #[ORM\ManyToOne(targetEntity: ShopRental::class), ORM\JoinColumn(nullable: true)] private ?ShopRental $rental = null;
+    #[ORM\ManyToOne(targetEntity: ShopCoupon::class), ORM\JoinColumn(nullable: true)] private ?ShopCoupon $coupon = null;
+    #[ORM\Column(length: 64, nullable: true)] private ?string $requestKey = null;
+    #[ORM\Column(nullable: true)] private ?\DateTimeImmutable $renewalFor = null;
+    /** @var array<string, int|string|bool> */
+    #[ORM\Column(type: 'json', nullable: true)] private ?array $configuration = null;
+    #[ORM\Column(length: 120, nullable: true)] private ?string $processingError = null;
+    #[ORM\Column(nullable: true)] private ?\DateTimeImmutable $lastAttemptAt = null;
+    /** @param array<string, int|string|bool> $configuration */
+    public function checkout(?Invoice $invoice, array $configuration, string $key, ?ShopCoupon $coupon = null, ?ShopRental $rental = null, ?\DateTimeImmutable $renewalFor = null): void
+    {
+        if (null !== $this->requestKey) {
+            throw new \LogicException('Order checkout is immutable.');
+        }
+        $this->invoice = $invoice;
+        $this->configuration = $configuration;
+        $this->requestKey = $key;
+        $this->coupon = $coupon;
+        $this->rental = $rental;
+        $this->renewalFor = $renewalFor;
+    }
+
+    public function getInvoice(): ?Invoice
+    {
+        return $this->invoice;
+    }
+
+    public function getRental(): ?ShopRental
+    {
+        return $this->rental;
+    }
+
+    public function setRental(ShopRental $rental): void
+    {
+        $this->rental = $rental;
+    }
+
+    public function getCoupon(): ?ShopCoupon
+    {
+        return $this->coupon;
+    }
+
+    public function releaseCoupon(): void
+    {
+        $this->coupon = null;
+    }
+
+    /** @return array<string, int|string|bool> */
+    public function getConfiguration(): array
+    {
+        return $this->configuration ?? [];
+    }
+
+    public function getProcessingError(): ?string
+    {
+        return $this->processingError;
+    }
+
+    public function getLastAttemptAt(): ?\DateTimeImmutable
+    {
+        return $this->lastAttemptAt;
+    }
+
+    public function attempted(?string $error = null): void
+    {
+        $this->lastAttemptAt = new \DateTimeImmutable();
+        $this->processingError = $error;
+    }
 
     public function __construct(
         User $customer,

@@ -11,9 +11,45 @@ use App\Module\Core\Domain\Entity\Site;
 use App\Repository\CmsSiteSettingsRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 final class CmsSettingsProviderTest extends TestCase
 {
+    public function testSettingsAreLoadedOncePerRequestAndRecheckedOnTheNextRequest(): void
+    {
+        $site = new Site('Cached site', 'cms-cache.example.test');
+        $settings = new CmsSiteSettings($site);
+        $repository = $this->createMock(CmsSiteSettingsRepositoryInterface::class);
+        $repository->expects(self::exactly(2))->method('findOneBySite')->with($site)->willReturn($settings);
+        $requests = new RequestStack();
+        $requests->push(new Request());
+        $provider = new CmsSettingsProvider($repository, $this->createStub(EntityManagerInterface::class), $requests);
+        self::assertSame($settings, $provider->findForSite($site));
+        $provider->getBranding($site);
+        $provider->getNavigationLinks($site);
+        $provider->getFooterLinks($site);
+        $provider->getModuleToggles($site);
+        $requests->pop();
+        $requests->push(new Request());
+        self::assertSame($settings, $provider->findForSite($site));
+    }
+
+    public function testCreatingSettingsReplacesTheCachedMissWithoutCrossingSiteBoundaries(): void
+    {
+        $repository = $this->createMock(CmsSiteSettingsRepositoryInterface::class);
+        $repository->expects(self::exactly(2))->method('findOneBySite')->willReturn(null);
+        $requests = new RequestStack();
+        $requests->push(new Request());
+        $provider = new CmsSettingsProvider($repository, $this->createStub(EntityManagerInterface::class), $requests);
+        $first = new Site('First', 'first-cache.example.test');
+        $second = new Site('Second', 'second-cache.example.test');
+        self::assertNull($provider->findForSite($first));
+        $settings = $provider->getOrCreate($first);
+        self::assertSame($settings, $provider->findForSite($first));
+        self::assertNull($provider->findForSite($second));
+    }
+
     public function testThemeResolverUsesOnlyCmsSiteSettingWhenPresent(): void
     {
         [$provider] = $this->createProviderWithStorage($storage);

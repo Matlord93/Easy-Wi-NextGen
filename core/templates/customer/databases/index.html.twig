@@ -4,7 +4,8 @@
 
 {% block content %}
 {% set locale = page_locale() %}
-<div class="cust-page">
+{% set submittedCreate = app.request and app.request.isMethod('POST') and app.request.attributes.get('_route') == 'customer_databases_create' %}
+<div class="cust-page pm-tab-layout" data-panel-tabs="database-index">
 
     {# ── Hero ── #}
     <div class="cust-hero">
@@ -41,27 +42,29 @@
     {% endif %}
 
     {# ── Create + Overview ── #}
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'database-index',panelTabs:{overview:'databases',create:'create'}} %}
     <div class="cust-grid-2">
         {# Create form #}
-        <div class="cust-form-card">
+        <div class="cust-form-card" data-panel-section="create">
             <div class="cust-form-card__head">
                 <h3 class="cust-form-card__title">{{ t('customer_databases_create_title', locale) }}</h3>
                 <p class="cust-form-card__sub">{{ t('customer_databases_create_description', locale) }}</p>
             </div>
-            <form method="post" action="/databases" class="cust-form-card__body">
+            <form method="post" action="/databases#pm-database-index-create" class="cust-form-card__body">
+                {% if databaseNodes is empty %}<p role="status">{{ 'database_setup_required'|trans({},'panel_modules') }}</p>{% endif %}
                 <div>
                     <label class="cust-form-label">{{ t('customer_databases_node_label', locale) }}</label>
                     <select name="node_id" required>
                         <option value="">{{ t('customer_databases_node_placeholder', locale) }}</option>
                         {% for node in databaseNodes %}
-                            <option value="{{ node.id }}">{{ node.name }} ({{ node.engine|upper }} · {{ node.host }}:{{ node.port }})</option>
+                            <option value="{{ node.id }}"{% if submittedCreate and app.request.request.get('node_id') == node.id %} selected{% endif %}>{{ node.name }} ({{ node.engine|upper }} · {{ node.host }}:{{ node.port }})</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="cust-form-row">
                     <div>
                         <label class="cust-form-label">{{ t('customer_databases_name_label', locale) }}</label>
-                        <input type="text" name="name" required>
+                        <input type="text" name="name" value="{{ submittedCreate ? app.request.request.get('name','') : '' }}" required>
                     </div>
                 </div>
                 <p class="cust-form-card__sub">{{ t('customer_databases_create_final_name_hint', locale) }}</p>
@@ -72,7 +75,7 @@
         </div>
 
         {# Data area info #}
-        <div class="cust-panel">
+        <div class="cust-panel" data-panel-section="create">
             <div class="cust-panel__head">
                 <div>
                     <h3 class="cust-panel__title">{{ t('customer_instances_data_area', locale) }}</h3>
@@ -95,7 +98,7 @@
     </div>
 
     {# ── Database list ── #}
-    <div class="cust-panel">
+    <div class="cust-panel" data-panel-section="overview">
         <div class="cust-panel__head">
             <div>
                 <h3 class="cust-panel__title">{{ t('customer_databases_overview', locale) }}</h3>

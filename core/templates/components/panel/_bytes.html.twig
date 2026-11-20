@@ -1,0 +1,12 @@
+{%- set decimal = page_locale() == 'de' ? ',' : '.' -%}
+{%- if bytes is null -%}
+    —
+{%- elseif bytes >= 1073741824 -%}
+    {{ (bytes / 1073741824)|number_format(2, decimal, '') }} GiB
+{%- elseif bytes >= 1048576 -%}
+    {{ (bytes / 1048576)|number_format(2, decimal, '') }} MiB
+{%- elseif bytes >= 1024 -%}
+    {{ (bytes / 1024)|number_format(2, decimal, '') }} KiB
+{%- else -%}
+    {{ bytes }} B
+{%- endif -%}

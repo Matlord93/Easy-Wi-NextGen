@@ -65,61 +65,6 @@
     {% endif %}
 
     {# ─── Config files ─── #}
-    <div class="cust-panel" style="margin-bottom:1.25rem">
-        <div class="cust-panel__head" style="display:flex;align-items:center;justify-content:space-between">
-            <div style="display:flex;align-items:center;gap:0.5rem">
-                <svg style="height:1rem;width:1rem;color:var(--ng-text-muted)" fill="currentColor" viewBox="0 0 16 16"><path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/></svg>
-                <h2 class="cust-panel__title">{{ t('customer_instance_config_files_title', page_locale()) }}</h2>
-            </div>
-            <button type="button" id="gs-settings-create" class="ui-button ui-button--ghost ui-button--sm">
-                {{ t('customer_instance_config_files_create', page_locale()) }}
-            </button>
-        </div>
-        <div class="cust-panel__body" style="padding:0">
-            <div style="display:grid;grid-template-columns:1fr">
-                {# Config list #}
-                <div style="border-bottom:1px solid var(--ng-border);padding:1rem">
-                    <div style="display:flex;flex-direction:column;gap:0.5rem">
-                        <div class="form-field" style="margin-bottom:0">
-                            <input id="gs-settings-config-search" type="search"
-                                class="form-input"
-                                placeholder="{{ t('customer_instance_config_files_search', page_locale()) }}">
-                        </div>
-                        <div class="form-field" style="margin-bottom:0">
-                            <select id="gs-settings-config-scope" class="form-input">
-                                <option value="">{{ t('customer_instance_config_files_scope_all', page_locale()) }}</option>
-                                <option value="template">Template</option>
-                                <option value="instance">{{ t('customer_instance_config_files_scope_instance', page_locale()) }}</option>
-                            </select>
-                        </div>
-                    </div>
-                    <ul id="gs-settings-config-list" style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.25rem">
-                        <li style="font-size:0.75rem;color:var(--ng-text-muted)">{{ t('customer_instance_config_files_loading', page_locale()) }}</li>
-                    </ul>
-                </div>
-                {# Editor #}
-                <div style="padding:1rem">
-                    <div style="display:flex;align-items:center;justify-content:space-between">
-                        <h4 style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ng-text-muted)">{{ t('customer_instance_config_editor_label', page_locale()) }}</h4>
-                        <p id="gs-settings-selected" style="font-size:0.75rem;color:var(--ng-text-muted)">{{ t('customer_instance_config_files_select', page_locale()) }}</p>
-                    </div>
-                    <textarea id="gs-settings-content"
-                        class="form-input"
-                        style="margin-top:0.75rem;height:16rem;font-family:monospace;font-size:0.75rem;resize:vertical"
-                        placeholder="{{ t('customer_instance_config_files_select_hint', page_locale()) }}"></textarea>
-                    <div style="margin-top:0.75rem;display:flex;flex-wrap:wrap;gap:0.5rem">
-                        <button type="button" id="gs-settings-save" class="ui-button ui-button--primary ui-button--sm">
-                            {{ t('customer_instance_config_files_save', page_locale()) }}
-                        </button>
-                        <button type="button" id="gs-settings-apply" class="ui-button ui-button--ghost ui-button--sm">
-                            {{ t('customer_instance_config_files_apply', page_locale()) }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     {# ─── Automation ─── #}
     <div class="cust-panel">
         <div class="cust-panel__head" style="display:flex;align-items:center;gap:0.5rem">

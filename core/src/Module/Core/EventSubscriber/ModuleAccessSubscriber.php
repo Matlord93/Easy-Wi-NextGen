@@ -7,6 +7,7 @@ namespace App\Module\Core\EventSubscriber;
 use App\Module\Core\Application\ModuleRegistry;
 use App\Module\Core\Attribute\RequiresModule;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Event\ControllerEvent;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\KernelEvents;
@@ -36,6 +37,19 @@ final class ModuleAccessSubscriber implements EventSubscriberInterface
         $controllerObject = is_array($controller) ? $controller[0] : $controller;
         if (!is_object($controllerObject)) {
             return;
+        }
+
+        if (str_starts_with($controllerObject::class, 'App\\Module\\Cms\\UI\\Controller\\Public\\')
+            && !str_starts_with($event->getRequest()->attributes->getString('_route'), 'public_cookie_consent_')
+            && !$this->moduleRegistry->isEnabled('cms')) {
+            if ('public_cms_home' === $event->getRequest()->attributes->get('_route')) {
+                $actor = \App\Infrastructure\Http\RequestActor::user($event->getRequest());
+                $target = null === $actor ? '/login' : ($actor->isAdmin() ? '/admin' : (\App\Module\Core\Domain\Enum\UserType::Reseller === $actor->getType() ? '/reseller' : ($actor->isCustomerAccessEnabled() ? '/customer' : '/marketplace')));
+                $event->setController(static fn (): RedirectResponse => new RedirectResponse($target));
+
+                return;
+            }
+            throw new NotFoundHttpException('The integrated CMS is disabled.');
         }
 
         $attributes = (new \ReflectionClass($controllerObject))->getAttributes(RequiresModule::class);

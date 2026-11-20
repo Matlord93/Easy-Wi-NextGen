@@ -73,6 +73,10 @@ final class MailboxApiController
             return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], JsonResponse::HTTP_FORBIDDEN);
         }
 
+        if ($this->resolveMailAgentId($domain) === null) {
+            return new JsonResponse(['error' => $this->translator->trans('error_no_mail_agent')], JsonResponse::HTTP_CONFLICT);
+        }
+
         $passwordHash = $this->mailPasswordHasher->hash($formData['password']);
         $secretPayload = $this->encryptionService->encrypt($formData['password']);
 
@@ -137,13 +141,12 @@ final class MailboxApiController
     {
         $ports = array_values(array_unique(self::DEFAULT_MAIL_PORTS));
 
-        $webspace = $mailbox->getDomain()->getWebspace();
-        if ($webspace === null) {
+        $agentId = $this->resolveMailAgentId($mailbox->getDomain());
+        if ($agentId === null) {
             return null;
         }
-        $node = $webspace->getNode();
         $firewallJob = new Job('firewall.open_ports', [
-            'agent_id' => $node->getId(),
+            'agent_id' => $agentId,
             'mailbox_id' => (string) $mailbox->getId(),
             'ports' => implode(',', array_map('strval', $ports)),
         ]);
@@ -469,8 +472,9 @@ final class MailboxApiController
     private function resolveMailAgentId(\App\Module\Core\Domain\Entity\Domain $domain): ?string
     {
         $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
-        if ($mailDomain !== null) {
-            return (string) $mailDomain->getNode()->getId();
+        $assignedAgent = $mailDomain?->getNode()->getAgent();
+        if ($assignedAgent !== null) {
+            return $assignedAgent->getId();
         }
 
         $webspace = $domain->getWebspace();

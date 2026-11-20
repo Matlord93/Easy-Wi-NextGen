@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -319,6 +320,10 @@ func resolveQueryPort(r *http.Request, payload map[string]string) (int, error) {
 }
 
 func resolveQueryErrCode(err error) string {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return "DNS_FAILED"
+	}
 	message := strings.ToLower(err.Error())
 	switch {
 	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(message, "timeout"):

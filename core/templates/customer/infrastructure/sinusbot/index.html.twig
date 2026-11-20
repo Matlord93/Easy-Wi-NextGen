@@ -3,40 +3,17 @@
 {% set locale = page_locale() %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
+<div class="pm-workspace ">
 
     {# ── Hero / KPI ── #}
-    <div class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner" style="flex-direction:column;align-items:flex-start;gap:16px;">
-                <div style="display:flex;flex-direction:column;gap:6px;">
-                    <div class="tkt-hero__pill">
-                        <span class="tkt-hero__pill-dot"></span>
-                        {{ t('customer_nav_group_infrastructure', locale) }}
-                    </div>
-                    <h1 class="tkt-hero__title">{{ t('customer_sinusbot_page_title', locale) }}</h1>
-                    <p class="tkt-hero__sub">{{ t('customer_sinusbot_page_desc', locale) }}</p>
-                </div>
-                {% set totalSolo = solo_nodes|default([])|length %}
-                {% if instances|length > 0 or totalSolo > 0 %}
-                <div style="display:grid;grid-template-columns:repeat(3,minmax(100px,1fr));gap:8px;width:100%;">
-                    <div class="tkt-kpi">
-                        <div class="tkt-kpi__label">{{ t('total', locale) }}</div>
-                        <div class="tkt-kpi__value">{{ instances|length + totalSolo }}</div>
-                    </div>
-                    <div class="tkt-kpi tkt-kpi--open">
-                        <div class="tkt-kpi__label">{{ t('customer_sinusbot_status_online', locale) }}</div>
-                        <div class="tkt-kpi__value">{{ instances|filter(i => i.status == 'running')|length + solo_nodes|default([])|filter(n => n.running)|length }}</div>
-                    </div>
-                    <div class="tkt-kpi tkt-kpi--pending">
-                        <div class="tkt-kpi__label">{{ t('customer_sinusbot_status_offline', locale) }}</div>
-                        <div class="tkt-kpi__value">{{ instances|filter(i => i.status != 'running')|length + solo_nodes|default([])|filter(n => not n.running)|length }}</div>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
+    {% set totalSolo = solo_nodes|default([])|length %}
+<header class="pm-page-head"><div><h1>{{ t('customer_sinusbot_page_title',locale) }}</h1><p>{{ t('customer_sinusbot_page_desc',locale) }}</p></div><div class="pm-page-head__actions"></div></header>
+<div class="pm-stats">
+{% include 'components/panel/_stat.html.twig' with {value:instances|length + totalSolo,label:t('total',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:instances|filter(i => i.status == 'running')|length + solo_nodes|default([])|filter(n => n.running)|length,label:t('customer_sinusbot_status_online',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:instances|filter(i => i.status != 'running')|length + solo_nodes|default([])|filter(n => not n.running)|length,label:t('customer_sinusbot_status_offline',locale)} only %}
+</div>
+
 
     {# ── Solo-Betrieb nodes ── #}
     {% for node in solo_nodes|default([]) %}

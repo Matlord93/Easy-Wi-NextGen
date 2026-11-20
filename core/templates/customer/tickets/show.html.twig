@@ -18,46 +18,12 @@
 {% set nowTs = date()|date('U') %}
 {% set ageDays = ((nowTs - ticket.created_at|date('U')) / 86400)|round(0, 'floor') %}
 
-<div style="display:flex;flex-direction:column;gap:16px;">
+<div class="pm-workspace">
 
-    {# ── Hero ── #}
-    <div class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div class="tkt-hero__breadcrumb">
-                    <a href="/tickets">← {{ t('customer_tickets_title', locale) }}</a>
-                    <span>/</span>
-                    <span style="font-family:monospace;">#{{ ticket.id }}</span>
-                </div>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-                    {% include 'components/tickets/_status_badge.html.twig' with { ticket: ticket, statusLabels: statusLabels } %}
-                    {% include 'components/tickets/_priority_badge.html.twig' with { ticket: ticket, priorityLabels: priorityLabels } %}
-                    <span class="ui-badge ui-badge--neutral">{{ ticket.category|title }}</span>
-                </div>
-                <h1 class="tkt-hero__title" style="font-size:20px;margin-bottom:6px;">{{ ticket.subject }}</h1>
-                <p class="tkt-hero__sub">
-                    {{ t('customer_ticket_created_update', locale)
-                        |replace({'%created%': ticket.created_at|date('d.m.Y H:i'), '%updated%': ticket.last_message_at|date('d.m.Y H:i')}) }}
-                </p>
-                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px;max-width:280px;">
-                    <div class="tkt-kpi">
-                        <div class="tkt-kpi__label">{{ t('customer_tickets_age_label', locale) }}</div>
-                        <div class="tkt-kpi__value" style="font-size:20px;">
-                            {{ ageDays == 0 ? t('customer_tickets_age_today', locale) : ageDays }}
-                        </div>
-                    </div>
-                    <div class="tkt-kpi">
-                        <div class="tkt-kpi__label">{{ t('customer_tickets_last_update', locale) }}</div>
-                        <div class="tkt-kpi__value" style="font-size:19px;">{{ ticket.last_message_at|date('d.m.') }}</div>
-                        <div style="font-size:11px;color:rgba(226,232,240,.45);margin-top:1px;">{{ ticket.last_message_at|date('H:i') }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
+    <header class="pm-page-head"><div><h1>{{ ticket.subject }}</h1><p>#{{ ticket.id }} · {{ t('customer_ticket_created_update',locale)|replace({'%created%':ticket.created_at|date('d.m.Y H:i'),'%updated%':ticket.last_message_at|date('d.m.Y H:i')}) }}</p></div><a class="ui-button ui-button--ghost" href="/tickets">{{ t('customer_tickets_title',locale) }}</a></header>
+    <div class="pm-ticket-context">{% include 'components/tickets/_status_badge.html.twig' with {ticket:ticket,statusLabels:statusLabels} %}{% include 'components/tickets/_priority_badge.html.twig' with {ticket:ticket,priorityLabels:priorityLabels} %}<span class="ui-badge ui-badge--neutral">{{ ticket.category|title }}</span><span>{{ t('customer_tickets_age_label',locale) }}: {{ ageDays == 0 ? t('customer_tickets_age_today',locale) : ageDays }}</span></div>
     {# ── Main: conversation + sidebar ── #}
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start;">
+    <div class="pm-ticket-detail-grid">
 
         {# ── Conversation ── #}
         <div class="ng-card" style="overflow:hidden;">
@@ -78,7 +44,7 @@
         </div>
 
         {# ── Sidebar ── #}
-        <aside style="position:sticky;top:20px;">
+        <aside class="pm-ticket-sidebar">
             <div class="ng-card" style="overflow:hidden;">
                 {% if ticket.status == 'closed' %}
                     <div style="padding:22px 20px;display:flex;flex-direction:column;gap:12px;">

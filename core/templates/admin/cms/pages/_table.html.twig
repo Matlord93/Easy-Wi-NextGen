@@ -14,7 +14,7 @@
             {% for page in pages %}
                 <tr>
                     <td>
-                        <div class="font-semibold" style="color:var(--ng-text)">{{ page.title }}</div>
+                        <div class="font-semibold" style="color:var(--ng-text)"><a class="pm-server-name" href="{{ path('admin_cms_pages_show',{id:page.id}) }}">{{ page.title }}</a></div>
                         <div class="text-xs" style="color:var(--ng-text-muted)">ID #{{ page.id }}</div>
                     </td>
                     <td>/{{ page.slug }}</td>
@@ -29,10 +29,11 @@
                     <td>{{ page.updated_at|date('Y-m-d H:i') }}</td>
                     <td class="text-right">
                         <div class="inline-flex items-center gap-2">
+                            <a href="{{ path('admin_cms_page_preview', {id:page.id}) }}" class="ui-button ui-button--ghost ui-button--sm" target="_blank" rel="noopener">{{ 'workspace_cms_preview'|trans({},'panel_modules') }}</a>
                             <button
                                 class="ui-button ui-button--ghost ui-button--sm"
                                 hx-get="/admin/cms/pages/{{ page.id }}/edit"
-                                hx-target="#cms-page-form"
+                                hx-target="#cms-page-form" data-panel-reveal="create"
                                 hx-swap="outerHTML"
                             >
                                 {{ t('edit', page_locale()) }}

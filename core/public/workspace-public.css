@@ -1,0 +1,23 @@
+/* Shared page geometry; each CMS theme continues to supply its own palette and navigation. */
+body.easywi-workspace-public { --workspace-radius:12px; line-height:1.6; }
+body.easywi-workspace-public :is(.theme-wrap,.ng-container) { max-width:1240px; }
+body.easywi-workspace-public :is(.theme-main,.ng-page-content) { padding-block:28px 48px; }
+body.easywi-workspace-public :is(.theme-card,.card,.ng-auth-card,.ui-card) { border-radius:var(--workspace-radius); box-shadow:0 2px 8px rgb(0 0 0 / .06); min-width:0; }
+body.easywi-workspace-public :is(.theme-card,.ng-auth-card,.ui-card) { padding:24px; }
+body.easywi-workspace-public :is(.theme-page,.theme-main,.ng-page-content) h1 { font-size:clamp(26px,3vw,38px); line-height:1.25; letter-spacing:-.025em; }
+body.easywi-workspace-public :is(.theme-page,.theme-main,.ng-page-content) h2 { font-size:clamp(21px,2.4vw,29px); line-height:1.35; letter-spacing:-.02em; }
+body.easywi-workspace-public :is(.theme-grid,.ng-grid) { gap:20px; }
+body.easywi-workspace-public :is(.theme-btn,.ui-button,.ng-auth-form button,.auth-box button) { border-radius:8px; min-height:40px; font-size:14px; font-weight:600; }
+body.easywi-workspace-public :is(.auth-box,.ng-auth-form,.ng-contact-form) :is(input:not([type=checkbox]):not([type=hidden]),select,textarea) { border-radius:8px; min-height:42px; max-width:100%; }
+body.easywi-workspace-public :is(input,textarea,select,button,a):focus-visible { outline:2px solid currentColor; outline-offset:3px; }
+body.easywi-workspace-public :is(.theme-card,.card,.ng-auth-card) p { max-width:85ch; }
+body.easywi-workspace-public :is(.theme-header,.ng-nav) nav { flex-wrap:wrap; }
+@media(max-width:720px) {
+    body.easywi-workspace-public :is(.theme-wrap,.ng-container) { padding-inline:16px; }
+    body.easywi-workspace-public :is(.theme-card,.card,.ng-auth-card,.ui-card) { padding:18px; }
+    body.easywi-workspace-public :is(.theme-grid,.ng-grid) { grid-template-columns:minmax(0,1fr); }
+    body.easywi-workspace-public :is(.theme-main,.ng-page-content) { padding-block:20px 32px; }
+}
+@media(prefers-reduced-motion:reduce) {
+    body.easywi-workspace-public *,body.easywi-workspace-public *::before,body.easywi-workspace-public *::after { scroll-behavior:auto !important; transition-duration:0s !important; animation-duration:0s !important; }
+}

@@ -11,3 +11,5 @@ mail.ticket_reply_customer.subject: "Neue Antwort auf dein Support-Ticket"
 mail.ticket_reply_admin.subject: "Kunde hat auf ein Ticket geantwortet"
 
 mail.invoice_reminder.subject: "Zahlungserinnerung zu Ihrer Rechnung"
+
+mail.rental_notice.subject: "Information zu deinem Mietvertrag oder Guthaben"

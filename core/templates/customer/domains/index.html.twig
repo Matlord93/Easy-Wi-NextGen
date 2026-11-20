@@ -1,107 +1,31 @@
 {% extends 'customer/base.html.twig' %}
 {% set activeNav = 'domains' %}
 {% set locale = page_locale() %}
-{% block title %}{{ t('customer_domains_title', locale) }}{% endblock %}
-
+{% block title %}{{ t('customer_domains_title',locale) }}{% endblock %}
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
-
-    {# ── Hero / KPI ── #}
-    <div class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:6px;">
-                    <div class="tkt-hero__pill">
-                        <span class="tkt-hero__pill-dot" style="background:#22d3ee;"></span>
-                        {{ t('customer_nav_group_domains_mail', locale) }}
-                    </div>
-                    <h1 class="tkt-hero__title">{{ t('customer_domains_title', locale) }}</h1>
-                    <p class="tkt-hero__sub">{{ t('customer_domains_description', locale) }}</p>
-                </div>
-                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:16px;">
-                    <div class="tkt-kpi">
-                        <div class="tkt-kpi__label">{{ t('customer_domains_overview', locale) }}</div>
-                        <div class="tkt-kpi__value">{{ domains|length }}</div>
-                    </div>
-                    <div class="tkt-kpi tkt-kpi--open">
-                        <div class="tkt-kpi__label">{{ t('customer_domains_table_status', locale) }} Active</div>
-                        <div class="tkt-kpi__value">{{ domains|filter(d => d.status == 'active')|length }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+{% set submittedCreate = app.request and app.request.isMethod('POST') %}
+<div class="pm-workspace" data-panel-tabs="domains"{% if submittedCreate and errors is not empty %} data-panel-active="create"{% endif %}>
+    <header class="pm-page-head"><div><h1>{{ t('customer_domains_title',locale) }}</h1><p>{{ t('customer_domains_description',locale) }}</p></div><a class="ui-button ui-button--primary" href="#pm-domains-create">+ {{ t('customer_domains_create_action',locale) }}</a></header>
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'domains',panelTabs:{overview:'workspace_inventory',create:'create'}} %}
+    <div class="pm-stats">
+        {% include 'components/panel/_stat.html.twig' with {value:domains|length,label:t('customer_domains_overview',locale)} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:domains|filter(domain => domain.status == 'active')|length,label:'workspace_active'|trans({},'panel_modules')} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:domains|filter(domain => domain.status == 'pending')|length,label:'workspace_pending'|trans({},'panel_modules')} only %}
     </div>
-
-    {# ── Errors ── #}
-    {% if errors is defined and errors is not empty %}
-        <div class="ng-alert ng-alert--danger">
-            <ul style="margin:0;padding-left:1.25rem;">
-                {% for error in errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-    {% endif %}
-
-    {# ── Two-column layout: list + form ── #}
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start;">
-
-        {# ── Domain list ── #}
-        <div class="ng-card" style="overflow:hidden;">
-            <div class="tkt-filter-bar">
-                <div class="tkt-filter-bar__top">
-                    <div>
-                        <h2 class="tkt-filter-bar__title">{{ t('customer_domains_overview', locale) }}</h2>
-                        <p class="tkt-filter-bar__sub">{{ t('customer_domains_overview_description', locale) }}</p>
-                    </div>
-                    <a href="#domain-form" class="ui-button ui-button--primary ui-button--sm">
-                        + {{ t('customer_domains_create_action', locale) }}
-                    </a>
-                </div>
-            </div>
-            {% if domains is empty %}
-                <div class="tkt-all-clear">
-                    <div class="tkt-all-clear__icon">
-                        <svg viewBox="0 0 20 20" fill="currentColor" width="28" height="28"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-                    </div>
-                    {{ t('customer_domains_empty', locale) }}
-                </div>
-            {% else %}
-                <div class="cust-ws-table-wrap">
-                    <table class="cust-table">
-                        <thead>
-                            <tr>
-                                <th>{{ t('customer_domains_table_domain', locale) }}</th>
-                                <th>{{ t('customer_domains_table_webspace', locale) }}</th>
-                                <th>{{ t('customer_domains_table_status', locale) }}</th>
-                                <th>{{ t('customer_domains_table_ssl', locale) }}</th>
-                                <th>{{ t('customer_domains_table_updated', locale) }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for domain in domains %}
-                                <tr>
-                                    <td>
-                                        <div style="font-weight:600;color:var(--ng-text);">{{ domain.name }}</div>
-                                        <div style="font-size:0.75rem;color:var(--ng-text-muted);">ID {{ domain.id }}</div>
-                                    </td>
-                                    <td>{{ domain.webspace }}</td>
-                                    <td>
-                                        {% set statusBadge = domain.status == 'active' ? 'success' : (domain.status == 'pending' ? 'warning' : 'neutral') %}
-                                        <span class="ui-badge ui-badge--{{ statusBadge }}">{{ domain.status|replace({'_': ' '})|title }}</span>
-                                    </td>
-                                    <td>{{ domain.ssl_expires_at ? domain.ssl_expires_at|date('Y-m-d') : '—' }}</td>
-                                    <td style="color:var(--ng-text-muted);font-size:0.75rem;">{{ domain.updated_at|date('Y-m-d H:i') }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% endif %}
-        </div>
-
-        {# ── Create form ── #}
-        <aside id="domain-form" style="position:sticky;top:20px;">
+    {% if errors is not empty %}<div class="ng-alert ng-alert--danger"><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+    <section class="cust-panel" data-panel-section="overview" data-panel-list>
+        <div class="pm-filters"><label class="sr-only" for="domain-search">{{ 'search'|trans({},'panel_modules') }}</label><input class="form-input" id="domain-search" type="search" data-panel-filter placeholder="{{ 'workspace_domain_search'|trans({},'panel_modules') }}"></div>
+        <div class="infra-table-wrap"><table class="cust-table">
+            <thead><tr><th>{{ t('customer_domains_table_domain',locale) }}</th><th>{{ t('customer_domains_table_webspace',locale) }}</th><th>{{ t('customer_domains_table_status',locale) }}</th><th>{{ t('customer_domains_table_ssl',locale) }}</th><th>{{ t('customer_domains_table_updated',locale) }}</th></tr></thead>
+            <tbody>{% for domain in domains %}<tr data-panel-row>
+                <td><strong>{{ domain.name }}</strong><small class="pm-cell-sub">#{{ domain.id }}</small></td>
+                <td>{% if domain.webspace %}<a href="{{ path('customer_webspace_manage',{domain_id:domain.id}) }}">{{ domain.webspace }}</a>{% else %}—{% endif %}</td>
+                <td><span class="ui-badge ui-badge--{{ domain.status == 'active' ? 'success' : (domain.status == 'pending' ? 'warning' : 'neutral') }}">{{ domain.status|replace({'_':' '})|title }}</span></td>
+                <td>{{ domain.ssl_expires_at ? domain.ssl_expires_at|date('Y-m-d') : '—' }}</td><td>{{ domain.updated_at|date('Y-m-d H:i') }}</td>
+            </tr>{% else %}<tr><td colspan="5" class="cust-table__empty">{{ t('customer_domains_empty',locale) }}</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </section>
+        <section id="domain-form" data-panel-section="create">
             <div class="ng-card">
                 <div style="padding:14px 16px;border-bottom:1px solid var(--ng-border);">
                     <div style="font-size:0.9375rem;font-weight:700;color:var(--ng-text);">{{ t('customer_domains_create_title', locale) }}</div>
@@ -114,13 +38,13 @@
                             <select name="webspace_id" class="form-input" required>
                                 <option value="">{{ t('customer_domains_webspace_placeholder', locale) }}</option>
                                 {% for webspace in webspaces %}
-                                    <option value="{{ webspace.id }}">{{ webspace.domain }}</option>
+                                    <option value="{{ webspace.id }}"{% if submittedCreate and app.request.request.get('webspace_id') == webspace.id %} selected{% endif %}>{{ webspace.domain }}</option>
                                 {% endfor %}
                             </select>
                         </div>
                         <div class="form-field">
                             <label class="form-label">{{ t('customer_domains_domain_label', locale) }}</label>
-                            <input type="text" name="domain" class="form-input" placeholder="{{ t('customer_domains_domain_placeholder', locale) }}" required>
+                            <input type="text" name="domain" value="{{ submittedCreate ? app.request.request.get('domain','') : '' }}" class="form-input" placeholder="{{ t('customer_domains_domain_placeholder', locale) }}" required>
                             <p style="margin:4px 0 0;font-size:0.75rem;color:var(--ng-text-muted);">{{ t('customer_domains_domain_hint', locale) }}</p>
                         </div>
                         <button type="submit" class="ui-button ui-button--primary" style="width:100%;">
@@ -129,8 +53,6 @@
                     </form>
                 </div>
             </div>
-        </aside>
-
-    </div>
+        </section>
 </div>
 {% endblock %}

@@ -13,10 +13,9 @@
 {% if caps.missing_tools|default([]) %}<p class="kvm-alert">{{ 'kvm.missing_tools'|trans }}: {{ caps.missing_tools|join(', ') }}</p>{% endif %}
 {% if not caps.acceleration|default(false) %}<p class="kvm-alert">{{ 'kvm.no_acceleration'|trans }}</p>{% endif %}
 {% if inventory.pending_operations|default([]) %}<p class="kvm-alert">{{ 'kvm.unconfirmed'|trans }} {{ inventory.pending_operations|join(', ') }}</p>{% endif %}
-<section class="infra-card"><div class="infra-card__head"><h2>{{ 'infra.node_usage'|trans({}, 'infrastructure') }}</h2><span class="infra-tag">{{ node.status }}</span></div><div data-infra-usage-url="{{ path('admin_kvm_node_usage', {id: node.id}) }}">{% include 'infrastructure/_metrics.html.twig' with {usage: infra_node_usage(node)} %}</div><p data-usage-error hidden>{{ 'infra.refresh_failed'|trans({}, 'infrastructure') }}</p></section>
 <p><a class="ui-button ui-button--ghost" href="{{ path('admin_infrastructure_history', {provider:'kvm',connection:node.id,kind:'node',reference:node.id}) }}">{{ 'monitor.open_history'|trans({}, 'monitoring') }}</a></p>
 <nav class="infra-tabs" data-infra-tablist aria-label="KVM">{% for id, key in {servers: 'servers', create: 'create', templates: 'templates', network: 'network', activity: 'activity'} %}<a href="#kvm-{{ id }}" data-infra-tab>{{ ('infra.' ~ key)|trans({}, 'infrastructure') }}</a>{% endfor %}</nav>
-<section id="kvm-servers" class="infra-pane" data-infra-pane>
+<section id="kvm-servers" class="infra-pane pm-vm-overview" data-infra-pane><section class="infra-card"><div class="infra-card__head"><h2>{{ 'infra.node_usage'|trans({}, 'infrastructure') }}</h2><span class="infra-tag">{{ node.status }}</span></div><div data-infra-usage-url="{{ path('admin_kvm_node_usage', {id: node.id}) }}">{% include 'infrastructure/_metrics.html.twig' with {usage: infra_node_usage(node)} %}</div><p data-usage-error hidden>{{ 'infra.refresh_failed'|trans({}, 'infrastructure') }}</p></section>
 <div data-infra-guests>{% if inventory %}{% include 'admin/kvm/_guests.html.twig' %}{% else %}<p class="infra-empty">{{ 'kvm.no_inventory'|trans }}</p>{% endif %}</div>
 </section>
 <section id="kvm-create" class="infra-pane" data-infra-pane>{% if inventory %}

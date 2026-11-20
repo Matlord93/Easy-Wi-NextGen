@@ -9,7 +9,8 @@ use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLoggerInterface;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
+use App\Module\Cms\Application\CmsContentCheck;
 use App\Module\Core\Domain\Entity\CmsBlock;
 use App\Module\Core\Domain\Entity\CmsPage;
 use App\Module\Core\Domain\Entity\User;
@@ -29,11 +30,12 @@ final class AdminCmsPageController
     public function __construct(
         private readonly CmsPageRepository $pageRepository,
         private readonly CmsBlockRepository $blockRepository,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly CmsContentCheck $contentCheck,
     ) {
     }
 
@@ -88,6 +90,140 @@ final class AdminCmsPageController
         return new Response($this->twig->render('admin/cms/pages/_form.html.twig', [
             'form' => $this->buildFormContext(),
         ]));
+    }
+
+    #[Route(path: '/{id}', name: 'admin_cms_pages_show', methods: ['GET'], requirements: ['id' => '\\d+'])]
+    public function show(Request $request, int $id): Response
+    {
+        $page = $this->workspacePage($request, $id);
+        if ($page instanceof Response) {
+            return $page;
+        }
+
+        $blocks = $this->blockRepository->findBy(['page' => $page], ['sortOrder' => 'ASC']);
+
+        return new Response($this->twig->render('admin/cms/pages/show.html.twig', [
+            'page' => $this->normalizePage($page),
+            'blocks' => $this->normalizeBlocks($blocks),
+            'content_check' => $this->contentCheck->inspect($page, $blocks),
+            'blockForm' => $this->buildBlockFormContext(),
+            'activeNav' => 'cms-pages',
+        ]));
+    }
+
+    #[Route(path: '/{id}/checks', name: 'admin_cms_pages_checks', methods: ['GET'], requirements: ['id' => '\\d+'])]
+    public function checks(Request $request, int $id): Response
+    {
+        $page = $this->workspacePage($request, $id);
+        if ($page instanceof Response) {
+            return $page;
+        }
+        $response = new Response($this->twig->render('admin/cms/pages/_checks.html.twig', [
+            'page' => $this->normalizePage($page),
+            'content_check' => $this->contentCheck->inspect($page),
+            'editable' => true,
+        ]));
+        $response->headers->set('Cache-Control', 'private, no-store');
+
+        return $response;
+    }
+
+    #[Route(path: '/{id}/blocks/table', name: 'admin_cms_pages_blocks_table', methods: ['GET'], requirements: ['id' => '\\d+'])]
+    public function blocksTable(Request $request, int $id): Response
+    {
+        $page = $this->workspacePage($request, $id);
+        if ($page instanceof Response) {
+            return $page;
+        }
+
+        return new Response($this->twig->render('admin/cms/pages/_blocks_table.html.twig', [
+            'page' => $this->normalizePage($page),
+            'blocks' => $this->normalizeBlocks($this->blockRepository->findBy(['page' => $page], ['sortOrder' => 'ASC'])),
+        ]));
+    }
+
+    #[Route(path: '/{id}/blocks/form', name: 'admin_cms_pages_blocks_form', methods: ['GET'], requirements: ['id' => '\\d+'])]
+    public function blockForm(Request $request, int $id): Response
+    {
+        $page = $this->workspacePage($request, $id);
+        if ($page instanceof Response) {
+            return $page;
+        }
+
+        return new Response($this->twig->render('admin/cms/pages/_block_form.html.twig', [
+            'page' => $this->normalizePage($page),
+            'blockForm' => $this->buildBlockFormContext(),
+        ]));
+    }
+
+    #[Route(path: '/{id}/blocks/{blockId}/edit', name: 'admin_cms_pages_blocks_edit', methods: ['GET'], requirements: ['id' => '\\d+', 'blockId' => '\\d+'])]
+    public function editBlock(Request $request, int $id, int $blockId): Response
+    {
+        $page = $this->workspacePage($request, $id);
+        if ($page instanceof Response) {
+            return $page;
+        }
+        $block = $this->blockRepository->find($blockId);
+        if (!$block instanceof CmsBlock || $block->getPage()->getId() !== $page->getId()) {
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
+        }
+
+        return new Response($this->twig->render('admin/cms/pages/_block_form.html.twig', [
+            'page' => $this->normalizePage($page),
+            'blockForm' => $this->buildBlockFormContext([
+                'id' => $block->getId(), 'type' => $block->getType(), 'version' => $block->getVersion(),
+                'content' => $block->getContent(), 'payload' => $block->getPayloadJson() ?? $this->defaultV2Payload($block->getType()),
+                'settings' => $block->getSettingsJson() ?? [],
+                'action' => 'update', 'submit_label' => 'save',
+            ]),
+        ]));
+    }
+
+    /**
+     * @param list<CmsBlock> $blocks
+     * @return list<array{id:int|null,type:string,version:int,sort_order:int,preview:string,updated_at:\DateTimeImmutable}>
+     */
+    private function normalizeBlocks(array $blocks): array
+    {
+        return array_map(static function (CmsBlock $block): array {
+            $preview = strip_tags($block->getContent());
+            if ($block->getVersion() === 2) {
+                $payload = $block->getPayloadJson() ?? [];
+                $parts = [];
+                foreach (['headline', 'subheadline', 'content', 'caption', 'alt'] as $field) {
+                    if (isset($payload[$field]) && is_string($payload[$field])) {
+                        $value = trim(strip_tags($payload[$field]));
+                        if ($value !== '') {
+                            $parts[] = $value;
+                        }
+                    }
+                }
+                $preview = implode(' · ', $parts);
+            }
+
+            return [
+                'id' => $block->getId(), 'type' => $block->getType(), 'version' => $block->getVersion(),
+                'sort_order' => $block->getSortOrder(), 'updated_at' => $block->getUpdatedAt(),
+                'preview' => $preview !== '' ? $preview : '—',
+            ];
+        }, $blocks);
+    }
+
+    private function workspacePage(Request $request, int $id): CmsPage|Response
+    {
+        if (!$this->isCmsUser($request)) {
+            return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
+        }
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response($this->translator->trans('error_site_not_found'), Response::HTTP_NOT_FOUND);
+        }
+        $page = $this->pageRepository->find($id);
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
+        }
+
+        return $page;
     }
 
     #[Route(path: '/{id}/edit', name: 'admin_cms_pages_edit', methods: ['GET'])]
@@ -554,6 +690,10 @@ final class AdminCmsPageController
             'submit_color' => 'bg-indigo-600 hover:bg-indigo-700',
         ];
 
+        if (isset($overrides['settings']) && is_array($overrides['settings'])) {
+            $overrides['settings'] = array_merge($defaults['settings'], $overrides['settings']);
+        }
+
         return array_merge($defaults, $overrides ?? []);
     }
 
@@ -657,6 +797,12 @@ final class AdminCmsPageController
      */
     private function parseV2Payload(string $type, Request $request, array &$errors): array
     {
+        if ($type === 'shop_products') {
+            $limit = $request->request->getInt('shop_limit', 6);
+            if ($limit < 1 || $limit > 24) { $errors[] = 'Shop product limit must be between 1 and 24.'; }
+            return ['limit' => max(1, min(24, $limit)), 'category_id' => max(0, $request->request->getInt('shop_category_id'))];
+        }
+
         if ($type === 'hero') {
             return [
                 'headline' => trim((string) $request->request->get('hero_headline', '')),
@@ -712,6 +858,7 @@ final class AdminCmsPageController
             'rich_text' => ['content' => ''],
             'image' => ['path' => '', 'alt' => '', 'caption' => ''],
             'cards' => ['cards' => []],
+            'shop_products' => ['limit' => 6, 'category_id' => 0],
             default => [],
         };
     }

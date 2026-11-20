@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\Incident;
 use App\Module\Core\Domain\Entity\IncidentUpdate;
 use App\Module\Core\Domain\Entity\MaintenanceWindow;
@@ -28,7 +28,7 @@ final class PublicStatusController
         private readonly MaintenanceWindowRepository $maintenanceRepository,
         private readonly IncidentRepository $incidentRepository,
         private readonly IncidentUpdateRepository $updateRepository,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         #[Autowire(service: 'limiter.public_status')]
         private readonly RateLimiterFactory $statusLimiter,
         private readonly Environment $twig,

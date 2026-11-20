@@ -7,8 +7,9 @@
     {% block head %}{% endblock %}
     <link rel="stylesheet" href="{{ asset('ui.css') }}">
     <link rel="stylesheet" href="{{ asset('themes/' ~ (active_theme|default('minimal')) ~ '/css/theme.css') }}">
+    <link rel="stylesheet" href="{{ asset('workspace-public.css') }}">
 </head>
-<body class="theme-shell theme-{{ active_theme|default('minimal') }}">
+<body class="easywi-workspace-public theme-shell theme-{{ active_theme|default('minimal') }}">
 {% if cms_layout.show_header|default(true) %}
 {% block header %}
 {% include 'themes/' ~ (active_theme|default('fantasy')) ~ '/header.html.twig' ignore missing %}

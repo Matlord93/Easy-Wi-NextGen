@@ -1,0 +1,14 @@
+{% extends 'themes/' ~ active_theme ~ '/base.html.twig' %}
+{% block title %}{{ 'nav_shop'|cms_trans({}) }} · {{ app_setting('site_title','Easy-Wi') }}{% endblock %}
+{% block head %}{{ parent() }}<link rel="stylesheet" href="{{ asset('cms-shop.css') }}">{% endblock %}
+{% block content %}
+{% include 'themes/site/_page_heading.html.twig' with {heading:'nav_shop'|cms_trans, intro:'shop_intro'|cms_trans} %}
+
+<div class="ng-container ng-section cms-catalog">
+    <nav class="cms-catalog-categories" aria-label="{{ 'shop_categories'|cms_trans({}) }}"><a href="{{ path('public_cms_shop',{lang:page_locale()}) }}"{% if app.request.query.getInt('category') == 0 %} aria-current="page"{% endif %}>{{ 'shop_all'|cms_trans({}) }}</a>{% for category in categories %}<a href="{{ path('public_cms_shop',{category:category.id,lang:page_locale()}) }}"{% if app.request.query.getInt('category') == category.id %} aria-current="page"{% endif %}>{{ category.name }}</a>{% endfor %}</nav>
+    {% for category in categories %}{% if category.id == app.request.query.getInt('category') and category.description %}<p class="cms-catalog-description">{{ category.description }}</p>{% endif %}{% endfor %}
+    <h2 class="cms-section-title">{{ 'shop_products'|cms_trans({}) }}</h2>
+    <div class="cms-product-grid">{% for product in products %}{% include 'public/shop/_product_card.html.twig' %}{% else %}<p class="cms-empty">{{ 'shop_empty'|cms_trans({}) }}</p>{% endfor %}</div>
+    {% if catalog_page > 1 or has_more %}<nav class="cms-catalog-pagination" aria-label="{{ 'shop_pages'|cms_trans({}) }}">{% if catalog_page > 1 %}<a class="cms-button cms-button--secondary" rel="prev" href="{{ path('public_cms_shop',{page:catalog_page - 1,category:app.request.query.get('category'),lang:page_locale()}) }}">{{ 'media_previous'|cms_trans({}) }}</a>{% endif %}<span>{{ 'media_page'|cms_trans({'%page%':catalog_page}) }}</span>{% if has_more %}<a class="cms-button cms-button--secondary" rel="next" href="{{ path('public_cms_shop',{page:catalog_page + 1,category:app.request.query.get('category'),lang:page_locale()}) }}">{{ 'media_next'|cms_trans({}) }}</a>{% endif %}</nav>{% endif %}
+</div>
+{% endblock %}

@@ -7,7 +7,7 @@ namespace App\Module\Cms\UI\Controller\Admin;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLoggerInterface;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\BlogCategory;
 use App\Module\Core\Domain\Entity\BlogTag;
 use App\Module\Core\Domain\Entity\CmsPost;
@@ -37,7 +37,7 @@ final class AdminCmsBlogController
         private readonly CmsPostRepository $postRepository,
         private readonly BlogCategoryRepository $categoryRepository,
         private readonly BlogTagRepository $tagRepository,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly Environment $twig,

@@ -94,6 +94,7 @@ final class AdminInstanceController
         ?GameServerInstallPathManager $installPathManager = null,
         private readonly ?\App\Module\Gameserver\Application\MinecraftCatalogService $minecraftCatalog = null,
         private readonly ?\App\Module\Gameserver\Application\MinecraftPortReservations $minecraftReservations = null,
+        private readonly ?\Symfony\Component\Security\Csrf\CsrfTokenManagerInterface $editorCsrf = null,
     ) {
         $this->installPathManager = $installPathManager;
     }
@@ -617,6 +618,28 @@ final class AdminInstanceController
         return $response;
     }
 
+    #[Route(path: '/{id}/edit', name: 'admin_instances_edit', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function edit(Request $request, int $id): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden', Response::HTTP_FORBIDDEN);
+        }
+        $instance = $this->instanceRepository->find($id);
+        if ($instance === null) {
+            return new Response('Instance not found.', Response::HTTP_NOT_FOUND);
+        }
+        return $this->renderEditor($instance, [], $request->query->getBoolean('saved'));
+    }
+
+    /** @param list<string> $errors */
+    private function renderEditor(Instance $instance, array $errors = [], bool $saved = false): Response
+    {
+        return new Response($this->twig->render('admin/instances/edit.html.twig', [
+            'activeNav' => 'game-instances', 'instance' => $instance, 'errors' => $errors, 'saved' => $saved,
+        ]), $errors === [] ? 200 : 422);
+    }
+
+    #[Route(path: '/{id}/edit', name: 'admin_instances_edit_save', requirements: ['id' => '\d+'], defaults: ['_panel_editor' => true], methods: ['POST'])]
     #[Route(path: '/{id}/resources', name: 'admin_instances_update_resources', methods: ['POST'])]
     public function updateResources(Request $request, int $id): Response
     {
@@ -628,6 +651,10 @@ final class AdminInstanceController
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
+        }
+
+        if ($request->attributes->getBoolean('_panel_editor') && ($this->editorCsrf === null || !$this->editorCsrf->isTokenValid(new \Symfony\Component\Security\Csrf\CsrfToken('admin_instance_edit_'.$id, $request->request->getString('_token'))))) {
+            return new Response('Invalid CSRF token.', Response::HTTP_FORBIDDEN);
         }
 
         $errors = [];
@@ -665,6 +692,9 @@ final class AdminInstanceController
         }
 
         if ($errors !== []) {
+            if ($request->attributes->getBoolean('_panel_editor')) {
+                return $this->renderEditor($instance, $errors);
+            }
             $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
             $filters = $this->resolveTableFilters($request);
 
@@ -685,6 +715,10 @@ final class AdminInstanceController
         ]);
 
         $this->entityManager->flush();
+        if ($request->attributes->getBoolean('_panel_editor')) {
+            return new \Symfony\Component\HttpFoundation\RedirectResponse('/admin/instances/'.$id.'/edit?saved=1');
+        }
+
 
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
         $filters = $this->resolveTableFilters($request);

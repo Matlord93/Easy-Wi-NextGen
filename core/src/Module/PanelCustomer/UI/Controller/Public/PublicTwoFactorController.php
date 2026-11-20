@@ -7,7 +7,7 @@ namespace App\Module\PanelCustomer\UI\Controller\Public;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\SecretsCryptoInterface;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\UserRepositoryInterface;
@@ -37,7 +37,7 @@ final class PublicTwoFactorController
         private readonly PostLoginRedirectResolver $redirectResolver,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $entityManager,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly ThemeResolver $themeResolver,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         #[Autowire(service: 'limiter.public_2fa_check')]

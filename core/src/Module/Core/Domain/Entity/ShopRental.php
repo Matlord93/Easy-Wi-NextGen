@@ -14,6 +14,7 @@ use Doctrine\ORM\Mapping as ORM;
  */
 #[ORM\Entity(repositoryClass: ShopRentalRepository::class)]
 #[ORM\Table(name: 'shop_rentals')]
+#[ORM\Index(name: 'idx_shop_rental_renewal', columns: ['auto_renew', 'expires_at'])]
 class ShopRental
 {
     #[ORM\Id]
@@ -41,6 +42,33 @@ class ShopRental
 
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
+
+    #[ORM\Column(options: ['default' => false])] private bool $autoRenew = false;
+    /** @var array<string, int|string|bool> */
+    #[ORM\Column(type: 'json', nullable: true)] private ?array $renewalConfiguration = null;
+    public function isAutoRenew(): bool
+    {
+        return $this->autoRenew;
+    }
+
+    public function cancelSubscription(): void
+    {
+        $this->autoRenew = false;
+        $this->touch();
+    }
+
+    /** @param array<string, int|string|bool> $configuration */
+    public function configureSubscription(array $configuration, bool $autoRenew): void
+    {
+        $this->renewalConfiguration = $configuration;
+        $this->autoRenew = $autoRenew;
+    }
+
+    /** @return array<string, int|string|bool> */
+    public function getRenewalConfiguration(): array
+    {
+        return $this->renewalConfiguration ?? [];
+    }
 
     public function __construct(
         User $customer,
@@ -85,7 +113,7 @@ class ShopRental
     {
         $months = max(1, $months);
         $base = $this->expiresAt > new \DateTimeImmutable() ? $this->expiresAt : new \DateTimeImmutable();
-        $this->expiresAt = $base->modify(sprintf('+%d months', $months));
+        $this->expiresAt = \App\Module\Core\Domain\ValueObject\BillingPeriod::addMonths($base, $months);
         $this->touch();
     }
 

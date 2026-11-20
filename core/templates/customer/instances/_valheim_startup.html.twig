@@ -1,0 +1,31 @@
+{% set valheimOptionLabels = {normal: 'Normal', casual: 'Entspannt', easy: 'Leicht', hard: 'Schwer', hardcore: 'Hardcore', immersive: 'Immersiv', hammer: 'Bauen (Hammer)', veryeasy: 'Sehr leicht', veryhard: 'Sehr schwer', muchless: 'Deutlich weniger', less: 'Weniger', more: 'Mehr', muchmore: 'Deutlich mehr', most: 'Maximal', none: 'Ausgeschaltet'} %}
+<section class="cust-panel" aria-labelledby="valheim-startup-heading">
+    <div class="cust-panel__head"><h2 id="valheim-startup-heading" class="cust-panel__title">Valheim · Welt und Betrieb</h2><p class="gs-config__description">Welt, Sichtbarkeit, Crossplay und automatische Speicherungen. Die Änderungen werden beim nächsten regulären Start übernommen.</p></div>
+    <div class="cust-panel__body">
+        <div class="ng-alert ng-alert--info">Weltregeln werden im Spielstand gespeichert. „Keine Startvorgabe“ entfernt nur den Startparameter und setzt gespeicherte Regeln nicht zurück. Die Vorlage „normal“ setzt die Weltregeln zurück; einzelne Modifikatoren werden danach angewendet. Ein anderer Weltname kann eine neue Welt erzeugen.</div>
+        {% if setupMessages.vars %}<div class="ng-alert ng-alert--success">{{ setupMessages.vars }}</div>{% endif %}
+        <form action="{{ path('customer_instance_setup_vars', {id: instance.id}) }}" method="post">
+            <input type="hidden" name="_token" value="{{ csrf_token('source-setup-' ~ instance.id) }}">
+            <div class="gs-config__fields">
+                {% for field in setupValheimVars %}
+                    {% if field.key == 'VALHEIM_PRESET' %}<h3 class="gs-config__group">Weltregeln</h3>{% elseif loop.first %}<h3 class="gs-config__group">Server und Betrieb</h3>{% endif %}
+                    <div class="gs-config__field">
+                        <label class="form-label" for="valheim-setting-{{ field.key }}">{{ field.label }}</label>
+                        <p class="gs-config__description" id="valheim-setting-{{ field.key }}-help">{{ field.helptext }}</p>
+                        {% if field.options is not empty %}
+                            <select id="valheim-setting-{{ field.key }}" class="form-input" name="vars[{{ field.key }}]" aria-describedby="valheim-setting-{{ field.key }}-help" {% if field.required %}required{% endif %}>
+                                {% for option in field.options %}
+                                    <option value="{{ option }}" {% if field.value == option %}selected{% endif %}>{% if option == '' %}Keine Startvorgabe{% elseif field.key == 'VALHEIM_CROSSPLAY' %}{{ option == '1' ? 'Aktiviert (PlayFab)' : 'Deaktiviert (Steam)' }}{% elseif field.key == 'VALHEIM_PUBLIC' %}{{ option == '1' ? 'Öffentlich gelistet' : 'Nicht gelistet' }}{% else %}{{ valheimOptionLabels[option]|default(option) }}{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        {% else %}
+                            <input id="valheim-setting-{{ field.key }}" class="form-input" name="vars[{{ field.key }}]" value="{{ field.value }}" aria-describedby="valheim-setting-{{ field.key }}-help" type="{{ field.type == 'number' ? 'number' : (field.type == 'password' ? 'password' : 'text') }}" {% if field.type == 'password' %}autocomplete="new-password"{% endif %} {% if field.required %}required{% endif %} {% if field.type == 'number' %}min="{{ field.min }}" max="{{ field.max }}" step="1"{% endif %}>
+                        {% endif %}
+                        {% if field.error %}<p role="alert" class="ng-alert ng-alert--danger">{{ field.error }}</p>{% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="gs-config__footer"><span>Es wird kein Neustart ausgelöst. Ports, IP-Adresse und gebuchte Ressourcen verwaltet das Panel.</span><button type="submit" class="ui-button ui-button--primary">Valheim-Einstellungen speichern</button></div>
+        </form>
+    </div>
+</section>

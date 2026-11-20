@@ -62,6 +62,7 @@ final class AdminAuditLogController
 
         return new Response($this->twig->render('admin/audit-logs/_table.html.twig', [
             'logs' => $this->normalizeLogs($logs),
+            'filters' => $filters,
         ]));
     }
 

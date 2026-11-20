@@ -1,15 +1,27 @@
 {% extends 'customer/base.html.twig' %}
+{% set activeNav = 'proxmox' %}
 {% trans_default_domain 'infrastructure' %}
 {% block content %}
-<div class="infra-page"><header class="infra-hero"><div><span class="infra-eyebrow">Proxmox</span><h1>{{ 'pve.my_guests'|trans({}, 'proxmox') }}</h1><p>{{ 'infra.customer_hint'|trans }}</p></div><span class="infra-tag">{{ guests|length }} {{ 'infra.servers'|trans }}</span></header>
-<div class="infra-grid">{% for row in guests %}
-<article class="infra-card">
-  <div class="infra-card__head"><h2><a href="{{ path('customer_proxmox_guest', {id: row.assignment.id}) }}">{{ row.assignment.vmId }} · {{ row.guest.name|default(row.assignment.kind|upper) }}</a></h2><span class="infra-tag {{ row.guest.status|default('') == 'running' ? 'infra-tag--online' : '' }}">{{ row.guest.status|default('pve.guest_unavailable'|trans({}, 'proxmox')) }}</span></div>
-  <div data-infra-usage-url="{{ path('customer_proxmox_usage', {id: row.assignment.id, view: 'summary'}) }}" data-infra-refresh-immediate>
-    {% include 'infrastructure/_metrics.html.twig' with {usage: infra_pve_usage(row.guest|default({})), seriesRole: 'server', loadingDisk: row.guest.status|default('') == 'running' and row.assignment.kind == 'qemu'} %}
-  </div>
-  <p data-usage-error role="status" hidden>{{ 'infra.refresh_failed'|trans }}</p>
-  <div class="infra-actions"><span class="infra-tag">{{ row.assignment.kind|upper }}</span><a class="ui-button ui-button--primary" href="{{ path('customer_proxmox_guest', {id: row.assignment.id}) }}">{{ 'infra.open'|trans }}</a></div>
-</article>
-{% else %}<p class="infra-empty">{{ 'pve.no_assigned_guests'|trans({}, 'proxmox') }}</p>{% endfor %}</div></div>
+<div class="infra-page pm-workspace">
+    <header class="pm-page-head"><div><h1>{{ 'pve.my_guests'|trans({},'proxmox') }}</h1><p>{{ 'infra.customer_hint'|trans }}</p></div></header>
+    <div class="pm-stats">
+        {% include 'components/panel/_stat.html.twig' with {value:guests|length,label:'infra.servers'|trans} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:guests|filter(row => row.guest.status|default('') == 'running')|length,label:'infra.running'|trans} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:guests|filter(row => row.guest is empty)|length,label:'workspace_unavailable'|trans({},'panel_modules')} only %}
+    </div>
+    <section class="cust-panel" data-infra-list>
+        <div class="infra-search"><input class="form-input" type="search" data-infra-filter placeholder="{{ 'infra.search'|trans }}" aria-label="{{ 'infra.search'|trans }}"><select class="form-input" data-infra-state aria-label="Status"><option value="">{{ 'infra.all_states'|trans }}</option><option value="running">{{ 'infra.running'|trans }}</option><option value="stopped">{{ 'infra.stopped'|trans }}</option></select></div>
+        <div class="infra-table-wrap"><table class="cust-table">
+            <thead><tr><th>{{ 'infra.server'|trans }}</th><th>Status</th><th>{{ 'infra.capacity'|trans }}</th><th>{{ 'workspace_usage'|trans({},'panel_modules') }}</th><th>{{ 'actions'|trans({},'panel_modules') }}</th></tr></thead>
+            <tbody>{% for row in guests %}<tr data-infra-item data-state="{{ row.guest.status|default('unknown') }}">
+                <td><a class="pm-server-name" href="{{ path('customer_proxmox_guest',{id:row.assignment.id}) }}">{{ row.guest.name|default(row.assignment.kind|upper) }}</a><small class="pm-cell-sub">{{ row.assignment.vmId }}</small></td>
+                <td><span class="ui-badge ui-badge--{{ row.guest.status|default('') == 'running' ? 'success' : 'neutral' }}">{{ row.guest.status|default('workspace_unavailable'|trans({},'panel_modules')) }}</span></td>
+                <td><span class="ui-badge ui-badge--neutral">{{ row.assignment.kind|upper }}</span></td>
+                <td><details class="pm-row-details pm-inventory-metrics"><summary>{{ 'overview'|trans({},'panel_modules') }}</summary><div data-infra-usage-url="{{ path('customer_proxmox_usage',{id:row.assignment.id,view:'summary'}) }}" data-infra-refresh-immediate>{% include 'infrastructure/_metrics.html.twig' with {usage:infra_pve_usage(row.guest|default({})),seriesRole:'server',loadingDisk:row.guest.status|default('') == 'running' and row.assignment.kind == 'qemu'} %}</div><p data-usage-error role="status" hidden>{{ 'infra.refresh_failed'|trans }}</p></details></td>
+                <td><a class="ui-button ui-button--primary" href="{{ path('customer_proxmox_guest',{id:row.assignment.id}) }}">{{ 'infra.open'|trans }}</a></td>
+            </tr>{% endfor %}</tbody>
+        </table></div>
+        <p class="infra-empty" data-infra-no-results {% if guests is not empty %}hidden{% endif %}>{{ guests is empty ? 'pve.no_assigned_guests'|trans({},'proxmox') : 'infra.no_results'|trans }}</p>
+    </section>
+</div>
 {% endblock %}

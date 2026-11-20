@@ -12,7 +12,7 @@ use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Cms\Application\Security\CaptchaVerifierInterface;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Cms\UI\Http\MaintenancePageResponseFactory;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\ForumBoard;
 use App\Module\Core\Domain\Entity\ForumPost;
 use App\Module\Core\Domain\Entity\ForumPostReport;
@@ -43,7 +43,7 @@ final class PublicForumController
     private const THREAD_PAGE_SIZE = 30;
 
     public function __construct(
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly CmsFeatureToggle $featureToggle,
         private readonly CmsMaintenanceService $maintenanceService,
         private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory,

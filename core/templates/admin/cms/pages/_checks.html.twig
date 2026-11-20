@@ -1,0 +1,21 @@
+{% trans_default_domain 'panel_modules' %}
+<details{% if editable|default(false) and content_check.issues %} open{% endif %} id="cms-content-checks" class="cust-panel"{% if editable|default(false) %} hx-get="{{ path('admin_cms_pages_checks',{id:page.id}) }}" hx-trigger="cms-blocks-changed from:body" hx-swap="outerHTML"{% endif %}>
+    <summary class="cust-panel__head">
+        <h2 class="cust-panel__title">{{ 'workspace_cms_check_title'|trans }} <span class="ui-badge ui-badge--{{ content_check.issues ? 'warning' : 'neutral' }}">{{ content_check.issues|length }} {{ 'workspace_cms_check_hints'|trans }}</span></h2>
+        {% if editable|default(false) %}<button type="button" class="ui-button ui-button--ghost ui-button--sm" hx-get="{{ path('admin_cms_pages_checks',{id:page.id}) }}" hx-target="#cms-content-checks" hx-swap="outerHTML">{{ 'workspace_cms_check_refresh'|trans }}</button>{% endif %}
+    </summary>
+    <div class="ng-data-card__body">
+        <p class="text-sm">{{ 'workspace_cms_check_description'|trans({'%checked%':content_check.checked,'%skipped%':content_check.skipped}) }}</p>
+        {% if content_check.truncated %}<p class="ng-alert ng-alert--warning" role="note">{{ 'workspace_cms_check_truncated'|trans }}</p>{% endif %}
+        {% if content_check.issues %}
+            <div class="cust-ws-table-wrap"><table class="cust-table"><thead><tr><th>{{ 'workspace_cms_check_source'|trans }}</th><th>{{ 'workspace_cms_check_target'|trans }}</th><th>{{ 'workspace_cms_check_hint'|trans }}</th>{% if editable|default(false) %}<th>{{ 'actions'|trans }}</th>{% endif %}</tr></thead><tbody>
+                {% for issue in content_check.issues %}<tr data-cms-check="{{ issue.code }}">
+                    <td>{{ ('workspace_cms_check_source_' ~ issue.source)|trans }}{% if issue.block_id %} #{{ issue.block_id }}{% endif %}</td>
+                    <td style="overflow-wrap:anywhere;max-width:24rem"><code>{{ issue.target }}</code></td>
+                    <td>{{ ('workspace_cms_check_' ~ issue.code)|trans }}</td>
+                    {% if editable|default(false) %}<td>{% if issue.source == 'block' and issue.block_id %}<button type="button" class="ui-button ui-button--ghost ui-button--sm" hx-get="{{ path('admin_cms_pages_blocks_edit',{id:page.id,blockId:issue.block_id}) }}" hx-target="#cms-block-form" hx-swap="outerHTML" data-panel-reveal="create">{{ 'edit'|trans }}</button>{% else %}<a class="ui-button ui-button--ghost ui-button--sm" href="{{ path('admin_cms_settings') }}">{{ 'workspace_cms_check_settings'|trans }}</a>{% endif %}</td>{% endif %}
+                </tr>{% endfor %}
+            </tbody></table></div>
+        {% else %}<p class="text-sm">{{ 'workspace_cms_check_clear'|trans }}</p>{% endif %}
+    </div>
+</details>

@@ -156,6 +156,7 @@ final class WebinterfaceUpdateServiceTest extends TestCase
         $parseExcludes = new \ReflectionMethod($service, 'parseExcludes');
 
         self::assertContains('vendor/', $parseExcludes->invoke($service));
+        self::assertContains('website/', $parseExcludes->invoke($service));
     }
 
     public function testDefaultUpdateExcludesPreserveVendorDirectory(): void

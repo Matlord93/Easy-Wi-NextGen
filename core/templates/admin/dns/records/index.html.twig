@@ -4,76 +4,19 @@
 {% set pageSubtitle = t('admin_dns_intro', page_locale()) %}
 {% set activeNav = 'dns-records' %}
 {% set locale = page_locale() %}
-{% set topbarActions %}
-    <button
-        class="ui-button ui-button--ghost ui-button--sm"
-        hx-get="/admin/dns/records/table"
-        hx-target="#dns-records-table"
-        hx-swap="outerHTML"
-    >{{ t('refresh', locale) }}</button>
-    <button
-        class="ui-button ui-button--primary ui-button--sm"
-        hx-get="/admin/dns/records/form"
-        hx-target="#dns-record-form"
-        hx-swap="outerHTML"
-    >{{ t('admin_dns_new_record', locale) }}</button>
-{% endset %}
-
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
-
-    {# ── Hero with KPI ── #}
-    <section class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:16px;">
-                    <div>
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot"></span>
-                            {{ t('admin_dns_hero_label', locale) }}
-                        </div>
-                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_dns_heading', locale) }}</h1>
-                        <p class="tkt-hero__sub">{{ t('admin_dns_hero_intro', locale) }}</p>
-                    </div>
-                    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">
-                        <div class="tkt-kpi">
-                            <div class="tkt-kpi__label">{{ t('admin_dns_total_records', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.total }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--open">
-                            <div class="tkt-kpi__label">{{ t('admin_dns_a_records', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.byType.A ?? 0 }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--resolved">
-                            <div class="tkt-kpi__label">{{ t('admin_dns_cname_records', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.byType.CNAME ?? 0 }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--pending">
-                            <div class="tkt-kpi__label">{{ t('admin_dns_mx_records', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.byType.MX ?? 0 }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <div class="ng-layout-2col">
-        <div id="dns-record-form" class="ng-data-card">
-            <div class="ng-data-card__body">
-                {% include 'admin/dns/records/_form.html.twig' with { domains: domains, recordTypes: recordTypes, form: form } %}
-            </div>
-        </div>
-
-        <div id="dns-records-table" class="ng-data-card"
-             hx-get="/admin/dns/records/table"
-             hx-trigger="dns-records-changed from:body"
-             hx-swap="outerHTML">
-            <div class="ng-data-card__body--flush">
-                {% include 'admin/dns/records/_table.html.twig' with { records: records } %}
-            </div>
-        </div>
+<div class="pm-workspace" data-panel-tabs="dns-records">
+    <header class="pm-page-head"><div><h1>{{ pageTitle }}</h1><p>{{ t('admin_dns_form_intro',locale) }}</p></div>
+        <a class="ui-button ui-button--primary" href="#pm-dns-records-create" hx-get="/admin/dns/records/form" hx-target="#dns-record-form" hx-swap="outerHTML" data-panel-reveal="create">+ {{ t('admin_dns_create_title',locale) }}</a>
+    </header>
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'dns-records',panelTabs:{overview:'workspace_inventory',create:'workspace_dns_editor'}} %}
+    <div class="pm-stats pm-stats--four">
+        {% include 'components/panel/_stat.html.twig' with {value:summary.total,label:t('admin_dns_total_records',locale)} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:summary.byType.A ?? 0,label:t('admin_dns_a_records',locale)} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:summary.byType.CNAME ?? 0,label:t('admin_dns_cname_records',locale)} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:summary.byType.MX ?? 0,label:t('admin_dns_mx_records',locale)} only %}
     </div>
-
+    <section data-panel-section="overview">{% include 'admin/dns/records/_table.html.twig' with {records:records} %}</section>
+    <section data-panel-section="create">{% include 'admin/dns/records/_form.html.twig' with {domains:domains,recordTypes:recordTypes,form:form} %}</section>
 </div>
 {% endblock %}

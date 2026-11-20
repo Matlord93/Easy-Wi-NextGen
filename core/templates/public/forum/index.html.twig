@@ -3,16 +3,7 @@
 {% block title %}Forum · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
 {% block content %}
-<div class="ng-page-hero">
-    <div class="ng-container">
-        <nav class="ng-breadcrumb">
-            <a href="/">Home</a>
-            <span>Forum</span>
-        </nav>
-        <h1 class="text-3xl font-bold text-slate-100 ng-gradient-text">Forum</h1>
-        <p class="mt-2 text-sm text-slate-400">Diskutiere Taktiken, Orga und alles rund um den Clan.</p>
-    </div>
-</div>
+{% include 'themes/site/_page_heading.html.twig' with {heading:'nav_forum'|cms_trans, intro:'forum_intro'|cms_trans} %}
 
 <div class="ng-container ng-section">
     <form method="get" action="/forum/search" class="mb-8 flex gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 backdrop-blur-sm">

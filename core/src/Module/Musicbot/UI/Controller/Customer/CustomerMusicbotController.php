@@ -223,6 +223,23 @@ final class CustomerMusicbotController
         ]));
     }
 
+    #[Route(path: '/{id}/radio', name: 'customer_musicbot_radio', requirements: ['id' => '\\d+'], methods: ['GET'])]
+    public function radio(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findInstanceForCustomer($id, $customer);
+        try {
+            $this->quotaService->assertWebradioAllowed($customer);
+        } catch (MusicbotQuotaExceededException $exception) {
+            throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException($exception->getMessage(), $exception);
+        }
+
+        return new Response($this->twig->render('customer/musicbot/radio.html.twig', [
+            'instance' => $instance,
+            'activeNav' => 'musicbots',
+        ]));
+    }
+
     #[Route(path: '/{id}/settings', name: 'customer_musicbot_settings_update', requirements: ['id' => '\\d+'], methods: ['POST'])]
     public function updateSettings(Request $request, int $id): Response
     {

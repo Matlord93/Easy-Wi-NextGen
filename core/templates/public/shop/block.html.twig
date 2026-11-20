@@ -1,0 +1,2 @@
+<link rel="stylesheet" href="{{ asset('cms-shop.css') }}">
+<section class="cms-shop-preview"><header class="cms-section-header"><div><p class="cms-eyebrow">{{ 'nav_shop'|cms_trans({}) }}</p><h2>{{ 'shop_products'|cms_trans({}) }}</h2></div><a class="cms-button cms-button--secondary" href="{{ path('public_cms_shop') }}">{{ 'shop_all'|cms_trans({}) }}</a></header><div class="cms-product-grid">{% for product in products %}{% include 'public/shop/_product_card.html.twig' %}{% else %}<p class="cms-empty">{{ 'shop_empty'|cms_trans({}) }}</p>{% endfor %}</div></section>

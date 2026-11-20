@@ -6,7 +6,7 @@ namespace App\Module\Cms\UI\Controller\Admin;
 
 use App\Infrastructure\Http\RequestActor;
 
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\ForumMemberBan;
 use App\Module\Core\Domain\Entity\ForumPost;
 use App\Module\Core\Domain\Entity\ForumPostReport;
@@ -32,7 +32,7 @@ use Twig\Environment;
 final class AdminCmsForumController
 {
     public function __construct(
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly ForumCategoryRepository $categoryRepository,
         private readonly ForumBoardRepository $boardRepository,
         private readonly ForumThreadRepository $threadRepository,
@@ -68,7 +68,7 @@ final class AdminCmsForumController
             'boards' => $this->boardRepository->findBy(['site' => $site], ['sortOrder' => 'ASC', 'id' => 'ASC']),
             'threads' => $this->threadRepository->findBy(['site' => $site], ['updatedAt' => 'DESC']),
             'posts' => $this->postRepository->findBy(['site' => $site], ['updatedAt' => 'DESC']),
-            'reports' => $this->reportRepository->findBy(['status' => $reportStatus], ['createdAt' => 'DESC']),
+            'reports' => $this->reportRepository->findForSite($site, $reportStatus),
             'report_status' => $reportStatus,
             'activeNav' => 'cms-forum',
         ]));
@@ -194,7 +194,11 @@ final class AdminCmsForumController
 
         $report = $this->reportRepository->find($id);
         $admin = RequestActor::user($request);
-        if (!$report instanceof ForumPostReport || !$admin instanceof User) {
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null || !$report instanceof ForumPostReport || $report->getPost()->getSite()->getId() !== $site->getId()) {
+            return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
+        }
+        if (!$admin instanceof User) {
             return new RedirectResponse('/admin/cms/forum');
         }
 

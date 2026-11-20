@@ -30,6 +30,7 @@ final class ConfigTemplateRegistryTest extends TestCase
         self::assertSame('merge_kv', $targets[0]['apply_mode']);
         self::assertSame('source', $targets[0]['engine_family']);
         self::assertStringContainsString('{{server_name}}', $targets[0]['template_content']);
+        self::assertStringNotContainsString('sv_maxplayers', $targets[0]['template_content']);
         self::assertContains('server_name', $targets[0]['variables']);
     }
 

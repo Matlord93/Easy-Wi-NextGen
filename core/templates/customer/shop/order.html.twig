@@ -1,0 +1,13 @@
+{% extends 'customer/base.html.twig' %}
+{% block title %}Bestellung #{{ order.id }}{% endblock %}
+{% block content %}
+<div class="cust-page"><section class="cust-panel"><div class="cust-panel__body space-y-4">
+<h1>Bestellung #{{ order.id }}</h1><p>{{ order.configuration.name|default(order.product.name) }} · {{ order.configuration.variant|default('') }} · {{ order.months }} Monate</p><p>Status: {{ order.status.value }} · {{ (order.totalPriceCents / 100)|number_format(2, ',', '.') }} {{ order.configuration.currency|default('EUR') }}</p>
+{% if order.processingError %}<p role="status">Die Bereitstellung benötigt noch Angaben oder freie Ressourcen: <code>{{ order.processingError }}</code>. Bitte Installationsangaben der Instanz prüfen oder den Support kontaktieren.</p>{% endif %}
+{% if order.instance %}<p>Instanz #{{ order.instance.id }} · {{ order.instance.status.value }} · <a href="/dashboard">Zum System</a></p>{% endif %}
+{% if order.invoice %}<p><a href="/customer/billing/invoices/{{ order.invoice.id }}">Rechnung {{ order.invoice.number }}</a> · {{ order.invoice.status.value }}</p>
+{% if order.invoice.status.value in ['open','past_due'] %}<form class="ng-form flex gap-3" method="post" action="{{ path('customer_invoice_pay',{id:order.invoice.id}) }}"><input type="hidden" name="_token" value="{{ csrf_token('billing') }}"><label>Zahlungsart<select class="form-input" name="provider">{% for method in methods %}<option value="{{ method }}">{{ {card:'Karte (Stripe)',klarna:'Klarna (Stripe)',sepa_debit:'SEPA-Lastschrift (Stripe)',paypal:'PayPal',bank_transfer:'Überweisung'}[method] }}</option>{% endfor %}</select></label>{% if methods|length %}<button class="ui-button ui-button--primary">Zur Zahlung</button>{% else %}<p>Der Betreiber muss eine Zahlungsart einrichten.</p>{% endif %}</form>{% endif %}
+{% elseif order.contract %}<p><a href="{{ path('customer_contract_detail',{id:order.contract.id}) }}">Mietvertrag #{{ order.contract.id }} ansehen und kündigen</a></p>{% else %}<p>Für diese kostenfreie Bestellung ist keine Zahlung erforderlich.</p>{% endif %}
+<p>Nach bestätigter Zahlung wird dein System automatisch eingerichtet. Den Fortschritt siehst du beim System.</p><a href="{{ path('customer_shop') }}">Zur Bestellübersicht</a>
+</div></section></div>
+{% endblock %}

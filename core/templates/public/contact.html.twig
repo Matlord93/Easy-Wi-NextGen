@@ -1,4 +1,4 @@
-{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
+{% extends 'themes/' ~ (active_theme|default(active_theme())) ~ '/base.html.twig' %}
 
 {% block title %}{{ t('contact_title', page_locale()) }} · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 

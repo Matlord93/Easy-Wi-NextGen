@@ -3,6 +3,7 @@
 {% set activeNav = 'game-instances' %}
 
 {% block content %}
+{% include 'components/panel/_instance_nav.html.twig' %}
 <div style="display:flex;flex-direction:column;gap:20px;">
 
     {% if notice %}
@@ -24,6 +25,7 @@
         </div>
         <div class="ng-data-card__body">
             <form method="post" style="display:flex;flex-direction:column;gap:16px;">
+                <input type="hidden" name="_token" value="{{ csrf_token('admin_instance_slots_' ~ instance.id) }}">
                 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
                     <div class="form-field">
                         <label class="form-label">Max slots</label>

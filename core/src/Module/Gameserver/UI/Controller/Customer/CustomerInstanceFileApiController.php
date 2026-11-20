@@ -305,7 +305,10 @@ final class CustomerInstanceFileApiController
         }
 
         try {
+            $this->assertManagedConfiguration($instance, $path, $content);
             $saved = $this->fileService->writeFileContent($instance, $path, $content, $etag);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->errorResponse($request, 'managed_configuration', $exception->getMessage(), 422);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'content_save', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception);
         }
@@ -440,7 +443,10 @@ final class CustomerInstanceFileApiController
 
         try {
             $this->assertEditorContent($request, $content);
+            $this->assertManagedConfiguration($instance, trim($path, '/').('/' === $path || '' === $path ? '' : '/').$name, $content);
             $this->fileService->writeFile($instance, $path, $name, $content);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->errorResponse($request, 'managed_configuration', $exception->getMessage(), 422);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'save', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $path, $exception, [
                 'name' => $name,
@@ -908,6 +914,24 @@ final class CustomerInstanceFileApiController
             'ETAG_MISMATCH' => 'etag_mismatch',
             default => strtolower(trim($errorCode)) !== '' ? strtolower(trim($errorCode)) : 'files_action_failed',
         };
+    }
+
+    private function assertManagedConfiguration(Instance $instance, string $path, string $content): void
+    {
+        $paths = [];
+        $configFiles = $instance->getTemplate()->getConfigFiles();
+        foreach (array_keys($configFiles) as $index) {
+            $file = \App\Infrastructure\Config\JsonMap::strings($configFiles[$index]);
+            if (isset($file['path'])) { $paths[] = $file['path']; }
+        }
+        $resolver = \App\Infrastructure\Config\JsonMap::strings($instance->getTemplate()->getInstallResolver())['type'] ?? '';
+        if (in_array($resolver, ['minecraft_vanilla','papermc_paper','minecraft_spigot','minecraft_bedrock'], true)) { $paths[] = 'server.properties'; }
+        if ('minecraft_bungeecord' === $resolver) { $paths[] = 'config.yml'; }
+        if (!in_array($path, $paths, true) || !in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['properties','ini','cfg','conf','json','yaml','yml'], true)) {
+            return;
+        }
+        $previous = $this->fileService->readFileContent($instance, $path);
+        \App\Module\Gameserver\Application\MinecraftConfigurationPolicy::assertEditable($instance, $path, $previous['content'], $content);
     }
 
     private function assertEditorContent(Request $request, string $content): void

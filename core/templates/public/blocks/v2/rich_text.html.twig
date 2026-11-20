@@ -1,1 +1,2 @@
-<div class="prose max-w-none text-slate-700">{{ payload.content }}</div>
+{# Like legacy HTML blocks, rich text is authored through the protected admin CMS editor. #}
+<div class="cms-block-prose prose max-w-none text-slate-700">{{ payload.content|raw }}</div>

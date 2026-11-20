@@ -1,31 +1,16 @@
 {% extends 'admin/base.html.twig' %}
-
-{% set pageTitle = t('admin_shop_products_title', page_locale()) %}
-{% set pageSubtitle = t('admin_shop_products_intro', page_locale()) %}
 {% set activeNav = 'shop-products' %}
-
+{% set locale = page_locale() %}
 {% block content %}
-<div class="flex flex-col gap-6">
-
-    <div class="ng-layout-2col">
-        <div id="shop-products-table" class="ng-data-card"
-             hx-trigger="shop-products-changed from:body"
-             hx-get="/admin/shop/products/table"
-             hx-swap="outerHTML">
-            <div class="ng-data-card__body--flush">
-                {% include 'admin/shop/products/_table.html.twig' with { products: products } %}
-            </div>
-        </div>
-
-        <div id="shop-products-form" class="ng-data-card"
-             hx-trigger="shop-products-changed from:body"
-             hx-get="/admin/shop/products/form"
-             hx-swap="outerHTML">
-            <div class="ng-data-card__body">
-                {% include 'admin/shop/products/_form.html.twig' with { form: form, categories: categories, templates: templates, nodes: nodes } %}
-            </div>
-        </div>
+<div class="pm-workspace" data-panel-tabs="shop-products">
+    <header class="pm-page-head"><div><h1>{{ 'workspace_shop_products'|trans({},'panel_modules') }}</h1><p>{{ 'workspace_shop_products_intro'|trans({},'panel_modules') }}</p></div><a class="ui-button ui-button--primary" href="#pm-shop-products-create" hx-get="/admin/shop/products/form" hx-target="#shop-products-form" hx-swap="outerHTML" data-panel-reveal="create">+ {{ 'create'|trans({},'panel_modules') }}</a></header>
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'shop-products',panelTabs:{overview:'workspace_inventory',create:'workspace_shop_editor'}} %}
+    <div class="pm-stats">
+        {% include 'components/panel/_stat.html.twig' with {value:products|length,label:'workspace_listed_entries'|trans({},'panel_modules')} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:products|filter(row => row.is_active)|length,label:'workspace_active'|trans({},'panel_modules')} only %}
+        {% include 'components/panel/_stat.html.twig' with {value:products|filter(row => not row.is_active)|length,label:'workspace_inactive'|trans({},'panel_modules')} only %}
     </div>
-
+    <section data-panel-section="overview">{% include 'admin/shop/products/_table.html.twig' with {products:products} %}</section>
+    <section data-panel-section="create">{% include 'admin/shop/products/_form.html.twig' with {form:form,categories:categories} %}</section>
 </div>
 {% endblock %}

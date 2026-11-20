@@ -76,9 +76,11 @@ final class CustomerModuleTwigExtension extends AbstractExtension
                 || $this->sinusbotNodeRepository->count(['customer' => $actor, 'instanceMode' => 'solo']) > 0,
             'musicbot' => $this->musicbotInstanceRepository->count(['customer' => $actor]) > 0,
             'web' => $this->webspaceRepository->count(['customer' => $actor]) > 0,
-            'database' => $this->databaseRepository->count(['customer' => $actor]) > 0,
+            'database' => $this->databaseRepository->count(['customer' => $actor]) > 0
+                || $this->em->getRepository(\App\Module\Core\Domain\Entity\DatabaseNode::class)->count(['isActive' => true]) > 0,
             'domain' => $this->domainRepository->count(['customer' => $actor]) > 0,
-            'mail' => $this->mailboxRepository->count(['customer' => $actor]) > 0,
+            'mail' => $this->mailboxRepository->count(['customer' => $actor]) > 0
+                || $this->domainRepository->count(['customer' => $actor]) > 0,
             'shop' => $this->shopRentalRepository->count(['customer' => $actor]) > 0,
             default => false,
         };

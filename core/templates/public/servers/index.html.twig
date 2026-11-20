@@ -11,17 +11,7 @@
 {# ═══════════════════════════════════════════════════════════
    NEXUS GAMING LAYOUT
    ═══════════════════════════════════════════════════════════ #}
-<div class="ng-page-hero">
-    <div class="ng-container">
-        <nav class="ng-breadcrumb">
-            <a href="/" class="ng-breadcrumb__link">Home</a>
-            <span class="ng-breadcrumb__sep">/</span>
-            <span>{{ t('server_directory_title', page_locale()) }}</span>
-        </nav>
-        <h1 class="ng-page-hero__title ng-gradient-text">{{ t('server_directory_title', page_locale()) }}</h1>
-        <p class="ng-page-hero__accent">{{ t('server_directory_intro', page_locale()) }}</p>
-    </div>
-</div>
+{% include 'themes/site/_page_heading.html.twig' with {heading:t('server_directory_title',page_locale()), intro:t('server_directory_intro',page_locale())} %}
 
 <div class="ng-container" style="padding-bottom:48px;">
 
@@ -276,16 +266,7 @@
 {# ═══════════════════════════════════════════════════════════
    STANDARD THEME LAYOUT
    ═══════════════════════════════════════════════════════════ #}
-<div class="ng-page-hero">
-    <div class="ng-container">
-        <nav class="ng-breadcrumb">
-            <a href="/">Home</a>
-            <span>{{ t('server_directory_title', page_locale()) }}</span>
-        </nav>
-        <h1 class="text-3xl font-bold ng-gradient-text">{{ t('server_directory_title', page_locale()) }}</h1>
-        <p class="mt-2 text-sm text-slate-400">{{ t('server_directory_intro', page_locale()) }}</p>
-    </div>
-</div>
+{% include 'themes/site/_page_heading.html.twig' with {heading:t('server_directory_title',page_locale()), intro:t('server_directory_intro',page_locale())} %}
 
 <div class="ng-container ng-section space-y-6">
     <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">

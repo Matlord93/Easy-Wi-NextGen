@@ -10,8 +10,10 @@
     <script src="{{ asset('js/infrastructure.js') }}" defer></script>
     <script src="{{ asset('js/infrastructure-export.js') }}" defer></script>
     <script src="{{ asset('js/infrastructure-history.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ asset('panel-modules.css') }}">
+    <script src="{{ asset('js/panel-modules.js') }}" defer></script>
 {% endblock %}
-{% block body_class %}admin-interface ng-shell admin-workspace{% endblock %}
+{% block body_class %}admin-interface ng-shell admin-workspace panel-modules{% endblock %}
 
 {% block body %}
 {% set activeNav = activeNav|default('') %}
@@ -102,13 +104,7 @@
     moduleGame ? { key: 'plugins',        label: t('admin_nav_plugins', page_locale()),        href: path('admin_plugins'),    iconSvg: icon.plugins } : null
 ]|filter(v => v) %}
 
-{% set voiceModuleItems = [
-    moduleTsCombined  ? { key: 'ts-nodes',    label: t('admin_nav_ts_nodes', page_locale()),    href: path('admin_ts_nodes_index'),     iconSvg: icon.server } : null,
-    moduleTs          ? { key: 'ts3-servers',  label: t('admin_nav_ts3_servers', page_locale()), href: path('admin_ts3_servers_index'),  iconSvg: icon.voice } : null,
-    moduleTs6         ? { key: 'ts6-servers',  label: t('admin_nav_ts6_servers', page_locale()), href: path('admin_ts6_servers_index'),  iconSvg: icon.voice } : null,
-    moduleSinusbot    ? { key: 'sinusbot',     label: t('admin_nav_sinusbot', page_locale()),    href: path('admin_sinusbot_nodes_index'),iconSvg: icon.sinusbot } : null,
-    moduleMusicbot    ? { key: 'musicbots',    label: t('admin_nav_musicbots', page_locale()),   href: path('admin_musicbot_index'),      iconSvg: icon.plugins } : null
-]|filter(v => v) %}
+
 
 {% set systemModuleItems = [
     { key: 'proxmox', label: 'Proxmox', href: path('admin_proxmox'), iconSvg: icon.server },
@@ -126,8 +122,8 @@
 {% set webinterfaceModuleItems = [
     { key: 'settings', label: t('admin_nav_webinterface_settings', page_locale()), href: path('admin_settings'), iconSvg: icon.cog },
     { key: 'modules',  label: t('admin_nav_modules', page_locale()),               href: path('admin_modules'),  iconSvg: icon.cube },
-    { key: 'updates',  label: t('admin_updates_title', page_locale()),             href: path('admin_updates'),  iconSvg: icon.update }
-] %}
+    current_user() and current_user().type.value == 'superadmin' ? { key: 'updates', label:t('admin_updates_title',page_locale()),href:path('admin_updates'),iconSvg:icon.update } : null
+]|filter(v => v) %}
 
 {% set servicesItems = [
     moduleWeb ? { key: 'webspaces', label: t('admin_nav_webspaces', page_locale()), href: path('admin_webspaces'), iconSvg: icon.globe } : null,
@@ -136,6 +132,9 @@
 
 {% set shopItems = moduleShop ? [
     { key: 'shop-categories', label: t('admin_nav_shop_categories', page_locale()), href: path('admin_shop_categories'), iconSvg: icon.tag },
+    { key: 'shop-contracts', label: 'Mietverträge / Guthaben', href: path('admin_rental_contracts'), iconSvg: icon.shop },
+    { key: 'shop-settings', label: 'Shop / Zahlungen', href: path('admin_shop_settings'), iconSvg: icon.shop },
+    { key: 'shop-manage', label: 'Shop / Verwaltung', href: path('admin_shop_manage'), iconSvg: icon.shop },
     { key: 'shop-products',   label: t('admin_nav_shop_products', page_locale()),   href: path('admin_shop_products'),   iconSvg: icon.shop }
 ] : [] %}
 
@@ -151,88 +150,38 @@
     { key: 'cms-settings',  label: t('admin_cms_settings_label', page_locale()), href: path('admin_cms_settings'),    iconSvg: icon.cog }
 ] : [] %}
 
-{% set domainItems = [
-    moduleDns  ? { key: 'dns-records',  label: t('admin_nav_dns_records', page_locale()),  href: path('admin_dns_records'),  iconSvg: icon.dns } : null,
-    moduleMail ? { key: 'mail-system',  label: t('admin_nav_mail_system', page_locale()),  href: path('admin_mail_system'),  iconSvg: icon.mail } : null,
-    moduleMail ? { key: 'mailboxes',    label: t('admin_nav_mailboxes', page_locale()),    href: path('admin_mailboxes'),    iconSvg: icon.inbox } : null,
-    moduleMail ? { key: 'mail-aliases', label: t('admin_nav_mail_aliases', page_locale()),href: path('admin_mail_aliases'), iconSvg: icon.mail } : null,
-    moduleMail ? { key: 'mail-health',  label: t('admin_nav_mail_health', page_locale()), href: path('admin_mail_health'),  iconSvg: icon.activity } : null,
-    moduleMail ? { key: 'mail-matrix',  label: t('admin_nav_mail_matrix', page_locale()), href: path('admin_mail_matrix'),  iconSvg: icon.chart } : null
-]|filter(v => v) %}
 
+
+{% set serverItems = [
+    moduleGame ? {key:'game-instances',label:'gameservers'|trans({},'panel_modules'),href:path('admin_instances'),iconSvg:icon.gamepad} : null,
+    moduleTsCombined ? {key:activeNav in ['voice-workspace','ts3-servers','ts6-servers','ts-nodes'] ? activeNav : 'voice-workspace',label:'voice'|trans({},'panel_modules'),href:path('admin_voice_workspace'),iconSvg:icon.voice} : null,
+    {key:activeNav in ['proxmox','kvm'] ? activeNav : 'virtual-servers',label:'virtual_servers'|trans({},'panel_modules'),href:path(activeNav == 'kvm' ? 'admin_kvm' : 'admin_proxmox'),iconSvg:icon.server},
+    moduleSinusbot ? {key:'sinusbot',label:t('admin_nav_sinusbot',page_locale()),href:path('admin_sinusbot_nodes_index'),iconSvg:icon.sinusbot} : null,
+    moduleMusicbot ? {key:'musicbots',label:t('admin_nav_musicbots',page_locale()),href:path('admin_musicbot_index'),iconSvg:icon.plugins} : null
+]|filter(v => v) %}
+{% set hostingItems = servicesItems|merge([
+    moduleMail ? {key:activeNav in ['mailboxes','mail-aliases','mail-system','mail-health','mail-matrix','mail-servers'] ? activeNav : 'mailboxes',label:'Mail',href:path('admin_mailboxes'),iconSvg:icon.mail} : null,
+    moduleDns ? {key:'dns-records',label:t('admin_nav_dns_records',page_locale()),href:path('admin_dns_records'),iconSvg:icon.dns} : null
+]|filter(v => v)) %}
 {% set sidebarGroups = [
-    {
-        label: t('admin_nav_group_overview', page_locale()),
-        open: true,
-        items: [
-            { key: 'dashboard',  label: t('admin_nav_dashboard', page_locale()),  href: path('admin_dashboard'), iconSvg: icon.dashboard },
-            workspaceEnabled ? { key: 'getting-started', label: 'workspace.setup'|trans({}, 'admin_workspace'), href: path('admin_getting_started'), iconSvg: icon.templates } : null,
-            { key: 'activity',   label: t('activity', page_locale()),             href: path('admin_activity'),  iconSvg: icon.activity },
-            { key: 'audit-logs', label: t('admin_nav_audit_logs', page_locale()), href: path('admin_audit_logs'),iconSvg: icon.audit }
-        ]|filter(v => v)
-    },
-    customerItems is not empty ? {
-        label: t('admin_nav_group_accounts', page_locale()),
-        open: true,
-        items: customerItems
-    } : null,
-    gameModuleItems is not empty ? {
-        label: t('admin_nav_group_games', page_locale()),
-        open: true,
-        items: gameModuleItems
-    } : null,
-    voiceModuleItems is not empty ? {
-        label: t('admin_nav_group_voice', page_locale()),
-        open: false,
-        items: voiceModuleItems
-    } : null,
-    systemModuleItems is not empty ? {
-        label: t('admin_nav_group_system', page_locale()),
-        open: false,
-        items: systemModuleItems
-    } : null,
-    webinterfaceModuleItems is not empty ? {
-        label: t('admin_nav_group_webinterface', page_locale()),
-        open: false,
-        items: webinterfaceModuleItems
-    } : null,
-    servicesItems is not empty ? {
-        label: t('admin_nav_group_services', page_locale()),
-        open: false,
-        items: servicesItems
-    } : null,
-    shopItems is not empty ? {
-        label: t('admin_nav_group_shop', page_locale()),
-        open: false,
-        items: shopItems
-    } : null,
-    cmsItems is not empty ? {
-        label: t('admin_nav_group_cms', page_locale()),
-        open: false,
-        items: cmsItems
-    } : null,
-    domainItems is not empty ? {
-        label: t('admin_nav_group_domains_mail', page_locale()),
-        open: false,
-        items: domainItems
-    } : null,
-    {
-        label: t('admin_nav_group_support', page_locale()),
-        open: true,
-        items: [
-            { key: 'tickets', label: t('admin_nav_tickets', page_locale()), href: path('admin_tickets'), iconSvg: icon.ticket }
-        ]
-    },
-    gdprItems is not empty ? {
-        label: t('admin_nav_group_gdpr', page_locale()),
-        open: false,
-        items: gdprItems
-    } : null,
-    marketplaceItems is not empty ? {
-        label: t('admin_nav_group_extensions', page_locale()),
-        open: false,
-        items: marketplaceItems
-    } : null
+    {label:t('admin_nav_group_overview',page_locale()),open:true,items:[
+        {key:'dashboard',label:t('admin_nav_dashboard',page_locale()),href:path('admin_dashboard'),iconSvg:icon.dashboard},
+        {key:'activity',label:t('activity',page_locale()),href:path('admin_activity'),iconSvg:icon.activity}
+    ]},
+    {label:'servers'|trans({},'panel_modules'),open:true,items:serverItems},
+    {label:'hosting'|trans({},'panel_modules'),open:true,items:hostingItems},
+    {label:'management'|trans({},'panel_modules'),open:true,items:customerItems|merge([
+        {key:activeNav in ['schedules','jobs'] ? activeNav : 'schedules',label:'tasks'|trans({},'panel_modules'),href:path('admin_schedules'),iconSvg:icon.calendar},
+        {key:'tickets',label:t('admin_nav_tickets',page_locale()),href:path('admin_tickets'),iconSvg:icon.ticket},
+        {key:'audit-logs',label:t('admin_nav_audit_logs',page_locale()),href:path('admin_audit_logs'),iconSvg:icon.audit}
+    ])},
+    {label:t('admin_nav_group_system',page_locale()),open:false,items:systemModuleItems|filter(item => item.key not in ['proxmox','kvm'])},
+    gameModuleItems is not empty ? {label:t('admin_nav_group_games',page_locale()),open:false,items:gameModuleItems|filter(item => item.key != 'game-instances')} : null,
+    {label:t('admin_nav_group_webinterface',page_locale()),open:false,items:webinterfaceModuleItems|merge([{key:'getting-started',label:'workspace.setup'|trans({},'admin_workspace'),href:path('admin_getting_started'),iconSvg:icon.templates}])},
+    shopItems is not empty ? {label:t('admin_nav_group_shop',page_locale()),open:false,items:shopItems} : null,
+    cmsItems is not empty ? {label:t('admin_nav_group_cms',page_locale()),open:false,items:cmsItems} : null,
+    gdprItems is not empty ? {label:t('admin_nav_group_gdpr',page_locale()),open:false,items:gdprItems} : null,
+    marketplaceItems is not empty ? {label:t('admin_nav_group_extensions',page_locale()),open:false,items:marketplaceItems} : null
 ]|filter(v => v) %}
 
 <div class="ng-layout">
@@ -254,7 +203,7 @@
             profile: adminProfileSummary
         } %}
         <div class="ng-content">
-            {% if activeNav != 'dashboard' %}{% include 'admin/workspace/_guide.html.twig' %}{% endif %}
+            {% include 'components/panel/_module_nav.html.twig' %}{% if activeNav != 'dashboard' %}<details class="pm-workspace-help"><summary>{{ 'guide'|trans({}, 'panel_modules') }}</summary>{% include 'admin/workspace/_guide.html.twig' %}</details>{% endif %}
             {% block content %}{% endblock %}
         </div>
     </main>

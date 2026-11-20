@@ -1,0 +1,27 @@
+{% extends layout %}
+{% block title %}Mietvertrag #{{ contract.id }}{% endblock %}
+{% block content %}
+<div class="ng-container ng-section cust-page space-y-6{% if not public_shop %} pm-workspace{% endif %}">
+{% if not public_shop %}<header class="pm-page-head"><div><h1>{{ contract.configuration.name }}</h1><p>{{ 'workspace_contract'|trans({},'panel_modules') }} #{{ contract.id }} · {{ contract.kind.label }}</p></div><a class="ui-button ui-button--ghost" href="{{ path('customer_contracts') }}">{{ 'back'|trans({},'panel_modules') }}</a></header>{% endif %}
+<section class="cust-panel ng-card p-6 space-y-4">
+    {% if public_shop %}<h1 class="text-2xl font-semibold">Mietvertrag #{{ contract.id }} · {{ contract.configuration.name }}</h1>{% endif %}
+    <p>{{ contract.kind.label }} · {{ {pending:'Bestellt',provisioning:'Wird eingerichtet',active:'Aktiv',stopping:'Beendigung wird bestätigt',ended:'Beendet'}[contract.status] }} · {{ contract.billingMode == 'wallet' ? 'Guthaben' : 'Rechnung nach Nutzung' }}</p>
+    {% if contract.kind.value == 'domain' %}<p>{{ contract.configuration.hostname }} · {{ (contract.configuration.period_cents/100)|number_format(2,',','.') }} {{ contract.account.currency }} / {{ contract.configuration.term_months }} Monate</p>{% else %}<p>{{ (contract.monthlyCents/100)|number_format(2,',','.') }} {{ contract.account.currency }} / 30 Tage · jederzeit kündbar</p>{% endif %}
+    <p>Bereitgestellt: {{ contract.startedAt ? contract.startedAt|date('d.m.Y H:i:s') : 'noch nicht bestätigt – bisher keine Nutzungsgebühren' }}</p>
+    {% if contract.termEndsAt %}<p>Feste Domainlaufzeit bis {{ contract.termEndsAt|date('d.m.Y H:i:s') }}. {{ contract.cancelledAt ? 'Kündigung zum Laufzeitende vorgemerkt.' : 'Eine Verlängerung muss vom Betreiber bestätigt werden.' }}</p>{% endif %}
+    {% if contract.endedAt %}<p>Abrechnungsende: {{ contract.endedAt|date('d.m.Y H:i:s') }}. Danach entstehen keine weiteren Nutzungsgebühren.</p>{% endif %}
+    {% if contract.kind.value != 'domain' %}<p>Erfasste Nutzung: {{ contract.chargedMinutes }} angefangene Minuten.</p>{% endif %}
+    {% if contract.error and contract.status != 'ended' %}<p role="status">{% if contract.error == 'CUSTOMER_CANCELLATION' %}Die Kündigung ist gespeichert. Die technische Stoppbestätigung steht noch aus.{% elseif contract.error == 'WALLET_EMPTY' %}Das Guthaben reicht nicht mehr für die weitere Nutzung. Es entstehen nach dem angezeigten Abrechnungsende keine weiteren Nutzungsgebühren.{% elseif contract.error == 'CREDIT_LIMIT_REACHED' %}Dein Rechnungslimit wurde erreicht. Bitte offene Rechnungen bezahlen oder den Betreiber kontaktieren.{% elseif contract.error == 'DOMAIN_REGISTRATION_CONFIRMATION_REQUIRED' %}Die Registrierung ist noch nicht bestätigt. Es wurden noch keine Domaingebühren berechnet.{% elseif contract.error in ['DOMAIN_RENEWAL_CONFIRMATION_REQUIRED','DOMAIN_RENEWAL_FUNDS_REQUIRED'] %}Die nächste Domainlaufzeit ist noch nicht bestätigt. Bitte Guthaben, offene Rechnungen und den Verlängerungsstatus prüfen.{% else %}Dein Auftrag benötigt eine Prüfung durch den Betreiber. Bitte bei Rückfragen die Vertragsnummer angeben.{% endif %}</p>{% endif %}
+    {% if not contract.cancelledAt and contract.status not in ['ended','stopping'] %}
+        <form method="post" class="space-y-3">
+            <input type="hidden" name="_token" value="{{ csrf_token('rental-cancel-' ~ contract.id) }}">
+            <p>{{ contract.kind.value == 'domain' and contract.startedAt ? 'Die bereits bestätigte Domainlaufzeit bleibt bestehen. Es wird keine weitere Verlängerung bestellt.' : 'Die Abrechnung endet mit dieser Kündigung. Dein System wird anschließend gestoppt; gespeicherte Daten werden nicht automatisch gelöscht.' }}</p>
+            <button class="ui-button ui-button--danger ng-btn" type="submit">{{ contract.kind.value == 'domain' and contract.startedAt ? 'Domain zum Laufzeitende kündigen' : 'Jetzt kündigen' }}</button>
+        </form>
+    {% endif %}
+    {% if contract.kind.value == 'domain' and contract.configuration.registrar|default('manual') == 'autodns' and contract.status == 'active' %}<form method="post" action="{{ path('customer_domain_transfer_code',{id:contract.id}) }}"><input type="hidden" name="_token" value="{{ csrf_token('domain-transfer-' ~ contract.id) }}"><button class="ui-button" type="submit">Authcode für Anbieterwechsel anzeigen</button></form>{% endif %}
+    {% if contract.kind.value != 'domain' %}{% if contract.purgedAt %}<p>Die Systemdaten wurden am {{ contract.purgedAt|date('d.m.Y H:i') }} gelöscht.</p>{% elseif contract.deleteAfterAt %}<p>Datenaufbewahrung bis mindestens {{ contract.deleteAfterAt|date('d.m.Y H:i') }}. {{ contract.retentionHold ? 'Die Aufbewahrung ist durch den Betreiber geschützt.' : 'Vor der endgültigen Löschung erhältst du eine Vorankündigung.' }}</p>{% endif %}{% endif %}
+    <p><a href="{{ path('customer_contracts') }}">Meine Verträge und Guthaben</a> · <a href="{{ path('customer_billing') }}">Meine Rechnungen</a> · <a href="/dashboard">Meine Systeme</a></p>
+</section>
+</div>
+{% endblock %}

@@ -39,6 +39,7 @@ abstract class AbstractWebTestCase extends WebTestCase
         $conn = $em->getConnection();
         $conn->executeStatement('PRAGMA foreign_keys = OFF');
         $tables = [
+            'registrar_operations', 'registrar_contacts', 'rental_capacity_leases', 'rental_capacity_pools', 'wallet_entries', 'rental_notices', 'shop_domain_terms', 'shop_contracts', 'payment_checkouts', 'wallet_topups', 'rental_credits', 'rental_accounts',
             'vm_console_sessions',
             'kvm_guest_assignments',
             'proxmox_tasks',
@@ -95,8 +96,8 @@ abstract class AbstractWebTestCase extends WebTestCase
             default => UserType::Customer,
         };
 
-        $user = $this->createUser(strtolower($role) . '+forum@example.test', $type);
-        if ($type === UserType::Customer) {
+        $user = $this->createUser(strtolower($role).'+forum@example.test', $type);
+        if (UserType::Customer === $type) {
             $user->setMemberAccessEnabled(true);
             $user->setCustomerAccessEnabled(false);
         }
@@ -125,7 +126,7 @@ abstract class AbstractWebTestCase extends WebTestCase
     {
         /** @var EntityManagerInterface $em */
         $em = self::getContainer()->get(EntityManagerInterface::class);
-        /** @var \Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface $hasher */
+        /** @var UserPasswordHasherInterface $hasher */
         $hasher = self::getContainer()->get(UserPasswordHasherInterface::class);
 
         $customer = new User('instance-customer@example.test', UserType::Customer);
@@ -190,7 +191,7 @@ abstract class AbstractWebTestCase extends WebTestCase
 
         $tool = new SchemaTool($em);
         $metadata = $em->getMetadataFactory()->getAllMetadata();
-        if ($metadata !== []) {
+        if ([] !== $metadata) {
             $tool->dropSchema($metadata);
             $tool->createSchema($metadata);
         }
@@ -200,7 +201,7 @@ abstract class AbstractWebTestCase extends WebTestCase
 
     private function ensureInstallLock(): void
     {
-        $path = dirname(__DIR__, 2) . '/srv/setup/state/install.lock';
+        $path = dirname(__DIR__, 2).'/srv/setup/state/install.lock';
         $directory = dirname($path);
 
         if (!is_dir($directory)) {

@@ -1,21 +1,20 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set activeNav = 'backup-system' %}
 {% block content %}
-<div class="flex flex-col gap-6" data-backup-module data-settings-url="{{ path('admin_settings_backups_update') }}" data-target-upsert-url="{{ path('admin_backups_targets_upsert') }}">
-    <div>
-        <h1 class="text-2xl font-semibold" style="color:var(--ng-text)">{{ t('admin_backup_module_title', page_locale()) }}</h1>
-        <p class="text-sm" style="color:var(--ng-text-muted)">{{ t('admin_backup_module_description', page_locale()) }}</p>
-    </div>
-
-    <div class="ng-alert ng-alert--info">
-        <h2 class="text-sm font-semibold uppercase tracking-wide">{{ t('admin_backup_module_quickstart_title', page_locale()) }}</h2>
+<div class="pm-workspace" data-panel-tabs="backup-settings" data-backup-module data-settings-url="{{ path('admin_settings_backups_update') }}" data-target-upsert-url="{{ path('admin_backups_targets_upsert') }}">
+    <header class="pm-page-head"><div><h1>{{ t('admin_backup_module_title',page_locale()) }}</h1><p>{{ t('admin_backup_module_description',page_locale()) }}</p></div></header>
+    {% include 'admin/backups/_nav.html.twig' with {backupNav:'settings'} %}
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'backup-settings',panelTabs:{overview:'workspace_settings',targets:'workspace_backup_targets',history:'workspace_history'}} %}
+    <section data-panel-section="overview" class="pm-workspace">
+    <details class="ng-alert ng-alert--info"><summary class="pm-disclosure-title">{{ t('admin_backup_module_quickstart_title',page_locale()) }}</summary>
         <ol class="mt-3 list-decimal space-y-2 pl-5 text-sm">
             <li>{{ t('admin_backup_module_quickstart_step_target', page_locale()) }}</li>
             <li>{{ t('admin_backup_module_quickstart_step_test', page_locale()) }}</li>
             <li>{{ t('admin_backup_module_quickstart_step_default', page_locale()) }}</li>
             <li>{{ t('admin_backup_module_quickstart_step_verify', page_locale()) }}</li>
         </ol>
-    </div>
+    </details>
 
     <div class="grid gap-6 xl:grid-cols-3">
         <section class="xl:col-span-2 ng-data-card">
@@ -99,7 +98,9 @@
         </section>
     </div>
 
-    <section class="ng-data-card">
+    </section>
+
+    <section class="ng-data-card" data-panel-section="targets">
         <div class="ng-data-card__header">
             <div>
                 <h2 class="ng-data-card__title">{{ t('admin_backup_module_targets_title', page_locale()) }}</h2>
@@ -197,7 +198,7 @@
         </div>
     </section>
 
-    <section class="ng-data-card">
+    <section class="ng-data-card" data-panel-section="history">
         <div class="ng-data-card__header">
             <div>
                 <h2 class="ng-data-card__title">{{ t('admin_backup_module_recent_backups', page_locale()) }}</h2>

@@ -32,7 +32,7 @@
         tone: 'danger'
     },
     {
-        label: t('admin_dashboard_kpi_maintenance', page_locale()),
+        label: t('admin_jobs_queued', page_locale()),
         value: jobSummary.queued,
         icon: '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M4.75 3A1.75 1.75 0 0 0 3 4.75v10.5C3 16.216 3.784 17 4.75 17h10.5A1.75 1.75 0 0 0 17 15.25V4.75A1.75 1.75 0 0 0 15.25 3H4.75Zm3 3.25a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1-.75-.75Zm0 4a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75Zm0 4a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1-.75-.75Z"/></svg>',
         tone: 'info'
@@ -45,15 +45,17 @@
     }
 ] %}
 
-<div class="infra-page infra-dashboard">
-<header class="infra-hero"><div><span class="infra-eyebrow">{{ 'infra.dashboard'|trans({}, 'infrastructure') }}</span><h1>{{ t('admin_dashboard_title', locale) }}</h1><p>{{ t('admin_dashboard_subtitle', locale) }}</p></div><div class="infra-actions"><a class="ui-button ui-button--primary" href="{{ path('admin_proxmox') }}">Proxmox</a><a class="ui-button ui-button--ghost" href="{{ path('admin_kvm') }}">KVM</a><a class="ui-button ui-button--ghost" href="/admin/jobs/new">{{ t('admin_dashboard_action_job', locale) }}</a></div></header>
+<div class="pm-workspace infra-page infra-dashboard" data-panel-tabs="admin-dashboard">
+<header class="pm-page-head"><div><h1>{{ t('admin_dashboard_title', locale) }}</h1><p>{{ t('admin_dashboard_subtitle', locale) }}</p></div><div class="infra-actions"><a class="ui-button ui-button--primary" href="{{ path('admin_proxmox') }}">Proxmox</a><a class="ui-button ui-button--ghost" href="{{ path('admin_kvm') }}">KVM</a><a class="ui-button ui-button--ghost" href="/admin/jobs/new">{{ t('admin_dashboard_action_job', locale) }}</a></div></header>
+{% include 'components/panel/_tabs.html.twig' with {panelKey:'admin-dashboard',panelTabs:{overview:'overview',services:'workspace_services',activity:'workspace_activity'}} %}
 {# ─── KPI Row ─── #}
-<div class="infra-grid infra-grid--stats">
+<div class="pm-stats pm-stats--five">
     {% for item in kpiItems %}
-        {% include 'components/ui/_kpi_card.html.twig' with item %}
+        {% include 'components/panel/_stat.html.twig' with {value:item.value,label:item.label} only %}
     {% endfor %}
 </div>
 
+<section data-panel-section="overview">
 {# ─── Metrics Row ─── #}
 <div class="infra-grid">
     {% embed 'components/ui/_card.html.twig' with {
@@ -114,6 +116,8 @@
     {% endembed %}
 </div>
 
+</section>
+<section data-panel-section="services">
 {# ─── Module Summary ─── #}
 <div class="infra-grid infra-grid--stats">
     {% set moduleCards = [
@@ -140,6 +144,8 @@
     {% endfor %}
 </div>
 
+</section>
+<section data-panel-section="activity">
 {# ─── Tickets / Messages / Queue ─── #}
 <div class="infra-grid">
     {% embed 'components/ui/_card.html.twig' with {
@@ -219,6 +225,8 @@
     {% endembed %}
 </div>
 
+</section>
+<section data-panel-section="overview">
 {# ─── Storage / Nodes / Jobs ─── #}
 <div class="infra-grid">
     {% embed 'components/ui/_card.html.twig' with {
@@ -293,6 +301,7 @@
     {% endembed %}
 </div>
 
+</section>
 <script>
     (function () {
         var refreshMs = 30000;

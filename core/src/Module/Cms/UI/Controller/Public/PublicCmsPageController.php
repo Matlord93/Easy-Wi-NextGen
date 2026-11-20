@@ -7,11 +7,12 @@ namespace App\Module\Cms\UI\Controller\Public;
 use App\Module\Cms\Application\BlockRenderer\BlockRendererRegistry;
 use App\Module\Cms\Application\CmsRenderingFlowResolver;
 use App\Module\Cms\Application\CmsSettingsProvider;
+use App\Module\Cms\Application\CmsServerBlocks;
 use App\Module\Cms\Application\HomepageStatsProvider;
 use App\Module\Cms\Application\PageResolver;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Cms\UI\Http\MaintenancePageResponseFactory;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\CmsBlock;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Setup\Application\InstallerService;
@@ -28,7 +29,7 @@ final class PublicCmsPageController
     public function __construct(
         private readonly PageResolver $pageResolver,
         private readonly CmsBlockRepository $blockRepository,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly InstallerService $installerService,
         private readonly ThemeResolver $themeResolver,
         private readonly CmsRenderingFlowResolver $renderingFlowResolver,
@@ -36,6 +37,7 @@ final class PublicCmsPageController
         private readonly BlockRendererRegistry $blockRendererRegistry,
         private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory,
         private readonly HomepageStatsProvider $homepageStatsProvider,
+        private readonly CmsServerBlocks $serverBlocks,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {
@@ -113,10 +115,15 @@ final class PublicCmsPageController
         return $this->renderResolvedPage($site, $page);
     }
 
-    private function renderResolvedPage(\App\Module\Core\Domain\Entity\Site $site, \App\Module\Core\Domain\Entity\CmsPage $page): Response
+    public function renderForPreview(\App\Module\Core\Domain\Entity\CmsPage $page, string $theme): Response
+    {
+        return $this->renderResolvedPage($page->getSite(), $page, $theme);
+    }
+
+    private function renderResolvedPage(\App\Module\Core\Domain\Entity\Site $site, \App\Module\Core\Domain\Entity\CmsPage $page, ?string $previewTheme = null): Response
     {
         $blocks = $this->blockRepository->findBy(['page' => $page], ['sortOrder' => 'ASC']);
-        $templateKey = $this->themeResolver->resolveThemeKey($site);
+        $templateKey = $previewTheme ?? $this->themeResolver->resolveThemeKey($site);
         $slug = $page->getSlug();
 
         $extraVars = $this->resolveSlugExtras($site, $slug);
@@ -138,12 +145,22 @@ final class PublicCmsPageController
     /** @param CmsBlock[] $blocks */
     private function normalizeBlocks(array $blocks): array
     {
-        return array_map(fn (CmsBlock $block): array => [
-            'type' => $block->getType(),
-            'html' => $this->blockRendererRegistry->render($block),
-            'servers' => [],
-            'settings' => ['show_players' => false, 'show_join_button' => false],
-        ], $blocks);
+        $serverLists = [];
+
+        return array_map(function (CmsBlock $block) use (&$serverLists): array {
+            if (in_array($block->getType(), ['server_list', 'server_featured'], true)) {
+                $key = hash('sha256', $block->getType().'|'.$block->getContent().'|'.json_encode($block->getPayloadJson(), JSON_THROW_ON_ERROR));
+
+                return $serverLists[$key] ??= $this->serverBlocks->renderData($block);
+            }
+
+            return [
+                'type' => $block->getType(),
+                'html' => $this->blockRendererRegistry->render($block),
+                'servers' => [],
+                'settings' => ['show_players' => false, 'show_join_button' => false],
+            ];
+        }, $blocks);
     }
 
     private function resolveTemplate(string $templateKey, string $slug): string

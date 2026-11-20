@@ -1,0 +1,91 @@
+/* Gameserver workspace follows the panel palette in both colour modes. */
+.gs-workspace { --gs-accent:var(--ng-primary,#6366f1); }
+.gs-workspace .cust-panel { min-width:0; }
+.gs-actions { display:flex; flex-wrap:wrap; gap:.65rem; }
+.gs-actions form { margin:0; }
+.gs-config__head,.gs-config__toolbar,.gs-config__footer { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; }
+.gs-config__head { margin-bottom:1rem; }
+.gs-config__head h2 { font-size:1.25rem; font-weight:650; }
+.gs-config__head p,.gs-config__toolbar span { color:var(--ng-text-muted); font-size:.8rem; margin-top:.3rem; }
+.gs-config__layout { display:grid; grid-template-columns:210px minmax(0,1fr); gap:1.5rem; margin-top:1.25rem; }
+.gs-config__sidebar { align-self:start; position:sticky; top:1rem; min-width:0; }
+.gs-config__sidebar h3 { font-size:.67rem; text-transform:uppercase; letter-spacing:.08em; color:var(--ng-text-muted); margin:1.25rem 0 .65rem; }
+.gs-config__sidebar nav,.gs-config__sidebar [data-config-files] { display:grid; gap:.25rem; }
+.gs-config__category,.gs-config__file { display:flex; align-items:center; justify-content:space-between; gap:.5rem; width:100%; padding:.55rem .65rem; border:1px solid transparent; border-radius:.5rem; background:transparent; color:var(--ng-text-base); font-size:.8rem; text-align:left; cursor:pointer; overflow-wrap:anywhere; }
+.gs-config__category:hover,.gs-config__file:hover { background:var(--ng-surface-soft); }
+.gs-config__category[aria-pressed=true],.gs-config__file[aria-pressed=true] { background:color-mix(in srgb,var(--gs-accent) 14%,transparent); color:var(--gs-accent); border-color:color-mix(in srgb,var(--gs-accent) 30%,transparent); }
+.gs-config__badge { font-size:.65rem; border-radius:2rem; padding:.1rem .35rem; background:var(--ng-surface-soft); }
+.gs-config__file-link { display:block; font-size:.75rem; margin:.75rem .5rem; color:var(--gs-accent); }
+.gs-config__form { min-width:0; }
+.gs-config__toolbar { margin-bottom:.75rem; font-size:.85rem; }
+.gs-config__fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; }
+.gs-config__field { display:flex; flex-direction:column; align-items:stretch; gap:.45rem; border:1px solid var(--ng-border); background:var(--ng-surface-soft); border-radius:.65rem; padding:1rem; min-width:0; }
+.gs-config__field.is-dirty { border-color:var(--gs-accent); }
+.gs-config__description { font-size:.75rem; line-height:1.55; color:var(--ng-text-muted); margin:0; flex:1; }
+.gs-config__source { font-size:.65rem; color:var(--ng-text-muted); overflow-wrap:anywhere; }
+.gs-config__managed { font-size:.68rem; color:var(--ng-text-muted); }
+.gs-config__field .form-label { margin:0; }
+.gs-config__field input:disabled,.gs-config__field select:disabled { opacity:.65; cursor:not-allowed; }
+.gs-config__switch { appearance:none; width:2.3rem; height:1.3rem; border-radius:2rem; border:1px solid var(--ng-border); background:var(--ng-text-muted); position:relative; cursor:pointer; margin:.25rem 0; }
+.gs-config__switch:before { content:''; position:absolute; width:.9rem; height:.9rem; top:.13rem; left:.15rem; background:#fff; border-radius:50%; transition:transform .15s; }
+.gs-config__switch:checked { background:var(--gs-accent); }
+.gs-config__switch:checked:before { transform:translateX(.95rem); }
+.gs-config__switch:focus-visible { outline:2px solid var(--gs-accent); outline-offset:3px; }
+.gs-config__footer { margin-top:1rem; padding:1rem 0; color:var(--ng-text-muted); font-size:.8rem; border-top:1px solid var(--ng-border); }
+.gs-config__empty { color:var(--ng-text-muted); padding:1.5rem; grid-column:1/-1; }
+.gs-config__advanced { margin-top:1.5rem; }
+.gs-config__advanced>summary { padding:1rem; font-size:.9rem; cursor:pointer; font-weight:600; }
+.gs-workspace #gameserver-files-app { gap:1rem; }
+.gs-workspace #gameserver-files-app [class*="bg-slate-"],.gs-workspace #gameserver-files-app [class*="bg-white"] { background:var(--ng-surface); }
+.gs-workspace #gameserver-files-app [class*="text-slate-"] { color:var(--ng-text-base); }
+.gs-workspace #gameserver-files-app [class*="border-slate-"] { border-color:var(--ng-border); }
+.gs-workspace #gameserver-files-app [class*="bg-black"] { background:rgb(0 0 0/.6); }
+.gs-workspace #gameserver-files-app textarea,.gs-workspace #gameserver-files-app input { background:var(--ng-surface-soft); color:var(--ng-text-base); border-color:var(--ng-border); }
+.gs-workspace .pm-keyvalues dd { overflow-wrap:anywhere; }
+@media(max-width:1100px) { .gs-config__fields { grid-template-columns:1fr; } }
+@media(max-width:700px) { .gs-config__layout { grid-template-columns:1fr; gap:1rem; } .gs-config__sidebar { position:static; } .gs-config__sidebar nav { display:flex; flex-wrap:wrap; } .gs-config__category { width:auto; } .gs-config__sidebar [data-config-files] { display:flex; flex-wrap:wrap; } .gs-config__file { width:auto; } .gs-config__head>button { width:100%; } .gs-workspace .cust-panel__body { padding:.8rem; } .gs-config__footer .ui-button { width:100%; } }
+
+html[data-theme=light] .gs-workspace .ng-alert--info { color:#075985; }
+html[data-theme=light] .gs-workspace .ng-alert--success { color:#166534; }
+html[data-theme=light] .gs-workspace .ng-alert--danger { color:#991b1b; }
+html[data-theme=light] .gs-workspace .ng-alert--warning { color:#854d0e; }
+
+.gs-config[hidden], .gs-config [hidden] { display: none !important; }
+.gs-config__additions { margin-top:1rem; padding-top:1rem; border-top:1px solid var(--ng-border); }
+.gs-config__additions h4 { margin:0 0 .35rem; font-size:.9rem; font-weight:650; }
+.gs-config__additions .gs-config__fields { margin-top:.75rem; }
+.gs-config__field--available { background:var(--ng-surface); }
+.gs-config__field-action { align-self:flex-start; max-width:100%; white-space:normal; }
+
+.gs-config__group { grid-column:1 / -1; margin:.75rem 0 0; font-size:.95rem; font-weight:700; }
+
+.gs-config__collections { margin-top:1.5rem; min-width:0; }
+.gs-config__collection { margin-top:.75rem; border:1px solid var(--ng-border); border-radius:.75rem; padding:1rem; }
+.gs-config__collection summary { cursor:pointer; font-weight:600; }
+.gs-config__collection h4 { margin:0; overflow-wrap:anywhere; }
+.gs-config__collection-search { display:grid; gap:.375rem; margin:1rem 0; }
+.gs-config__collection-control { display:grid; gap:.5rem; margin-top:.75rem; }
+.gs-config__collection .gs-config__field { min-width:0; }
+.gs-config__collection .gs-config__fields { max-height:34rem; overflow-y:auto; overscroll-behavior:contain; padding:.25rem; scrollbar-gutter:stable; }
+.gs-config__collections[data-category-only="true"] > h3 { display:none; }
+
+.gs-config__role-entries{display:grid;gap:.5rem;margin-bottom:1rem}.gs-config__role-entry{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem 1rem;padding:.75rem;border:1px solid var(--border-color,rgba(128,128,128,.25));border-radius:.5rem}.gs-config__role-entry strong{flex:1 1 8rem;overflow-wrap:anywhere}.gs-config__role-actions{display:flex;flex-wrap:wrap;gap:.5rem}.gs-config__role-entry input{flex:none}
+
+.gs-config__tag-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+    gap: .5rem;
+    min-width: 0;
+    margin: .75rem 0;
+    padding: .75rem;
+    border: 1px solid var(--ng-border);
+    border-radius: .75rem;
+}
+.gs-config__tag-group legend { padding-inline: .375rem; font-weight: 600; }
+.gs-config__tag { display: flex; align-items: center; gap: .5rem; min-width: 0; cursor: pointer; }
+.gs-config__tag input { flex: none; accent-color: var(--ng-primary); }
+
+.gs-config__ban-table { width:100%; margin-top:.75rem; table-layout:fixed; }
+.gs-config__ban-table :is(th,td) { overflow-wrap:anywhere; }
+.gs-config__ban-pages { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; margin-top:.75rem; }
+.gs-config [data-config-bans] h4 { margin-top:1rem; font-size:.9rem; }

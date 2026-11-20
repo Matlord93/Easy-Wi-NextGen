@@ -399,7 +399,7 @@ final class AdminWebspaceController
         $this->entityManager->flush();
 
         $mailboxJob = new Job('mailbox.create', [
-            'agent_id' => $webspace->getNode()->getId(),
+            'agent_id' => $this->mailDomainRepository->findOneByDomain($domain)?->getNode()->getAgent()?->getId() ?? $webspace->getNode()->getId(),
             'mailbox_id' => (string) $mailbox->getId(),
             'domain_id' => (string) $domain->getId(),
             'domain' => $domain->getName(),

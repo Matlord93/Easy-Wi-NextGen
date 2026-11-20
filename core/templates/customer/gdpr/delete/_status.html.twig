@@ -1,7 +1,7 @@
 {% set locale = page_locale() %}
 <div class="cust-panel__body" id="gdpr-delete-status"
     hx-get="/gdpr/delete/status"
-    hx-trigger="gdpr-delete-updated from:body"
+    hx-trigger="gdpr-delete-updated[event.target.getAttribute('hx-target') != '#gdpr-delete-status'] from:body"
     hx-swap="outerHTML">
     {% if request is null %}
         <div class="ng-alert ng-alert--warning" style="margin-bottom:12px;">

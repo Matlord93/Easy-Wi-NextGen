@@ -1,0 +1,14 @@
+{% import 'cms/layout/_navigation_link.html.twig' as navigation %}
+<header class="cms-header">
+<div class="cms-container cms-header__inner">
+<a class="cms-brand" href="/">{% if cmsSite.branding.logo_path|default('') %}<img src="{{ cmsSite.branding.logo_path }}" alt="" height="36">{% else %}<span class="cms-brand__mark" aria-hidden="true">E</span>{% endif %}<span>{{ brandName }}</span></a>
+<button class="cms-menu-button cms-icon-button" type="button" data-cms-menu-toggle aria-controls="cms-site-navigation" aria-expanded="false" aria-label="{{ 'menu'|cms_trans({}) }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+<nav id="cms-site-navigation" class="cms-navigation" aria-label="{{ 'main_navigation'|cms_trans({}) }}">
+{% set currentPath = app.request ? app.request.pathInfo : '/' %}
+{% for item in cmsSite.navigation %}{% set active = not item.external and (currentPath == item.url or (item.url != '/' and currentPath starts with item.url ~ '/')) %}{{ navigation.link(item, active) }}{% endfor %}
+</nav>
+<div class="cms-header__tools">
+{% if app.request %}<div class="cms-language" aria-label="{{ 'language'|cms_trans({}) }}">{% for lang in ['de','en'] %}<a href="{{ app.request.pathInfo }}?{{ app.request.query.all|merge({lang:lang})|url_encode }}" lang="{{ lang }}" hreflang="{{ lang }}"{% if page_locale() == lang %} aria-current="true"{% endif %}>{{ lang|upper }}</a>{% endfor %}</div>{% endif %}
+<button class="cms-icon-button" type="button" data-panel-theme-toggle aria-label="{{ 'theme_toggle'|cms_trans({}) }}"><svg class="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10Z"/></svg><svg class="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button>
+{% if actor %}<details class="cms-account"><summary>{{ actor.name ?: actor.email }}</summary><div class="cms-account__menu"><a href="{{ panelUrl }}">{{ 'open_panel'|cms_trans({}) }}</a><a href="{{ actor.isAdmin ? '/admin/profile' : '/profile' }}">{{ 'account'|cms_trans({}) }}</a><a href="{{ path('public_logout') }}">{{ t('logout',page_locale()) }}</a></div></details>{% else %}<a class="cms-button cms-button--small" href="{{ path('public_login',{target:app.request ? app.request.requestUri : '/'}) }}">{{ t('login',page_locale()) }}</a>{% endif %}
+</div></div></header>

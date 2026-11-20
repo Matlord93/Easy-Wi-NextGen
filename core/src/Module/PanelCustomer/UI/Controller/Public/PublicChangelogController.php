@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
 use App\Module\Core\Application\ChangelogFetcher;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\ChangelogEntry;
 use App\Repository\ChangelogEntryRepository;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -21,7 +21,7 @@ final class PublicChangelogController
     public function __construct(
         private readonly ChangelogEntryRepository $changelogRepository,
         private readonly ChangelogFetcher $changelogFetcher,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         #[Autowire(service: 'limiter.public_changelog')]
         private readonly RateLimiterFactory $changelogLimiter,
         private readonly Environment $twig,

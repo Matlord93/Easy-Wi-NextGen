@@ -191,6 +191,14 @@ final class AdminSettingsController
             }
         }
 
+        if ($activeTab === 'gameserver' && trim($request->request->getString('instance_base_dir')) !== '') {
+            try {
+                \App\Module\Core\Application\InstanceBaseDirectory::normalize($request->request->getString('instance_base_dir'));
+            } catch (\InvalidArgumentException $exception) {
+                $errors[] = $exception->getMessage();
+            }
+        }
+
         if ($errors !== []) {
             return new Response($this->twig->render('admin/settings/index.html.twig', [
                 'activeNav' => 'settings',

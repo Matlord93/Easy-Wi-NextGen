@@ -99,7 +99,7 @@
     (moduleBilling and moduleShop) ? {
         label: t('customer_nav_group_marketplace', page_locale()),
         open: true,
-        items: ([{ key: 'shop', label: t('customer_nav_shop', page_locale()), href: path('customer_shop'), iconSvg: iconShop }]|merge(marketplaceItems))
+        items: ([{ key: 'contracts', label: 'Verträge / Guthaben', href: path('customer_contracts'), iconSvg: iconShop }, { key: 'shop', label: t('customer_nav_shop', page_locale()), href: path('customer_shop'), iconSvg: iconShop }]|merge(marketplaceItems))
     } : null
 ]|filter(v => v) %}
 

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Module\Billing\UI\Controller\Customer;
 
 use App\Infrastructure\Http\RequestActor;
-
 use App\Module\Core\Application\Billing\InvoiceDocumentService;
 use App\Module\Core\Application\Billing\InvoicePresenter;
 use App\Module\Core\Attribute\RequiresModule;
@@ -24,7 +23,7 @@ use Twig\Environment;
 #[RequiresModule('billing')]
 final readonly class CustomerInvoiceController
 {
-    public function __construct(private InvoiceRepository $invoices, private InvoicePresenter $presenter, private InvoiceDocumentService $documents, private Environment $twig)
+    public function __construct(private InvoiceRepository $invoices, private InvoicePresenter $presenter, private InvoiceDocumentService $documents, private Environment $twig, private \App\Module\Core\Application\Billing\PaymentSettings $payments)
     {
     }
 
@@ -44,7 +43,8 @@ final readonly class CustomerInvoiceController
     {
         return new Response($this->twig->render('customer/billing/invoice.html.twig', [
             'activeNav' => 'billing', 'invoice' => $this->presenter->present($this->invoice($request, $id)),
-            'manual_payment' => $request->query->get('payment') === 'manual',
+            'payment_methods' => $this->payments->methods(),
+            'manual_payment' => 'manual' === $request->query->get('payment'),
         ]));
     }
 
@@ -57,7 +57,7 @@ final readonly class CustomerInvoiceController
     private function customer(Request $request): User
     {
         $user = RequestActor::user($request);
-        if (!$user instanceof User || $user->getType() !== UserType::Customer) {
+        if (!$user instanceof User || UserType::Customer !== $user->getType()) {
             throw new AccessDeniedHttpException();
         }
 

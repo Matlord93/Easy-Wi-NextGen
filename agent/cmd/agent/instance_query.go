@@ -146,9 +146,9 @@ func handleInstanceQueryCheck(job jobs.Job) (jobs.Result, func() error) {
 }
 
 func normalizeQueryDialHost(host string) string {
-	normalized := strings.TrimSpace(host)
-	switch normalized {
-	case "", "0.0.0.0", "::", "*":
+	normalized := strings.Trim(strings.TrimSpace(host), "[]")
+	switch strings.ToLower(normalized) {
+	case "", "0.0.0.0", "::", "*", "localhost", "localhost.":
 		return "127.0.0.1"
 	}
 
@@ -158,13 +158,6 @@ func normalizeQueryDialHost(host string) string {
 	}
 
 	if ip.IsLoopback() {
-		if ip.To4() != nil {
-			return "127.0.0.1"
-		}
-		return "::1"
-	}
-
-	if isLocalIP(ip) {
 		if ip.To4() != nil {
 			return "127.0.0.1"
 		}
@@ -230,7 +223,7 @@ func resolveQueryDialHost(host, bindIP, instanceIP, nodeIP, localOnly, networkMo
 }
 
 func normalizeQueryDialHostIsolated(host string) string {
-	normalized := strings.TrimSpace(host)
+	normalized := strings.Trim(strings.TrimSpace(host), "[]")
 	switch normalized {
 	case "", "0.0.0.0", "::", "*":
 		return ""
@@ -258,7 +251,7 @@ func normalizeNetworkMode(networkMode, shareHostNetwork string) string {
 }
 
 func isLoopbackHost(host string) bool {
-	if host == "127.0.0.1" || host == "::1" || strings.EqualFold(host, "localhost") {
+	if host == "127.0.0.1" || host == "::1" || (strings.EqualFold(host, "localhost") || strings.EqualFold(host, "localhost.")) {
 		return true
 	}
 	parsed := net.ParseIP(host)
@@ -273,35 +266,6 @@ func newQueryDialResolution(host, source, mode string) queryDialResolution {
 		source = "loopback"
 	}
 	return queryDialResolution{Host: host, Source: source, NetworkMode: mode, LoopbackUsed: isLoopbackHost(host)}
-}
-
-func isLocalIP(target net.IP) bool {
-	if target == nil {
-		return false
-	}
-
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		return false
-	}
-
-	for _, iface := range interfaces {
-		addrs, addrErr := iface.Addrs()
-		if addrErr != nil {
-			continue
-		}
-		for _, addr := range addrs {
-			ipNet, ok := addr.(*net.IPNet)
-			if !ok || ipNet.IP == nil {
-				continue
-			}
-			if ipNet.IP.Equal(target) {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 func buildQueryOutput(status, engine, message string, startedAt time.Time, data map[string]string) map[string]string {
@@ -321,29 +285,32 @@ func buildQueryOutput(status, engine, message string, startedAt time.Time, data 
 	return output
 }
 
-func queryDialCandidates(host, port string) []string {
-	trimmedHost := strings.TrimSpace(host)
+func queryDialCandidates(ctx context.Context, host, port string, lookup func(context.Context, string, string) ([]net.IP, error)) ([]string, error) {
+	trimmedHost := strings.Trim(strings.TrimSpace(host), "[]")
 	if trimmedHost == "" {
-		return nil
+		return nil, fmt.Errorf("query host is empty")
+	}
+	if strings.EqualFold(trimmedHost, "localhost") || strings.EqualFold(trimmedHost, "localhost.") {
+		return []string{net.JoinHostPort("127.0.0.1", port)}, nil
 	}
 
 	if ip := net.ParseIP(trimmedHost); ip != nil {
-		return []string{net.JoinHostPort(trimmedHost, port)}
+		if ip.IsUnspecified() {
+			return nil, fmt.Errorf("query host is an unspecified address")
+		}
+		return []string{net.JoinHostPort(normalizeQueryDialHost(trimmedHost), port)}, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	lookupCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 	defer cancel()
-
-	resolved, err := net.DefaultResolver.LookupIP(ctx, "ip", trimmedHost)
-	if err != nil || len(resolved) == 0 {
-		return []string{net.JoinHostPort(trimmedHost, port)}
+	resolved, err := lookup(lookupCtx, "ip", trimmedHost)
+	if err != nil {
+		return nil, fmt.Errorf("resolve query host: %w", err)
 	}
-
-	ordered := orderQueryIPs(resolved)
-	candidates := make([]string, 0, len(ordered))
+	candidates := make([]string, 0, len(resolved))
 	seen := map[string]struct{}{}
-	for _, ip := range ordered {
-		if ip == nil || ip.IsLoopback() {
+	for _, ip := range orderQueryIPs(resolved) {
+		if ip.IsLoopback() || ip.IsUnspecified() {
 			continue
 		}
 		addr := net.JoinHostPort(ip.String(), port)
@@ -354,9 +321,9 @@ func queryDialCandidates(host, port string) []string {
 		candidates = append(candidates, addr)
 	}
 	if len(candidates) == 0 {
-		return []string{net.JoinHostPort(trimmedHost, port)}
+		return nil, &net.DNSError{Err: "no non-loopback address for game query", Name: trimmedHost}
 	}
-	return candidates
+	return candidates, nil
 }
 
 func orderQueryIPs(ips []net.IP) []net.IP {
@@ -390,15 +357,20 @@ func dialNetworkForAddress(baseNetwork, address string) string {
 }
 
 func dialWithFallback(baseNetwork, host, port string, timeout time.Duration) (net.Conn, error) {
-	candidates := queryDialCandidates(host, port)
-	if len(candidates) == 0 {
-		return nil, fmt.Errorf("no dial candidates")
+	return dialQueryContext(context.Background(), baseNetwork, host, port, timeout)
+}
+
+func dialQueryContext(ctx context.Context, baseNetwork, host, port string, timeout time.Duration) (net.Conn, error) {
+	candidates, err := queryDialCandidates(ctx, host, port, net.DefaultResolver.LookupIP)
+	if err != nil {
+		return nil, err
 	}
+	dialer := net.Dialer{Timeout: timeout}
 
 	var errs []string
 	for _, address := range candidates {
 		network := dialNetworkForAddress(baseNetwork, address)
-		conn, err := net.DialTimeout(network, address, timeout)
+		conn, err := dialer.DialContext(ctx, network, address)
 		if err == nil {
 			return conn, nil
 		}
@@ -740,7 +712,13 @@ func queryMinecraftBedrockNetherNet(host, port string) (map[string]string, error
 	ctx, cancel := context.WithTimeout(context.Background(), minecraftQueryTimeout)
 	defer cancel()
 	// Query local/direct service addresses, never forward them through an HTTP proxy.
-	transport := &http.Transport{DialContext: (&net.Dialer{Timeout: minecraftQueryTimeout}).DialContext, DisableKeepAlives: true}
+	transport := &http.Transport{DisableKeepAlives: true, DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+		dialHost, dialPort, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		return dialQueryContext(ctx, network, dialHost, dialPort, minecraftQueryTimeout)
+	}}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+net.JoinHostPort(host, port)+"/v1/join", nil)

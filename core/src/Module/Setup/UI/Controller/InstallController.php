@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Setup\UI\Controller;
 
 use App\Module\Setup\Application\InstallerService;
+use App\Module\Cms\Application\ThemeResolver;
 use App\Infrastructure\Config\JsonMap;
 use App\Infrastructure\Config\ScalarValue;
 use App\Module\Setup\Application\InstallerSshKeyException;
@@ -69,7 +70,7 @@ final class InstallController
             'cms_homepage_slug' => 'startseite',
         ];
         $settingsDefaults = [
-            'instance_base_dir' => 'var/easywi',
+            'instance_base_dir' => '/home',
             'sftp_host' => '',
             'sftp_port' => '22',
             'sftp_username' => '',
@@ -275,7 +276,7 @@ final class InstallController
                     $errors[] = ['key' => 'errors.admin_ssh_key_invalid'];
                 }
 
-                $supportedThemes = ['esports', 'minimal', 'fantasy', 'clan-nova', 'nexus-gaming'];
+                $supportedThemes = ThemeResolver::SUPPORTED_THEMES;
                 if (!in_array($applicationState['cms_template'], $supportedThemes, true)) {
                     $errors[] = ['key' => 'errors.cms_template_invalid'];
                 }
@@ -327,7 +328,8 @@ final class InstallController
                                     throw new \RuntimeException('Database migrations were not executed before final installation.');
                                 }
 
-                                $this->installerService->ensureDirectory((string) ($settingsState['instance_base_dir'] ?? ''));
+                                // This directory belongs to the target agent, not the panel host.
+                                $settingsState['instance_base_dir'] = \App\Module\Core\Application\InstanceBaseDirectory::normalize(ScalarValue::text($settingsState['instance_base_dir'] ?? '/home'));
 
                                 $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
                                 $this->installerService->createSiteAndAdmin($entityManager, $applicationState, $adminPassword);

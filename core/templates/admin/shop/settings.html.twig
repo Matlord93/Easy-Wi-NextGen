@@ -1,0 +1,32 @@
+{% extends 'admin/shop/base.html.twig' %}
+{% block title %}Shop · Zahlungen{% endblock %}
+{% block content %}
+<div class="pm-workspace pm-editor-panel">
+    <header class="pm-page-head"><div><h1>Shop und Zahlungsarten</h1></div></header>
+    {% include 'admin/shop/_navigation.html.twig' %}
+    {% if error %}<p role="alert" class="text-red-600">{{ error }}</p>{% endif %}
+    {% if app.request.query.get('saved') %}<p role="status">Einstellungen gespeichert.</p>{% endif %}
+    <form method="post" class="ng-form space-y-5">
+        <input type="hidden" name="_token" value="{{ csrf_token('shop-settings') }}">
+        <label>Panel-Adresse (HTTPS)<input class="form-input" type="url" name="base_url" required value="{{ settings.base_url }}" placeholder="https://panel.example.com"></label>
+        <label>Währung<select class="form-input" name="currency">{% for currency in ['EUR','USD','GBP','CHF','SEK','NOK','DKK','PLN'] %}<option{% if settings.currency == currency %} selected{% endif %}>{{ currency }}</option>{% endfor %}</select></label>
+        <fieldset><legend>Zahlungsarten</legend>
+            {% for key,label in {bank_transfer:'Überweisung',stripe:'Stripe',card:'Stripe: Karte',klarna:'Stripe: Klarna',sepa_debit:'Stripe: SEPA-Lastschrift',paypal:'PayPal',paypal_sandbox:'PayPal Sandbox (Testbetrieb)'} %}
+                <label class="block"><input type="checkbox" name="{{ key }}" value="1"{% if settings[key] %} checked{% endif %}> {{ label }}</label>
+            {% endfor %}
+        </fieldset>
+        <p>Klarna und SEPA müssen im Stripe-Konto freigeschaltet sein. Klarna entscheidet abhängig von Land und Händlerkonto, welche Sofortzahlung oder Ratenzahlung angeboten wird. SEPA-Lastschriften werden erst nach Zahlungsbestätigung bereitgestellt.</p>
+        <fieldset class="space-y-3"><legend>Zugangsdaten</legend>
+            <p>Leere Felder behalten vorhandene Zugangsdaten. Gespeicherte Werte werden nicht angezeigt.</p>
+            {% for key,label in {stripe_key:'Stripe Secret Key',stripe_webhook:'Stripe Webhook Secret',paypal_client:'PayPal Client ID',paypal_secret:'PayPal Secret',paypal_webhook:'PayPal Webhook ID'} %}
+                <label class="block">{{ label }} · {{ settings[key ~ '_configured'] ? 'hinterlegt' : 'fehlt' }}<input class="form-input" type="password" name="{{ key }}" autocomplete="new-password" maxlength="2048" value=""></label>
+                <label><input type="checkbox" name="clear_{{ key }}" value="1"> {{ label }} löschen</label>
+            {% endfor %}
+        </fieldset>
+        <p>Stripe Webhook: <code>{{ settings.base_url }}/billing/webhook/stripe</code> · Events: <code>checkout.session.completed</code>, <code>checkout.session.async_payment_succeeded</code>.</p>
+        <p>PayPal Webhook: <code>{{ settings.base_url }}/billing/webhook/paypal</code> · Event: <code>PAYMENT.CAPTURE.COMPLETED</code>.</p>
+        <p>Bankverbindung und Steuersatz werden in den <a href="/admin/billing">Rechnungseinstellungen</a> gepflegt. Überweisungen müssen nach tatsächlichem Eingang als Zahlung verbucht werden.</p>
+        <button class="ui-button ui-button--primary" type="submit">Speichern</button>
+    </form>
+</div>
+{% endblock %}

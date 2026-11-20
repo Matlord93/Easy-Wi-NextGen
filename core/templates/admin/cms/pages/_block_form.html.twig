@@ -1,3 +1,5 @@
+{# The save response already replaces this editor; only other sources need a GET. #}
+<div id="cms-block-form" class="ng-data-card pm-editor-panel" data-panel-validation hx-get="/admin/cms/pages/{{ page.id }}/blocks/form" hx-trigger="cms-blocks-changed[event.target.getAttribute('hx-target') != '#cms-block-form'] from:body" hx-swap="outerHTML">
 <div class="px-5 py-4">
     <div class="mb-4">
         {% if blockForm.action == 'update' %}
@@ -34,6 +36,7 @@
                 <option value="rich_text"></option>
                 <option value="image"></option>
                 <option value="cards"></option>
+                <option value="shop_products"></option>
                 <option value="server_list"></option>
                 <option value="server_featured"></option>
             </datalist>
@@ -48,7 +51,10 @@
         <div class="form-field">
             <label class="form-label">{{ t('content', page_locale()) }}</label>
             <textarea name="content" rows="6" class="form-input" placeholder="{{ t('block_content_placeholder', page_locale()) }}">{{ blockForm.content }}</textarea>
+            {% include 'admin/cms/pages/_media_button.html.twig' with {field:'content'} only %}
         </div>
+
+        <fieldset class="space-y-2"><legend>Shop-Produkte (Blocktyp shop_products, Version 2)</legend><label>Maximale Produkte<input class="form-input" type="number" name="shop_limit" min="1" max="24" value="{{ blockForm.payload.limit|default(6) }}"></label><label>Kategorie-ID (0 = alle Kategorien)<input class="form-input" type="number" name="shop_category_id" min="0" value="{{ blockForm.payload.category_id|default(0) }}"></label><p>Produkte werden aus dem Shop der aktuellen Website geladen. Preise bleiben mit dem Shop verknüpft.</p></fieldset>
 
         <div style="border:1px solid var(--ng-border);border-radius:0.5rem;background:var(--ng-surface-soft);padding:1rem;">
             <div style="font-size:0.75rem;font-weight:600;text-transform:uppercase;color:var(--ng-text-muted);">{{ t('admin_cms_block_v2_payload_title', page_locale()) }}</div>
@@ -71,6 +77,7 @@
                 <div class="form-field">
                     <label class="form-label">{{ t('admin_cms_block_hero_bg_image', page_locale()) }}</label>
                     <input type="text" name="hero_background_image_path" value="{{ blockForm.payload.backgroundImagePath|default('') }}" class="form-input">
+                    {% include 'admin/cms/pages/_media_button.html.twig' with {field:'hero_background_image_path'} only %}
                 </div>
                 <div class="form-field">
                     <label class="form-label">{{ t('admin_cms_block_hero_cta_url', page_locale()) }}</label>
@@ -80,11 +87,13 @@
             <div class="form-field" style="margin-top:0.75rem;">
                 <label class="form-label">{{ t('admin_cms_block_rich_text_content', page_locale()) }}</label>
                 <textarea name="rich_text_content" rows="4" class="form-input">{{ blockForm.payload.content|default('') }}</textarea>
+                {% include 'admin/cms/pages/_media_button.html.twig' with {field:'rich_text_content'} only %}
             </div>
             <div class="grid gap-3 sm:grid-cols-3" style="margin-top:0.75rem;">
                 <div class="form-field">
                     <label class="form-label">{{ t('admin_cms_block_image_path', page_locale()) }}</label>
                     <input type="text" name="image_path" value="{{ blockForm.payload.path|default('') }}" class="form-input">
+                    {% include 'admin/cms/pages/_media_button.html.twig' with {field:'image_path'} only %}
                 </div>
                 <div class="form-field">
                     <label class="form-label">{{ t('admin_cms_block_image_alt', page_locale()) }}</label>
@@ -140,4 +149,10 @@
             {% endif %}
         </div>
     </form>
+</div>
+
+<dialog id="cms-media-picker" class="cms-media-picker" data-cms-media-dialog data-loading="{{ 'workspace_cms_media_loading'|trans({},'panel_modules') }}" data-error="{{ 'workspace_cms_media_error'|trans({},'panel_modules') }}" aria-labelledby="cms-media-picker-title">
+    <header class="cms-media-picker__head"><h2 id="cms-media-picker-title">{{ 'workspace_cms_media_title'|trans({},'panel_modules') }}</h2><a href="{{ path('admin_cms_media_index') }}" class="ui-button ui-button--ghost ui-button--sm" target="_blank" rel="noopener">{{ 'workspace_cms_media_manage'|trans({},'panel_modules') }}</a><button type="button" class="ui-button ui-button--ghost ui-button--sm" data-cms-media-close>{{ 'workspace_cms_media_close'|trans({},'panel_modules') }}</button></header>
+    <div id="cms-media-picker-content" class="cms-media-picker__content" aria-live="polite"></div>
+</dialog>
 </div>

@@ -4,114 +4,123 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\ShopOrder;
-use App\Module\Core\Domain\Entity\ShopProduct;
 use App\Module\Core\Domain\Entity\ShopRental;
-use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
+use App\Module\Core\Domain\Enum\InvoiceStatus;
 use App\Module\Core\Domain\Enum\ShopOrderStatus;
 use App\Module\Core\Domain\Enum\ShopOrderType;
 use App\Module\Gameserver\Application\GameServerInstallPathManager;
+use App\Module\Gameserver\Application\InstanceInstallService;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 
-final class ShopProvisioningService
+final readonly class ShopProvisioningService
 {
-    public function __construct(
-        private readonly DiskEnforcementService $diskEnforcementService,
-        private readonly AppSettingsServiceInterface $appSettingsService,
-        private readonly AuditLoggerInterface $auditLogger,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly GameServerInstallPathManager $installPathManager,
-    ) {
+    public function __construct(private DiskEnforcementService $disk, private \App\Module\Gameserver\Application\GameserverInstallDirectory $directories, private AuditLoggerInterface $audit, private EntityManagerInterface $em, private GameServerInstallPathManager $paths, private InstanceInstallService $installer)
+    {
     }
 
-    public function provision(User $customer, ShopProduct $product, int $months): ShopRental
+    /** Payment and native installation are independent: failed preconditions remain retryable. */
+    public function fulfill(ShopOrder $order): void
     {
-        $months = max(1, $months);
+        $this->em->wrapInTransaction(function () use ($order): void {
+            $this->em->refresh($order, LockMode::PESSIMISTIC_WRITE);
+            if (null !== $order->getContract() || ShopOrderStatus::Pending !== $order->getStatus() || [] === $order->getConfiguration()) {
+                return;
+            }
+            $invoice = $order->getInvoice();
+            if (null !== $invoice) {
+                $this->em->refresh($invoice, LockMode::PESSIMISTIC_WRITE);
+                if (InvoiceStatus::Paid !== $invoice->getStatus() || 0 !== $invoice->getOutstandingCents()) {
+                    return;
+                }
+            } elseif (0 !== $order->getTotalPriceCents()) {
+                return;
+            }
+            $config = $order->getConfiguration();
+            if (ShopOrderType::Extend === $order->getType()) {
+                $rental = $order->getRental();
+                if (null === $rental) {
+                    $order->attempted('RENTAL_MISSING');
 
-        $blockMessage = $this->diskEnforcementService->guardNodeProvisioning(
-            $product->getNode(),
-            new \DateTimeImmutable(),
-        );
-        if ($blockMessage !== null) {
-            throw new \RuntimeException($blockMessage);
-        }
+                    return;
+                }
+                $this->em->refresh($rental, LockMode::PESSIMISTIC_WRITE);
+                if (null === $invoice && ($config['automatic_renewal'] ?? false) === true && !$rental->isAutoRenew()) {
+                    $order->setStatus(ShopOrderStatus::Cancelled);
 
-        $instance = new Instance(
-            $customer,
-            $product->getTemplate(),
-            $product->getNode(),
-            $product->getCpuLimit(),
-            $product->getRamLimit(),
-            $product->getDiskLimit(),
-            null,
-            InstanceStatus::PendingSetup,
-            InstanceUpdatePolicy::Manual,
-        );
-        $instance->setInstanceBaseDir($this->appSettingsService->getInstanceBaseDir());
+                    return;
+                }
+                if ([] === $rental->getRenewalConfiguration()) {
+                    $rental->configureSubscription($config, false);
+                }
+                $rental->extend($order->getMonths());
+                if (InstanceStatus::Suspended === $rental->getInstance()->getStatus()) {
+                    $rental->getInstance()->setStatus(InstanceStatus::Stopped);
+                }
+                $order->setStatus(ShopOrderStatus::Provisioned);
+                $order->attempted();
+                $this->audit->log($order->getCustomer(), 'shop.order.extended', ['order_id' => $order->getId(), 'rental_id' => $rental->getId()]);
 
-        $this->entityManager->persist($instance);
+                return;
+            }
+            $instance = $order->getInstance();
+            if (null === $instance) {
+                $node = $this->em->find(Agent::class, (string) $config['node_id']);
+                $template = $this->em->find(Template::class, (int) $config['template_id']);
+                if (null === $node || null === $template) {
+                    $order->attempted('PROVISIONING_TARGET_MISSING');
 
-        $expiresAt = (new \DateTimeImmutable())->modify(sprintf('+%d months', $months));
-        $rental = new ShopRental($customer, $product, $instance, $expiresAt);
-        $this->entityManager->persist($rental);
+                    return;
+                }
+                if (null !== $this->disk->guardNodeProvisioning($node, new \DateTimeImmutable())) {
+                    $order->attempted('NODE_DISK_CAPACITY');
 
-        $order = new ShopOrder(
-            $customer,
-            $product,
-            ShopOrderType::New,
-            ShopOrderStatus::Provisioned,
-            $months,
-            $product->getPriceMonthlyCents(),
-            $product->getPriceMonthlyCents() * $months,
-            $instance,
-        );
-        $this->entityManager->persist($order);
+                    return;
+                }
+                $instance = new Instance($order->getCustomer(), $template, $node, (int) $config['cpu_percent'], (int) $config['ram_mib'], (int) $config['disk_mib'], null, InstanceStatus::PendingSetup, InstanceUpdatePolicy::Manual);
+                $instance->setInstanceBaseDir($this->directories->resolve($node, (string) ($config['instance_base_dir'] ?? '')));
+                $this->em->persist($instance);
+                $order->setInstance($instance);
+                $this->em->flush();
+                $this->paths->ensureInstallPath($instance);
+                $rental = new ShopRental($order->getCustomer(), $order->getProduct(), $instance, \App\Module\Core\Domain\ValueObject\BillingPeriod::addMonths(new \DateTimeImmutable(), $order->getMonths()));
+                $rental->configureSubscription($config, (bool) $config['subscription']);
+                $this->em->persist($rental);
+                $order->setRental($rental);
+            } else {
+                $this->em->refresh($instance, LockMode::PESSIMISTIC_WRITE);
+            }
+            if (in_array($instance->getStatus(), [InstanceStatus::Provisioning, InstanceStatus::Running, InstanceStatus::Stopped], true)) {
+                $order->setStatus(ShopOrderStatus::Provisioned);
+                $order->attempted();
 
-        $this->auditLogger->log($customer, 'shop.order.provisioned', [
-            'customer_id' => $customer->getId(),
-            'instance_id' => $instance->getId(),
-            'product_id' => $product->getId(),
-            'months' => $months,
-        ]);
+                return;
+            }
+            if (InstanceStatus::Suspended === $instance->getStatus()) {
+                $order->attempted('RENTAL_EXPIRED');
 
-        $this->entityManager->flush();
-        $this->installPathManager->ensureInstallPath($instance);
-        $this->entityManager->flush();
+                return;
+            }
+            $install = $this->installer->prepareInstall($instance);
+            if (!$install['ok']) {
+                $order->attempted($install['error_code'] ?? 'INSTALL_PRECONDITION');
 
-        return $rental;
-    }
-
-    public function extendRental(ShopRental $rental, int $months): ShopOrder
-    {
-        $months = max(1, $months);
-
-        $rental->extend($months);
-        $this->entityManager->persist($rental);
-
-        $order = new ShopOrder(
-            $rental->getCustomer(),
-            $rental->getProduct(),
-            ShopOrderType::Extend,
-            ShopOrderStatus::Provisioned,
-            $months,
-            $rental->getProduct()->getPriceMonthlyCents(),
-            $rental->getProduct()->getPriceMonthlyCents() * $months,
-            $rental->getInstance(),
-        );
-        $this->entityManager->persist($order);
-
-        $this->auditLogger->log($rental->getCustomer(), 'shop.order.extended', [
-            'customer_id' => $rental->getCustomer()->getId(),
-            'instance_id' => $rental->getInstance()->getId(),
-            'product_id' => $rental->getProduct()->getId(),
-            'months' => $months,
-        ]);
-
-        $this->entityManager->flush();
-
-        return $order;
+                return;
+            }
+            $payload = array_merge($install['payload'] ?? [], ['instance_id' => (string) $instance->getId(), 'customer_id' => (string) $order->getCustomer()->getId(), 'node_id' => $instance->getNode()->getId(), 'agent_id' => $instance->getNode()->getId(), 'cpu_limit' => (string) $instance->getCpuLimit(), 'ram_limit' => (string) ($install['payload']['ram_limit'] ?? $instance->getRamLimit()), 'disk_limit' => (string) $instance->getDiskLimit(), 'base_dir' => $instance->getInstanceBaseDir(), 'install_path' => $instance->getInstallPath()]);
+            $job = new Job('sniper.install', $payload);
+            $this->em->persist($job);
+            $instance->setStatus(InstanceStatus::Provisioning);
+            $order->setStatus(ShopOrderStatus::Provisioned);
+            $order->attempted();
+            $this->audit->log($order->getCustomer(), 'shop.install.queued', ['order_id' => $order->getId(), 'instance_id' => $instance->getId(), 'job_id' => $job->getId()]);
+        });
     }
 }

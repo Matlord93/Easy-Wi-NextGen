@@ -67,18 +67,16 @@ final class InfrastructureAggregation
             throw new \UnexpectedValueException('Invalid infrastructure aggregate.');
         }
         $point = self::empty();
-        foreach (['samples', 'first_observed_at', 'last_observed_at'] as $field) {
-            $point[$field] = self::nonnegativeInteger($data[$field] ?? null);
-        }
+        $point['samples'] = self::nonnegativeInteger($data['samples'] ?? null);
+        $point['first_observed_at'] = self::nonnegativeInteger($data['first_observed_at'] ?? null);
+        $point['last_observed_at'] = self::nonnegativeInteger($data['last_observed_at'] ?? null);
         $metrics = JsonArray::fromValue($data['metrics'] ?? null);
         if ($metrics === null) {
             throw new \UnexpectedValueException('Invalid infrastructure aggregate metrics.');
         }
-        foreach (array_keys($metrics) as $name) {
-            if (!is_string($name) || !in_array($name, [...InfrastructureHistoryStore::LOAD, ...InfrastructureHistoryStore::IO], true)) {
-                throw new \UnexpectedValueException('Invalid infrastructure metric name.');
-            }
-            $metric = JsonArray::fromValue($metrics[$name]);
+        foreach (array_keys($metrics) as $key) {
+            $name = self::metricName($key);
+            $metric = JsonArray::fromValue($metrics[$key]);
             if ($metric === null) {
                 throw new \UnexpectedValueException('Invalid infrastructure metric.');
             }
@@ -101,6 +99,19 @@ final class InfrastructureAggregation
         }
 
         return $point;
+    }
+
+    private static function metricName(int|string $name): string
+    {
+        /** @var array<string, true>|null $names */
+        static $names = null;
+        $names ??= array_fill_keys([...InfrastructureHistoryStore::LOAD, ...InfrastructureHistoryStore::IO], true);
+        if (!is_string($name) || !isset($names[$name])) {
+            throw new \UnexpectedValueException('Invalid infrastructure metric name.');
+        }
+
+        // Keep the aggregate string-keyed and reuse the canonical whitelist.
+        return $name;
     }
 
     private static function measurement(mixed $value): ?float

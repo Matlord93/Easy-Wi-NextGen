@@ -1,48 +1,15 @@
 {% extends 'admin/base.html.twig' %}
-
-{% set pageTitle = t('admin_jobs_title', page_locale()) %}
-{% set pageSubtitle = t('admin_jobs_intro', page_locale()) %}
 {% set activeNav = 'jobs' %}
-{% set topbarActions = [
-    { label: t('admin_jobs_create', page_locale()), href: '/admin/jobs/new', variant: 'primary' }
-] %}
-
+{% set locale = page_locale() %}
 {% block content %}
-<div class="flex flex-col gap-6">
-    <div class="ng-kpi-row">
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_jobs_total', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--primary">{{ summary.total }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_jobs_running', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--info">{{ summary.running }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_jobs_queued', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.queued }}</div>
-        </div>
-    </div>
-
-    <div class="ng-data-card">
-        <div class="ng-data-card__header">
-            <div>
-                <h2 class="ng-data-card__title">{{ t('admin_jobs_recent_title', page_locale()) }}</h2>
-                <p class="ng-data-card__sub">{{ t('admin_jobs_recent_intro', page_locale()) }}</p>
-            </div>
-            <div class="ng-data-card__actions">
-                <button class="ui-button ui-button--ghost ui-button--sm">{{ t('export', page_locale()) }}</button>
-                <button
-                    class="ui-button ui-button--ghost ui-button--sm"
-                    hx-get="/admin/jobs/table?page={{ pagination.page }}"
-                    hx-target="#jobs-table"
-                    hx-swap="outerHTML"
-                >{{ t('refresh', page_locale()) }}</button>
-            </div>
-        </div>
-        <div class="ng-data-card__body--flush">
-            {% include 'admin/jobs/_table.html.twig' with { jobs: jobs, pagination: pagination } %}
-        </div>
-    </div>
+<div class="pm-workspace">
+<header class="pm-page-head"><div><h1>{{ t('admin_jobs_title',locale) }}</h1><p>{{ t('admin_jobs_intro',locale) }}</p></div><a class="ui-button ui-button--primary" href="/admin/jobs/new">+ {{ t('admin_jobs_create',locale) }}</a></header>
+<div class="pm-stats pm-stats--four">
+{% include 'components/panel/_stat.html.twig' with {value:summary.total,label:t('admin_jobs_total',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.running,label:t('admin_jobs_running',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.queued,label:t('admin_jobs_queued',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:summary.failed,label:t('admin_backups_status_failed',locale)} only %}
+</div>
+{% include 'admin/jobs/_table.html.twig' with {jobs:jobs,pagination:pagination} %}
 </div>
 {% endblock %}

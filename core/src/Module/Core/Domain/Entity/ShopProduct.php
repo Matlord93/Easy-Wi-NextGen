@@ -21,6 +21,51 @@ class ShopProduct
     #[ORM\Column]
     private ?int $id = null;
 
+    #[ORM\Column(options: ['default' => false])] private bool $subscriptionEnabled = false;
+
+    public function isSubscriptionEnabled(): bool
+    {
+        return $this->subscriptionEnabled;
+    }
+
+    public function setSubscriptionEnabled(bool $enabled): void
+    {
+        $this->subscriptionEnabled = $enabled;
+    }
+
+    #[ORM\Column(enumType: \App\Module\Core\Domain\Enum\ShopProductKind::class, options: ['default' => 'gameserver'])]
+    private \App\Module\Core\Domain\Enum\ShopProductKind $kind = \App\Module\Core\Domain\Enum\ShopProductKind::Gameserver;
+    /** @var array<string,int|string|bool> */
+    #[ORM\Column(type: 'json', nullable: true)] private ?array $provisioningOptions = null;
+    public function getKind(): \App\Module\Core\Domain\Enum\ShopProductKind
+    {
+        return $this->kind;
+    }
+
+    /** @return array<string,int|string|bool> */
+    public function getProvisioningOptions(): array
+    {
+        return $this->provisioningOptions ?? [];
+    }
+
+    /** @param array<string,int|string|bool> $options */
+    public function configureKind(\App\Module\Core\Domain\Enum\ShopProductKind $kind, array $options): void
+    {
+        $this->kind = $kind;
+        $this->provisioningOptions = $options;
+        $this->touch();
+    }
+
+    public function getGameTemplate(): ?Template
+    {
+        return $this->template;
+    }
+
+    public function getProvisioningNode(): ?Agent
+    {
+        return $this->node;
+    }
+
     #[ORM\Column]
     private int $siteId;
 
@@ -41,12 +86,12 @@ class ShopProduct
     private int $priceMonthlyCents;
 
     #[ORM\ManyToOne(targetEntity: Template::class)]
-    #[ORM\JoinColumn(nullable: false)]
-    private Template $template;
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Template $template;
 
     #[ORM\ManyToOne(targetEntity: Agent::class)]
-    #[ORM\JoinColumn(nullable: false)]
-    private Agent $node;
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Agent $node;
 
     #[ORM\Column]
     private int $cpuLimit;
@@ -78,8 +123,8 @@ class ShopProduct
         string $name,
         string $description,
         int $priceMonthlyCents,
-        Template $template,
-        Agent $node,
+        ?Template $template,
+        ?Agent $node,
         int $cpuLimit,
         int $ramLimit,
         int $diskLimit,
@@ -173,7 +218,7 @@ class ShopProduct
 
     public function getTemplate(): Template
     {
-        return $this->template;
+        return $this->template ?? throw new \LogicException('This product has no gameserver template.');
     }
 
     public function setTemplate(Template $template): void
@@ -184,7 +229,7 @@ class ShopProduct
 
     public function getNode(): Agent
     {
-        return $this->node;
+        return $this->node ?? throw new \LogicException('This product has no provisioning agent.');
     }
 
     public function setNode(Agent $node): void

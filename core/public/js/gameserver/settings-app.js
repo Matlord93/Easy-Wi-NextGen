@@ -233,6 +233,7 @@
     };
 
     const loadConfigs = async (fromSettingsPayload) => {
+        if (!configList || !editor) return;
         try {
             let configs = fromSettingsPayload?.configs;
             if (!Array.isArray(configs)) {

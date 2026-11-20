@@ -440,7 +440,7 @@ final class AdminUserManagementController
             $success[] = sprintf('User #%s updated.', $updatedId);
         }
 
-        return $this->twig->render('admin/users/index.html.twig', [
+        return $this->twig->render('admin/users/index.html.twig', array_replace([
             'activeNav' => 'users',
             'users' => $rows,
             'errors' => $errors,
@@ -450,6 +450,7 @@ final class AdminUserManagementController
             'canImpersonate' => $this->canImpersonate($request),
             'canManageSshKeys' => $this->canManageSshKeys($request),
             'canManageUsers' => $this->canManageUsers($request),
+            'showCreateForm' => isset($overrides['createForm']),
             'pendingSshKeys' => $this->collectPendingSshKeys($rows),
             'createForm' => [
                 'email' => '',
@@ -458,7 +459,7 @@ final class AdminUserManagementController
                 'member_access_enabled' => false,
                 'customer_access_enabled' => false,
             ],
-        ] + $overrides);
+        ], $overrides));
     }
 
     private function canImpersonate(Request $request): bool

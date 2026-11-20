@@ -5,20 +5,16 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Infrastructure\Config\JsonArray;
-use App\Infrastructure\Config\ScalarValue;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\AuditLoggerInterface;
-use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Domain\Entity\Instance;
-use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepositoryInterface;
 use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -40,11 +36,9 @@ final class CustomerInstanceFileManagerController
     public function __construct(
         private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly JobRepositoryInterface $jobRepository,
-        private readonly GamePluginRepository $gamePluginRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly AppSettingsServiceInterface $appSettingsService,
-        private readonly FileServiceClient $fileServiceClient,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
     ) {
@@ -55,33 +49,9 @@ final class CustomerInstanceFileManagerController
     {
         $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
-        $path = trim($request->query->getString('path', ''));
-        $fileApiError = null;
-
-        try {
-            $ping = $this->fileServiceClient->ping($instance);
-            $fileApiAvailable = ($ping['ok'] ?? false);
-            if (!$fileApiAvailable) {
-                $fileApiError = is_string($ping['error'] ?? null) ? (string) $ping['error'] : null;
-            }
-        } catch (\Throwable $exception) {
-            $fileApiAvailable = false;
-            $fileApiError = $exception->getMessage();
-        }
-
-        $template = $fileApiAvailable
-            ? 'customer/instances/files/index.html.twig'
-            : 'customer/instances/files/legacy.html.twig';
-
-        return new Response($this->twig->render($template, [
-            'instance' => $this->normalizeInstance($instance),
-            'configFiles' => $this->normalizeConfigFiles($instance->getTemplate()->getConfigFiles()),
-            'availablePlugins' => $this->normalizePlugins($instance),
-            'path' => $path,
-            'fileApiError' => $fileApiError,
-            'activeNav' => 'instances',
-        ]));
+        $this->findCustomerInstance($customer, $id);
+        $path = $request->query->getString('path');
+        return new \Symfony\Component\HttpFoundation\RedirectResponse('/instances/'.$id.'/files'.('' !== $path ? '?path='.rawurlencode($path) : ''), 303);
     }
 
     #[Route(path: '/listing', name: 'customer_instance_files_listing', methods: ['GET'])]
@@ -454,94 +424,6 @@ final class CustomerInstanceFileManagerController
         }
 
         return $instance;
-    }
-
-    /**
-     * @return array{id: int|null, name: string, server_name: null|string, game_key: string, node: array{id:
-     * string, name: null|string}}
-     */
-    private function normalizeInstance(Instance $instance): array
-    {
-        return [
-            'id' => $instance->getId(),
-            'name' => $instance->getTemplate()->getDisplayName(),
-            'server_name' => $instance->getServerName(),
-            'game_key' => $instance->getTemplate()->getGameKey(),
-            'node' => [
-                'id' => $instance->getNode()->getId(),
-                'name' => $instance->getNode()->getName(),
-            ],
-        ];
-    }
-
-    /**
-     * @param array<array-key, mixed> $configFiles
-     * @return list<array{path: string, dir: string, name: string, description: string}>
-     */
-    private function normalizeConfigFiles(array $configFiles): array
-    {
-        $normalized = [];
-        foreach (array_keys($configFiles) as $key) {
-            if (!is_array($configFiles[$key])) {
-                continue;
-            }
-            $entry = $configFiles[$key];
-            $path = trim(ScalarValue::text($entry['path'] ?? ''));
-            if ($path === '') {
-                continue;
-            }
-            $description = trim(ScalarValue::text($entry['description'] ?? ''));
-            $name = basename($path);
-            $dir = dirname($path);
-            $normalized[] = [
-                'path' => $path,
-                'dir' => $dir === '.' ? '' : $dir,
-                'name' => $name,
-                'description' => $description,
-            ];
-        }
-
-        return $normalized;
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function normalizePlugins(Instance $instance): array
-    {
-        $plugins = $this->gamePluginRepository->findByTemplateGameKey($instance->getTemplate());
-
-        $installedVersions = [];
-        $installedRaw = JsonArray::orEmpty($instance->getConfigOverrides()['addons'] ?? null);
-        foreach (array_keys($installedRaw) as $key) {
-            if (!is_array($installedRaw[$key])) {
-                continue;
-            }
-            $entry = $installedRaw[$key];
-            $name = strtolower(trim(ScalarValue::text($entry['name'] ?? '')));
-            if ($name === '') {
-                continue;
-            }
-            $installedVersions[$name] = trim(ScalarValue::text($entry['version'] ?? ''));
-        }
-
-        return array_map(static function (GamePlugin $plugin) use ($installedVersions): array {
-            $latestVersion = $plugin->getVersion();
-            $installedVersion = $installedVersions[strtolower($plugin->getName())] ?? null;
-            $installedVersion = $installedVersion !== null && trim($installedVersion) !== '' ? trim($installedVersion) : null;
-
-            return [
-                'id' => $plugin->getId(),
-                'name' => $plugin->getName(),
-                'version' => $latestVersion,
-                'latest_version' => $latestVersion,
-                'installed_version' => $installedVersion,
-                'is_installed' => $installedVersion !== null,
-                'can_update' => $installedVersion !== null && $installedVersion !== $latestVersion,
-                'can_remove' => $installedVersion !== null,
-                'description' => $plugin->getDescription(),
-            ];
-        }, $plugins);
     }
 
     private function queueListingJob(Instance $instance, User $actor, string $path): Job

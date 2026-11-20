@@ -33,115 +33,22 @@
     {% endif %}
 {% endfor %}
 
-<div style="display:flex;flex-direction:column;gap:20px;">
-
-    {% if success is not empty %}
-        <div class="ng-alert ng-alert--success">
-            <ul style="margin:0;padding-left:18px;">{% for msg in success %}<li>{{ msg }}</li>{% endfor %}</ul>
-        </div>
-    {% endif %}
-
-    {# ── Hero with KPI ── #}
-    <section class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:16px;">
-                    <div>
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot"></span>
-                            {{ t('admin_tickets_workbench_label', locale) }}
-                        </div>
-                        <h1 class="tkt-hero__title" style="margin-top:10px;">{{ t('admin_tickets_heading', locale) }}</h1>
-                        <p class="tkt-hero__sub">{{ t('admin_tickets_workbench_intro', locale) }}</p>
-                    </div>
-                    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;">
-                        <div class="tkt-kpi tkt-kpi--open">
-                            <div class="tkt-kpi__label">{{ t('ticket_ui_kpi_open_tickets', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.open }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--pending">
-                            <div class="tkt-kpi__label">{{ t('ticket_ui_kpi_waiting_customer', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.pending }}</div>
-                        </div>
-                        <div class="tkt-kpi" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07);">
-                            <div class="tkt-kpi__label" style="color:rgba(252,165,165,.7);">{{ t('ticket_ui_kpi_high_priority', locale) }}</div>
-                            <div class="tkt-kpi__value" style="color:var(--aw-status-danger, #fca5a5);">{{ summary.high_priority }}</div>
-                        </div>
-                        <div class="tkt-kpi tkt-kpi--resolved">
-                            <div class="tkt-kpi__label">{{ t('ticket_ui_kpi_resolved_today', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.resolved_today }}</div>
-                        </div>
-                        <div class="tkt-kpi">
-                            <div class="tkt-kpi__label">{{ t('ticket_ui_my_tickets', locale) }}</div>
-                            <div class="tkt-kpi__value">{{ summary.assigned_to_me }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {# ── Action bar ── #}
-        <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:12px;padding:16px;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);">
-            {% if oldestOpen %}
-                {% set nowTs = date()|date('U') %}
-                {% set createdTs = oldestOpen.created_at|date('U') %}
-                {% set ageDays = ((nowTs - createdTs) / 86400)|round(0, 'floor') %}
-                <a href="/admin/tickets/{{ oldestOpen.id }}" class="tkt-oldest">
-                    <div style="display:flex;align-items:center;gap:14px;min-width:0;">
-                        <div class="tkt-oldest__icon">
-                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        </div>
-                        <div style="min-width:0;">
-                            <div class="tkt-oldest__label">{{ t('admin_tickets_oldest_open_banner_title', locale) }}</div>
-                            <div class="tkt-oldest__subject">#{{ oldestOpen.id }} — {{ oldestOpen.subject }}</div>
-                            <div class="tkt-oldest__meta">{{ oldestOpen.customer.email }} · {{ ageDays == 0 ? t('admin_tickets_age_today', locale) : ageDays ~ t('admin_tickets_age_days_suffix', locale) }} · {{ priorityLabels[oldestOpen.priority] ?? oldestOpen.priority }}</div>
-                        </div>
-                    </div>
-                    <div class="tkt-oldest__btn">
-                        {{ t('admin_tickets_oldest_open_open', locale) }}
-                        <svg style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-                    </div>
-                </a>
-            {% else %}
-                <div class="tkt-all-clear">
-                    <div class="tkt-all-clear__icon">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    </div>
-                    <div>
-                        <p style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('admin_tickets_no_oldest', locale) }}</p>
-                        <p style="margin:3px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('admin_tickets_focus_empty', locale) }}</p>
-                    </div>
-                </div>
-            {% endif %}
-            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
-                <button type="button" class="tkt-qa" onclick="document.getElementById('new-ticket-section').classList.toggle('hidden')">
-                    <div class="tkt-qa__icon">+</div>
-                    <div class="tkt-qa__title">{{ t('admin_tickets_new_ticket_btn', locale) }}</div>
-                    <div class="tkt-qa__sub">{{ t('admin_tickets_create_shortcut', locale) }}</div>
-                </button>
-                <button type="button" class="tkt-qa" hx-get="/admin/tickets/table" hx-target="#tickets-table-wrap" hx-swap="outerHTML">
-                    <div class="tkt-qa__icon" style="background:var(--ng-surface);color:var(--ng-text-muted);">↻</div>
-                    <div class="tkt-qa__title">{{ t('refresh', locale) }}</div>
-                    <div class="tkt-qa__sub">{{ t('admin_tickets_refresh_hint', locale) }}</div>
-                </button>
-                <a href="#ticket-tools" class="tkt-qa">
-                    <div class="tkt-qa__icon" style="background:var(--ng-surface);color:var(--ng-text-muted);">⌘</div>
-                    <div class="tkt-qa__title">{{ t('admin_tickets_section_tools', locale) }}</div>
-                    <div class="tkt-qa__sub">{{ t('admin_tickets_tools_hint', locale) }}</div>
-                </a>
-            </div>
-        </div>
-    </section>
-
+{% set toolsUpdated = app.request and (app.request.query.has('template_created') or app.request.query.has('template_updated') or app.request.query.has('template_deleted') or app.request.query.has('quick_reply_created') or app.request.query.has('quick_reply_updated') or app.request.query.has('quick_reply_deleted')) %}
+<div class="pm-workspace" data-panel-tabs="admin-tickets"{% if toolsUpdated %} data-panel-active="tools"{% endif %}>
+    {% if success is not empty %}<div class="ng-alert ng-alert--success"><ul>{% for msg in success %}<li>{{ msg }}</li>{% endfor %}</ul></div>{% endif %}
+    <header class="pm-page-head"><div><h1>{{ t('admin_tickets_heading',locale) }}</h1><p>{{ t('admin_tickets_workbench_intro',locale) }}</p></div><div class="pm-page-head__actions"><button class="ui-button ui-button--ghost" type="button" hx-get="/admin/tickets/table" hx-include="#admin-ticket-filters" hx-target="#tickets-table-wrap" hx-swap="outerHTML">{{ t('refresh',locale) }}</button><a class="ui-button ui-button--primary" href="#pm-admin-tickets-create">+ {{ t('ticket_ui_create_ticket',locale) }}</a></div></header>
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'admin-tickets',panelTabs:{overview:'workspace_inventory',create:'create',tools:'workspace_ticket_tools'}} %}
+    <div class="pm-stats pm-stats--five">{% for label,value in {ticket_ui_kpi_open_tickets:summary.open,ticket_ui_kpi_waiting_customer:summary.pending,ticket_ui_kpi_high_priority:summary.high_priority,ticket_ui_kpi_resolved_today:summary.resolved_today,ticket_ui_my_tickets:summary.assigned_to_me} %}{% include 'components/panel/_stat.html.twig' with {value:value,label:t(label,locale)} only %}{% endfor %}</div>
+    {% if oldestOpen %}<p class="pm-ticket-oldest"><a href="/admin/tickets/{{ oldestOpen.id }}">{{ 'workspace_oldest_ticket'|trans({},'panel_modules') }}: #{{ oldestOpen.id }} · {{ oldestOpen.subject }}</a></p>{% endif %}
     {# ── Ticket list ── #}
-    <section class="ng-card" style="overflow:hidden;">
+    <section class="ng-card" style="overflow:hidden;" data-panel-section="overview">
         <div class="tkt-filter-bar">
             <div class="tkt-filter-bar__top">
                 <div>
                     <h2 class="tkt-filter-bar__title">{{ t('admin_tickets_inbox_title', locale) }}</h2>
                     <p class="tkt-filter-bar__sub">{{ t('ticket_ui_admin_filter_intro', locale) }}</p>
                 </div>
-                <button type="button" class="ui-button ui-button--primary" onclick="document.getElementById('new-ticket-section').classList.remove('hidden')">+ {{ t('ticket_ui_create_ticket', locale) }}</button>
+                <a class="ui-button ui-button--ghost" href="#pm-admin-tickets-create">+ {{ t('ticket_ui_create_ticket',locale) }}</a>
             </div>
             <form id="admin-ticket-filters" method="get" action="/admin/tickets" style="display:grid;grid-template-columns:minmax(200px,1.4fr) repeat(4,minmax(130px,1fr)) auto;gap:8px;align-items:end;">
                 <div class="form-field">
@@ -196,27 +103,17 @@
         } %}
     </section>
 
-    {# ── New ticket (hidden) ── #}
-    <div id="new-ticket-section" class="hidden">
-        <div id="ticket-form" hx-trigger="tickets-changed from:body" hx-get="/admin/tickets/form" hx-swap="outerHTML">
-            {% include 'admin/tickets/_form.html.twig' with {
+    <section id="new-ticket-section" data-panel-section="create">
+{% include 'admin/tickets/_form.html.twig' with {
                 form: form,
                 customers: customers,
                 templates: templates,
                 adminSignature: adminSignature
-            } %}
-        </div>
-    </div>
-
-    {# ── Tools (templates + quick replies) ── #}
-    <details id="ticket-tools" class="ng-card" style="overflow:hidden;">
-        <summary style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;cursor:pointer;user-select:none;list-style:none;color:var(--ng-text);font-size:14px;font-weight:700;transition:background .15s;">
-            <span>{{ t('admin_tickets_section_tools', locale) }}</span>
-            <svg style="width:16px;height:16px;color:var(--ng-text-muted);transition:transform .2s;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-        </summary>
-        <summary::-webkit-details-marker { display:none; }
+            } %}    </section>
+    <section id="ticket-tools" class="ng-card" style="overflow:hidden;" data-panel-section="tools">
+        <div class="cust-panel__head"><h2 class="cust-panel__title">{{ t('admin_tickets_section_tools',locale) }}</h2></div>
         <div style="border-top:1px solid var(--ng-border);padding:20px;">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+            <div class="pm-ticket-tools-grid">
 
                 {# Ticket Templates #}
                 <div style="display:flex;flex-direction:column;gap:14px;">
@@ -330,7 +227,5 @@
 
             </div>
         </div>
-    </details>
-
-</div>
+    </section></div>
 {% endblock %}

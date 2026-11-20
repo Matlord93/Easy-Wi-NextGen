@@ -227,6 +227,14 @@ class DatabaseNode
         $this->touch();
     }
 
+    public function resetHealth(): void
+    {
+        $this->healthStatus = 'unknown';
+        $this->healthMessage = null;
+        $this->lastCheckedAt = null;
+        $this->touch();
+    }
+
     public function markHealthy(?string $message = null): void
     {
         $this->healthStatus = 'healthy';

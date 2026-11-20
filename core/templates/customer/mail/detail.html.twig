@@ -1,15 +1,16 @@
 {% extends 'customer/base.html.twig' %}
+{% set activeNav = 'mail' %}
 {% block content %}
 {% set locale = page_locale() %}
-<div class="cust-page">
+<div class="cust-page" data-panel-tabs="mail">
 
-    <div class="cust-panel">
-        <div class="cust-panel__head">
-            <div>
-                <h1 class="cust-panel__title">{{ t('customer_mailbox_detail_title', locale) }}</h1>
-            </div>
-        </div>
+    <header class="pm-page-head">
+        <div><h1>{{ mailbox.address }}</h1><p>{{ t('customer_mailbox_detail_title',locale) }}</p></div>
+        <div class="pm-page-head__actions"><a class="ui-button ui-button--ghost" href="{{ path('customer_mail') }}">{{ 'back'|trans({},'panel_modules') }}</a>{% if webmail_url %}<a class="ui-button ui-button--primary" href="{{ webmail_url }}" target="_blank" rel="noopener noreferrer">Webmail ↗</a>{% endif %}</div>
+    </header>
+    <div class="pm-mail-workspace">
         <div style="display:flex;flex-direction:column;gap:16px;padding:16px;">
+            {% include 'components/panel/_tabs.html.twig' with {panelKey:'mail',panelTabs:{overview:'overview',connection:'connection',security:'security',dns_policy:'dns_policy'}} %}
 
             {% if last_job and last_job.status == 'failed' %}
                 <div class="cust-alert cust-alert--error">{{ t('customer_mailbox_detail_last_job_failed', locale) }}: {{ last_job.error ?: 'unknown' }}</div>
@@ -18,20 +19,23 @@
                 <div class="cust-alert" style="border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.08);color:#6ee7b7;">{{ t('customer_mailbox_detail_password_scheduled', locale) }}</div>
             {% endif %}
 
-            {# Mailbox info #}
-            <div style="border:1px solid var(--ng-border);border-radius:10px;padding:16px;background:var(--ng-surface);display:flex;flex-direction:column;gap:6px;font-size:13px;">
-                <div><strong style="color:var(--ng-text);">{{ t('customer_mailbox_detail_address', locale) }}:</strong> <span style="color:var(--ng-text-muted);">{{ mailbox.address }}</span></div>
-                <div><strong style="color:var(--ng-text);">{{ t('customer_mailbox_detail_domain', locale) }}:</strong> <span style="color:var(--ng-text-muted);">{{ mailbox.domain.name }}</span></div>
-                <div><strong style="color:var(--ng-text);">{{ t('customer_mailbox_detail_status', locale) }}:</strong>
-                    <span class="ui-badge ui-badge--{{ mailbox.enabled ? 'success' : 'neutral' }}" style="margin-left:4px;">{{ mailbox.enabled ? t('customer_mailbox_status_enabled', locale) : t('customer_mailbox_status_disabled', locale) }}</span>
-                </div>
-                <div><strong style="color:var(--ng-text);">{{ t('customer_mailbox_detail_quota', locale) }}:</strong> <span style="color:var(--ng-text-muted);">{{ mailbox.quota }} MB</span></div>
-                <div><strong style="color:var(--ng-text);">{{ t('customer_mailbox_detail_node', locale) }}:</strong> <span style="color:var(--ng-text-muted);">{{ mail_node_name ?: '—' }}</span></div>
+            <div class="pm-stats" data-panel-section="overview">
+                {% include 'components/panel/_stat.html.twig' with {value:mailbox.enabled ? t('customer_mailbox_status_enabled',locale) : t('customer_mailbox_status_disabled',locale),label:t('customer_mailbox_detail_status',locale)} only %}
+                {% include 'components/panel/_stat.html.twig' with {value:mailbox.quota ~ ' MB',label:t('customer_mailbox_detail_quota',locale)} only %}
+                {% include 'components/panel/_stat.html.twig' with {value:quota_usage.available ? quota_usage.used_mb|number_format(1,',','.') ~ ' MB' : '—',label:t('customer_mailbox_detail_storage_title',locale)} only %}
             </div>
+            <section class="cust-panel" data-panel-section="overview">
+                <div class="cust-panel__head"><h2 class="cust-panel__title">{{ 'workspace_service_info'|trans({},'panel_modules') }}</h2></div>
+                <div class="cust-panel__body"><dl class="pm-keyvalues pm-connection-values">
+                    <div><dt>{{ t('customer_mailbox_detail_address',locale) }}</dt><dd><code>{{ mailbox.address }}</code><button type="button" class="ui-button ui-button--ghost ui-button--sm" data-copy-value="{{ mailbox.address }}" aria-label="{{ 'workspace_copy'|trans({},'panel_modules') }}">⧉</button></dd></div>
+                    <div><dt>{{ t('customer_mailbox_detail_domain',locale) }}</dt><dd>{{ mailbox.domain.name }}</dd></div>
+                    <div><dt>{{ t('customer_mailbox_detail_node',locale) }}</dt><dd>{{ mail_node_name ?: '—' }}</dd></div>
+                </dl></div>
+            </section>
 
             {# Storage #}
-            <div style="border:1px solid var(--ng-border);border-radius:10px;padding:16px;background:var(--ng-surface);display:flex;flex-direction:column;gap:10px;font-size:13px;">
-                <h2 style="font-weight:600;color:var(--ng-text);">{{ t('customer_mailbox_detail_storage_title', locale) }}</h2>
+            <div style="border:1px solid var(--ng-border);border-radius:10px;padding:16px;background:var(--ng-surface);display:flex;flex-direction:column;gap:10px;font-size:13px;" data-panel-section="overview">
+                <h2 class="cust-panel__title" style="font-weight:600;color:var(--ng-text);">{{ t('customer_mailbox_detail_storage_title', locale) }}</h2>
                 {% if quota_usage.available %}
                     {% if quota_usage.quota_mb > 0 %}
                         <p style="color:var(--ng-text);">{{ quota_usage.used_mb|number_format(1, ',', '.') }} MB {{ t('customer_mailbox_detail_storage_used_of', locale) }} {{ quota_usage.quota_mb }} MB</p>
@@ -81,8 +85,8 @@ SMTP:
 {{ t('customer_mailbox_detail_encryption', locale) }}: {{ smtp.encryption }}
 {{ t('customer_mailbox_detail_smtp_auth_required', locale) }}
 {{ t('customer_mailbox_detail_username', locale) }}: {{ username }}{% endset %}
-            <div style="border:1px solid var(--ng-border);border-radius:10px;padding:16px;background:var(--ng-surface);display:flex;flex-direction:column;gap:16px;font-size:13px;">
-                <h2 style="font-weight:600;color:var(--ng-text);">{{ t('customer_mailbox_detail_connection_title', locale) }}</h2>
+            <div style="border:1px solid var(--ng-border);border-radius:10px;padding:16px;background:var(--ng-surface);display:flex;flex-direction:column;gap:16px;font-size:13px;" data-panel-section="connection">
+                <h2 class="cust-panel__title" style="font-weight:600;color:var(--ng-text);">{{ t('customer_mailbox_detail_connection_title', locale) }}</h2>
                 <div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
                     <div style="border:1px solid var(--ng-border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:4px;">
                         <h3 style="font-weight:600;color:var(--ng-text);margin-bottom:4px;">IMAP</h3>
@@ -109,11 +113,11 @@ SMTP:
                 </div>
 
                 <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" onclick="navigator.clipboard.writeText('{{ imap.host|e('js') }}')">{{ t('customer_mailbox_detail_copy_imap', locale) }}</button>
-                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" onclick="navigator.clipboard.writeText('{{ pop3.host|e('js') }}')">{{ t('customer_mailbox_detail_copy_pop3', locale) }}</button>
-                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" onclick="navigator.clipboard.writeText('{{ smtp.host|e('js') }}')">{{ t('customer_mailbox_detail_copy_smtp', locale) }}</button>
-                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" onclick="navigator.clipboard.writeText('{{ username|e('js') }}')">{{ t('customer_mailbox_detail_copy_username', locale) }}</button>
-                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" onclick="navigator.clipboard.writeText('{{ setup_text|trim|e('js') }}')">{{ t('customer_mailbox_detail_copy_config', locale) }}</button>
+                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" data-copy-value="{{ imap.host }}">{{ t('customer_mailbox_detail_copy_imap', locale) }}</button>
+                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" data-copy-value="{{ pop3.host }}">{{ t('customer_mailbox_detail_copy_pop3', locale) }}</button>
+                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" data-copy-value="{{ smtp.host }}">{{ t('customer_mailbox_detail_copy_smtp', locale) }}</button>
+                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" data-copy-value="{{ username }}">{{ t('customer_mailbox_detail_copy_username', locale) }}</button>
+                    <button type="button" class="ui-button ui-button--ghost ui-button--sm" data-copy-value="{{ setup_text|trim }}">{{ t('customer_mailbox_detail_copy_config', locale) }}</button>
                 </div>
 
                 <div style="border:1px solid var(--ng-border);border-radius:8px;padding:12px;background:var(--ng-surface-soft);">
@@ -140,6 +144,8 @@ SMTP:
                     <p style="font-size:12px;color:var(--ng-text-muted);">{{ t('customer_mailbox_detail_thunderbird_hint', locale) }}</p>
                 </div>
 
+            </div>
+            <div data-panel-section="dns_policy" class="pm-form">
                 {% if dns_check is not null and dns_check.checks is defined %}
                     <div style="border:1px solid var(--ng-border);border-radius:8px;padding:12px;background:var(--ng-surface);display:flex;flex-direction:column;gap:8px;">
                         <h3 style="font-weight:600;color:var(--ng-text);">{{ t('customer_mail_dns_title', locale) }}</h3>
@@ -171,6 +177,8 @@ SMTP:
                 {% endif %}
 
                 {# Password change #}
+            </div>
+            <div data-panel-section="security" class="pm-form">
                 <div style="border:1px solid var(--ng-border);border-radius:8px;padding:12px;background:var(--ng-surface-soft);display:flex;flex-direction:column;gap:10px;">
                     <h3 style="font-weight:600;color:var(--ng-text);">{{ t('customer_mailbox_detail_password_title', locale) }}</h3>
                     <p style="font-size:12px;color:var(--ng-text-muted);">{{ t('customer_mailbox_detail_password_provisioning_hint', locale) }}</p>

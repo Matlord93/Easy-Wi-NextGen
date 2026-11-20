@@ -28,20 +28,20 @@ final class PublicCookieConsentTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         $html = (string) $client->getResponse()->getContent();
-        self::assertStringContainsString('data-cookie-open', $html);
+        self::assertStringContainsString('data-cookie-settings', $html);
         self::assertStringContainsString('id="cookie-settings-modal"', $html);
         self::assertStringContainsString('Cookie-Richtlinie', $html);
-        self::assertStringContainsString('href="/cookies"', $html);
+        self::assertStringContainsString('data-cookie-policy', $html);
     }
 
-    public function testLegacyCookiePolicyPathRedirectsToCmsPageSlug(): void
+    public function testLegacyCookiePolicyPathOpensTheDialogOnTheHomepage(): void
     {
         self::ensureKernelShutdown();
         $client = static::createClient();
 
         $client->request('GET', '/cookie-richtlinie');
 
-        self::assertResponseRedirects('/cookies', 301);
+        self::assertResponseRedirects('/#cookie-policy', 302);
     }
 
     public function testConsentEndpointStoresFirstPartyCookieWithVersion(): void

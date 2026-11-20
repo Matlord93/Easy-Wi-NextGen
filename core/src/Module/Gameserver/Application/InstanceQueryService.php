@@ -224,6 +224,11 @@ final class InstanceQueryService
 
     private function resolveGamePort(Instance $instance, ?PortBlock $portBlock, ?int $fallback): ?int
     {
+        $sevenDaysPort = SevenDaysToDiePorts::reservedGamePort($instance->getTemplate(), $portBlock);
+        if (null !== $sevenDaysPort) {
+            return $sevenDaysPort;
+        }
+
         $setupVars = $instance->getSetupVars();
         if (is_numeric($setupVars['GAME_PORT'] ?? null)) {
             return (int) $setupVars['GAME_PORT'];
@@ -263,6 +268,10 @@ final class InstanceQueryService
      */
     private function resolveFallbackQueryPorts(Instance $instance, ?PortBlock $portBlock, ?int $queryPort, ?int $gamePort): array
     {
+        if (null !== SevenDaysToDiePorts::reservedGamePort($instance->getTemplate(), $portBlock)) {
+            return [];
+        }
+
         $setupVars = $instance->getSetupVars();
         $requiredPorts = $instance->getTemplate()->getRequiredPorts();
         $portCandidates = [];

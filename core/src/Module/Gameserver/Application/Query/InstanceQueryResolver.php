@@ -7,6 +7,7 @@ namespace App\Module\Gameserver\Application\Query;
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Gameserver\Application\SevenDaysToDiePorts;
 use App\Module\Ports\Domain\Entity\PortBlock;
 
 final class InstanceQueryResolver
@@ -131,6 +132,11 @@ final class InstanceQueryResolver
     {
         if (is_numeric($queryConfig['port'] ?? null)) {
             return ['port' => (int) $queryConfig['port'], 'source' => 'template_query_port'];
+        }
+
+        $sevenDaysPort = SevenDaysToDiePorts::reservedGamePort($instance->getTemplate(), $portBlock);
+        if ('steam_a2s' === $queryType && null !== $sevenDaysPort) {
+            return ['port' => $sevenDaysPort, 'source' => 'required_game_port'];
         }
 
         $setupVars = $instance->getSetupVars();

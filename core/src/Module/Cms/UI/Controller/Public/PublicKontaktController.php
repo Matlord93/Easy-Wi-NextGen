@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Cms\UI\Controller\Public;
 
 use App\Module\Cms\Application\CmsSettingsProvider;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\ThemeResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Domain\Entity\ContactMessage;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,8 +21,9 @@ final class PublicKontaktController
 {
     public function __construct(
         private readonly Environment $twig,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly CmsSettingsProvider $settingsProvider,
+        private readonly ThemeResolver $themeResolver,
         private readonly EntityManagerInterface $entityManager,
         private readonly RateLimiterFactory $kontaktLimiter,
         private readonly TranslatorInterface $translator,
@@ -70,6 +72,8 @@ final class PublicKontaktController
             }
         }
 
+        $theme = $this->themeResolver->resolveThemeKey($site);
+
         return new Response($this->twig->render('themes/nexus-gaming/pages/kontakt.html.twig', [
             'success' => $success,
             'error' => $error,
@@ -78,13 +82,15 @@ final class PublicKontaktController
             'cms_branding' => $this->settingsProvider->getBranding($site),
             'page' => ['title' => $this->translator->trans('theme_contact_title'), 'slug' => 'kontakt'],
             'blocks' => [],
-            'template_key' => 'nexus-gaming',
-            'active_theme' => 'nexus-gaming',
+            'template_key' => $theme,
+            'active_theme' => $theme,
         ]));
     }
 
     private function renderSuccess(Request $request, \App\Module\Core\Domain\Entity\Site $site): Response
     {
+        $theme = $this->themeResolver->resolveThemeKey($site);
+
         return new Response($this->twig->render('themes/nexus-gaming/pages/kontakt.html.twig', [
             'success' => true,
             'error' => null,
@@ -93,8 +99,8 @@ final class PublicKontaktController
             'cms_branding' => $this->settingsProvider->getBranding($site),
             'page' => ['title' => $this->translator->trans('theme_contact_title'), 'slug' => 'kontakt'],
             'blocks' => [],
-            'template_key' => 'nexus-gaming',
-            'active_theme' => 'nexus-gaming',
+            'template_key' => $theme,
+            'active_theme' => $theme,
         ]));
     }
 }

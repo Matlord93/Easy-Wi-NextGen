@@ -6,7 +6,7 @@ namespace App\Module\PanelCustomer\UI\Controller\Public;
 
 use App\Module\Cms\Application\CmsFeatureToggle;
 use App\Module\Cms\Application\ThemeResolver;
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Core\Application\PublicServerStatusService;
 use App\Module\Core\Domain\Entity\PublicServer;
 use App\Repository\PublicServerRepository;
@@ -23,7 +23,7 @@ final class PublicServerController
 {
     public function __construct(
         private readonly PublicServerRepository $publicServerRepository,
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly CmsFeatureToggle $featureToggle,
         private readonly ThemeResolver $themeResolver,
         private readonly PublicServerStatusService $statusService,

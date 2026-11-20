@@ -1,0 +1,3 @@
+<nav class="pm-tabs" data-panel-tablist aria-label="{{ 'navigation'|trans({}, 'panel_modules') }}">
+    {% for key,label in panelTabs %}<a href="#pm-{{ panelKey }}-{{ key }}" data-panel-tab="{{ key }}">{{ label|trans({}, 'panel_modules') }}</a>{% endfor %}
+</nav>

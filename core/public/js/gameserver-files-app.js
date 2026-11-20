@@ -616,7 +616,7 @@
                 throw health;
             }
             errors.clearInline(inlineErrorEl);
-            await loadList('');
+            await loadList(new URLSearchParams(window.location.search).get('path') || '');
             await loadAccess();
         } catch (error) {
             errors.showAll(inlineErrorEl, error);

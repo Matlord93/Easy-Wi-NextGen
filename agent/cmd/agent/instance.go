@@ -1007,6 +1007,9 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	if err := ensureMinecraftServerProperties(instanceDir, job.Payload); err != nil {
 		return failureResult(job.ID, fmt.Errorf("server.properties: %w", err))
 	}
+	if err := ensureSevenDaysToDiePorts(instanceDir, job.Payload); err != nil {
+		return failureResult(job.ID, fmt.Errorf("serverconfig.xml: %w", err))
+	}
 
 	if autostart {
 		if err := runCommand("systemctl", "enable", serviceName); err != nil {
@@ -1600,6 +1603,9 @@ func applyInstanceRuntimeOverrides(payload map[string]any) (map[string]string, e
 
 	if err := ensureMinecraftServerProperties(instanceDir, payload); err != nil {
 		return updates, fmt.Errorf("server.properties: %w", err)
+	}
+	if err := ensureSevenDaysToDiePorts(instanceDir, payload); err != nil {
+		return updates, fmt.Errorf("serverconfig.xml: %w", err)
 	}
 
 	if payloadValue(payload, "minecraft_managed") == "true" && !isMinecraftBedrockTemplate(payload) {

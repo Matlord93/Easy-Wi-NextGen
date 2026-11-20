@@ -32,6 +32,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         'srv/',
         'storage/',
         'uploads/',
+        'website/',
     ];
 
     /**
@@ -39,7 +40,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
      * finishes an in-place update, especially when release artifacts omit vendor/.
      */
     private const REQUIRED_RUNTIME_EXCLUDES = [
-        'vendor/', '.env', 'config/local*', '.env.local', '.env.*.local', '.env.local.php', 'var/', 'srv/', 'storage/', 'uploads/', 'public/uploads/',
+        'vendor/', '.env', 'config/local*', '.env.local', '.env.*.local', '.env.local.php', 'var/', 'srv/', 'storage/', 'uploads/', 'public/uploads/', 'website/',
     ];
 
     public function __construct(
@@ -1463,7 +1464,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     private function shareReleaseRuntime(string $releaseDir,string $logPath): bool
     {
         $sharedRoot = dirname($this->currentSymlink).'/shared';
-        foreach (['var','srv','storage','uploads','public/uploads'] as $relative) {
+        foreach (['var','srv','storage','uploads','public/uploads','website'] as $relative) {
             $old = $this->installDir.'/'.$relative;
             $new = $releaseDir.'/'.$relative;
             if (is_link($old)) {
@@ -1543,7 +1544,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             }
 
             $runtimeReferenced = false;
-            foreach (['var','srv','storage','uploads','public/uploads'] as $relative) {
+            foreach (['var','srv','storage','uploads','public/uploads','website'] as $relative) {
                 $target = realpath($this->resolveAppRoot($currentReleaseDir).'/'.$relative);
                 if ($target !== false && $this->isPathInside($target,$real)) { $runtimeReferenced = true; break; }
             }

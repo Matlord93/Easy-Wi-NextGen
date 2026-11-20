@@ -5,52 +5,21 @@
 {% set locale = page_locale() %}
 
 {# Default to security tab when a 2FA or password action just completed #}
-{% set defaultTab = (twoFactor.success is not empty or (errors is not empty and form.password is defined)) ? 'security' : 'profile' %}
+{% set securityRequest = app.request and ((app.request.pathInfo starts with '/admin/profile/2fa/') or (app.request.isMethod('POST') and app.request.request.get('password','') != '')) %}
+{% set defaultTab = twoFactor.success is not empty or securityRequest or (app.request and app.request.query.get('tab') == 'security') ? 'security' : 'profile' %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
+<div class="pm-workspace pm-account-page" data-panel-tabs="admin-profile" data-panel-active="{{ defaultTab }}">
 
     {# ── Hero / KPI card ── #}
-    <div class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero">
-            <div class="tkt-hero__inner">
-                <div style="display:flex;flex-direction:column;gap:6px;">
-                    <div class="tkt-hero__pill">
-                        <span class="tkt-hero__pill-dot" style="background:#6366f1;"></span>
-                        {{ t('admin_prof_hero_label', locale) }}
-                    </div>
-                    <h1 class="tkt-hero__title">{{ t('prof_hero_title', locale) }}</h1>
-                    <p class="tkt-hero__sub">{{ t('admin_prof_hero_intro', locale) }}</p>
-                </div>
-                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px;">
-                    <div class="tkt-kpi tkt-kpi--resolved">
-                        <div class="tkt-kpi__label">{{ t('admin_prof_kpi_account', locale) }}</div>
-                        <div class="tkt-kpi__value" style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ form.email }}</div>
-                    </div>
-                    <div class="tkt-kpi {{ twoFactor.enabled ? 'tkt-kpi--resolved' : 'tkt-kpi--pending' }}">
-                        <div class="tkt-kpi__label">{{ t('admin_prof_kpi_2fa', locale) }}</div>
-                        <div class="tkt-kpi__value" style="font-size:13px;">{{ twoFactor.enabled ? t('two_factor_enabled_badge', locale) : t('two_factor_disabled_badge', locale) }}</div>
-                    </div>
-                    <div class="tkt-kpi {{ form.ssh_key_set ? 'tkt-kpi--resolved' : '' }}">
-                        <div class="tkt-kpi__label">{{ t('admin_prof_kpi_ssh', locale) }}</div>
-                        <div class="tkt-kpi__value" style="font-size:13px;">{{ form.ssh_key_set ? t('admin_prof_kpi_ssh_set', locale) : t('admin_prof_kpi_ssh_unset', locale) }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <header class="pm-page-head"><div><h1>{{ t('prof_hero_title',locale) }}</h1><p>{{ t('admin_prof_hero_intro',locale) }}</p></div><div class="pm-page-head__actions"></div></header>
+<div class="pm-stats">
+{% include 'components/panel/_stat.html.twig' with {value:form.email,label:t('admin_prof_kpi_account',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:twoFactor.enabled ? t('two_factor_enabled_badge',locale) : t('two_factor_disabled_badge',locale),label:t('admin_prof_kpi_2fa',locale)} only %}
+{% include 'components/panel/_stat.html.twig' with {value:form.ssh_key_set ? t('admin_prof_kpi_ssh_set',locale) : t('admin_prof_kpi_ssh_unset',locale),label:t('admin_prof_kpi_ssh',locale)} only %}
+</div>
+{% include 'components/panel/_tabs.html.twig' with {panelKey:'admin-profile',panelTabs:{profile:'workspace_profile',security:'workspace_account_security'}} %}
 
-        {# ── Tab navigation ── #}
-        <div class="prof-tabs">
-            <button type="button" class="prof-tab-btn" data-tab-btn="profile">
-                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.029 10 8 10c-2.029 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/></svg>
-                {{ t('admin_prof_tab_profile', locale) }}
-            </button>
-            <button type="button" class="prof-tab-btn" data-tab-btn="security">
-                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524z"/></svg>
-                {{ t('admin_prof_tab_security', locale) }}
-            </button>
-        </div>
-    </div>
 
     {# ── Alerts ── #}
     {% if errors is not empty %}
@@ -70,7 +39,7 @@
     {# ══════════════════════════════════════════════════
        TAB: PROFILE
        ══════════════════════════════════════════════════ #}
-    <div data-tab-panel="profile" style="display:flex;flex-direction:column;gap:20px;">
+    <div data-panel-section="profile" style="display:flex;flex-direction:column;gap:20px;">
 
         <div class="prof-section">
             <div class="prof-section__head">
@@ -169,7 +138,7 @@
     {# ══════════════════════════════════════════════════
        TAB: SECURITY
        ══════════════════════════════════════════════════ #}
-    <div data-tab-panel="security" style="display:none;flex-direction:column;gap:20px;">
+    <div data-panel-section="security" style="display:flex;flex-direction:column;gap:20px;">
 
         {# ── Password change ── #}
         <div class="prof-section">
@@ -312,29 +281,4 @@
 
 </div>{# /page #}
 
-<script>
-(function () {
-    var defaultTab = '{{ defaultTab }}';
-    var buttons = document.querySelectorAll('[data-tab-btn]');
-    var panels = document.querySelectorAll('[data-tab-panel]');
-
-    function activate(tab) {
-        buttons.forEach(function (btn) {
-            btn.classList.toggle('prof-tab-btn--active', btn.dataset.tabBtn === tab);
-        });
-        panels.forEach(function (panel) {
-            var show = panel.dataset.tabPanel === tab;
-            panel.style.display = show ? 'flex' : 'none';
-        });
-        try { history.replaceState(null, '', location.pathname + '?tab=' + tab); } catch (e) {}
-    }
-
-    buttons.forEach(function (btn) {
-        btn.addEventListener('click', function () { activate(btn.dataset.tabBtn); });
-    });
-
-    var urlTab = new URLSearchParams(location.search).get('tab');
-    activate(urlTab === 'security' ? 'security' : defaultTab);
-})();
-</script>
 {% endblock %}

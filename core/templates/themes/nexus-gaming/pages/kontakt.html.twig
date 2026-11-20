@@ -1,4 +1,4 @@
-{% extends 'themes/nexus-gaming/base.html.twig' %}
+{% extends 'themes/' ~ (active_theme|default('nexus-gaming')) ~ '/base.html.twig' %}
 
 {% block title %}Kontakt – {{ app_setting('branding_name', 'Easy-Wi NextGen') }}{% endblock %}
 

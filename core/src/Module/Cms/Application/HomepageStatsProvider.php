@@ -19,6 +19,7 @@ final class HomepageStatsProvider
 {
     public function __construct(
         private readonly TeamMemberRepository $teamMemberRepository,
+        private readonly CmsFeatureToggle $features,
         private readonly TeamGroupRepository $teamGroupRepository,
         private readonly CmsEventRepository $eventRepository,
         private readonly ForumThreadRepository $forumThreadRepository,
@@ -29,9 +30,13 @@ final class HomepageStatsProvider
     /** @return array<string, mixed> */
     public function getTemplateVars(Site $site): array
     {
-        $members = $this->teamMemberRepository->findActiveBySite($site);
-        $teamGroups = $this->teamGroupRepository->findBySite($site);
-        $events = $this->eventRepository->findPublishedBySite($site);
+        $teamEnabled = $this->features->isEnabled($site, 'team');
+        $eventsEnabled = $this->features->isEnabled($site, 'events');
+        $forumEnabled = $this->features->isEnabled($site, 'forum');
+        $serversEnabled = $this->features->isEnabled($site, 'gameserver');
+        $members = $teamEnabled ? $this->teamMemberRepository->findActiveBySite($site) : [];
+        $teamGroups = $teamEnabled ? $this->teamGroupRepository->findBySite($site) : [];
+        $events = $eventsEnabled ? $this->eventRepository->findPublishedBySite($site) : [];
         $now = new \DateTimeImmutable();
         $memberCountsByTeam = [];
         foreach ($members as $member) {
@@ -46,9 +51,9 @@ final class HomepageStatsProvider
         usort($upcomingEvents, fn (CmsEvent $a, CmsEvent $b): int => $a->getStartAt() <=> $b->getStartAt());
         $upcomingEvents = array_slice($upcomingEvents, 0, 3);
 
-        $forumThreadCount = $this->countForumThreads($site);
-        $latestForumThreads = $this->forumThreadRepository->findLatestActiveBySite($site, 3);
-        $publicServers = $this->publicServerRepository->findVisiblePublicBySite($site->getId() ?? 0, null, null, 8);
+        $forumThreadCount = $forumEnabled ? $this->countForumThreads($site) : null;
+        $latestForumThreads = $forumEnabled ? $this->forumThreadRepository->findLatestActiveBySite($site, 3) : [];
+        $publicServers = $serversEnabled ? $this->publicServerRepository->findVisiblePublicBySite($site->getId() ?? 0, null, null, 8) : [];
         $normalizedServers = $this->normalizeServers($publicServers);
         $onlineServers = array_filter(
             $normalizedServers,
@@ -59,10 +64,10 @@ final class HomepageStatsProvider
 
         return [
             'cms_home_stats' => [
-                'members_count' => count($members),
-                'events_count' => count($events),
-                'servers_count' => count($publicServers),
-                'servers_online' => count($onlineServers),
+                'members_count' => $teamEnabled ? count($members) : null,
+                'events_count' => $eventsEnabled ? count($events) : null,
+                'servers_count' => $serversEnabled ? count($publicServers) : null,
+                'servers_online' => $serversEnabled ? count($onlineServers) : null,
                 'forum_posts' => $forumThreadCount,
                 'forum_posts_new' => null,
                 'members_growth' => null,
@@ -106,6 +111,8 @@ final class HomepageStatsProvider
         try {
             return (int) $this->forumThreadRepository->createQueryBuilder('t')
                 ->select('COUNT(t.id)')
+                ->innerJoin('t.board', 'board')
+                ->andWhere('board.isActive = true')
                 ->andWhere('t.site = :site')
                 ->setParameter('site', QueryParameter::entityId($site->getId(), \App\Module\Core\Domain\Entity\Site::class))
                 ->getQuery()

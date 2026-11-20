@@ -71,6 +71,7 @@
                                 </td>
                                 <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
                                 <td>
+                                    <a class="ui-button ui-button--primary ui-button--sm" href="{{ path('admin_voice_edit',{provider:'ts3',id:server.id}) }}">{{ 'edit'|trans({},'panel_modules') }}</a>
                                     <form method="post" action="/admin/ts3/servers/{{ server.id }}/assign" style="display:flex;gap:8px;align-items:center;">
                                         <input type="hidden" name="_token" value="{{ csrf[server.id] ?? '' }}">
                                         <select name="customer_id" class="form-input" style="font-size:.75rem;padding:4px 8px;">

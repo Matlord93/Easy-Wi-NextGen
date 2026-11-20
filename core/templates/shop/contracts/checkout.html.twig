@@ -1,0 +1,52 @@
+{% extends layout %}
+{% block title %}{{ product.name }} mieten{% endblock %}
+{% block content %}
+<div class="ng-container ng-section cust-page space-y-6">
+<section class="cust-panel ng-card p-6 space-y-4">
+    <h1 class="text-2xl font-semibold">{{ product.name }}</h1>
+    <p>{{ product.kind.label }} · {{ product.description }}</p><p>{{ availability.label }}</p>
+    {% if product.imageUrl %}<img src="{{ product.imageUrl }}" alt="{{ product.name }}" loading="lazy" class="rounded-lg" style="max-height:220px">{% endif %}
+    {% if domain_available is same as(true) %}<p>Die Domain ist laut Registrar verfügbar.</p>{% elseif domain_available is same as(false) %}<p role="alert">Die Domain ist nicht verfügbar oder benötigt eine gesonderte Preisprüfung.</p>{% endif %}
+    {% if error %}<p role="alert" class="ng-alert">{{ error }}</p>{% endif %}
+    <form method="post" class="ng-form space-y-3">
+        <input type="hidden" name="_token" value="{{ csrf_token('rental-contract') }}">
+        <input type="hidden" name="stage" value="preview">
+        <label>Variante<select class="form-input" name="variant_id"><option value="0">Standard</option>{% for variant in variants %}<option value="{{ variant.id }}"{% if input.variant_id|default(0) == variant.id %} selected{% endif %}>{{ variant.name }} · {{ (variant.priceMonthlyCents/100)|number_format(2,',','.') }} {{ quote.currency|default('EUR') }} / {{ product.kind.value == 'domain' ? 'Monat der festen Laufzeit' : '30 Tage' }}</option>{% endfor %}</select></label>
+        <label>Abrechnung<select class="form-input" name="billing_mode"><option value="postpaid"{% if input.billing_mode|default('postpaid') == 'postpaid' %} selected{% endif %}>Rechnung nach Nutzung</option><option value="wallet"{% if input.billing_mode|default('') == 'wallet' %} selected{% endif %}>Guthaben</option></select></label>
+        {% if product.kind.value in ['webspace','domain','kvm'] %}<label>{{ product.kind.value == 'kvm' ? 'Hostname' : 'Gewünschter Domainname' }}<input class="form-input" name="hostname" maxlength="253" value="{{ input.hostname|default('') }}" required></label>{% endif %}
+        {% if product.kind.value == 'kvm' %}<label>SSH-Public-Keys<textarea class="form-input" name="ssh_keys" rows="4" maxlength="32768" required>{{ input.ssh_keys|default('') }}</textarea></label><p>Nur öffentliche SSH-Schlüssel eintragen.</p>{% endif %}
+        {% if product.kind.value == 'domain' and product.provisioningOptions.registrar|default('manual') == 'autodns' %}<label>Domainauftrag<select class="form-input" name="domain_action"><option value="register">Neue Domain registrieren</option><option value="transfer"{% if input.domain_action|default('register') == 'transfer' %} selected{% endif %}>Vorhandene Domain zu uns übertragen</option></select></label><label>Authcode (nur beim Transfer)<input class="form-input" type="password" name="auth_code" value="{{ input.auth_code|default('') }}" maxlength="255" autocomplete="off"></label>{% endif %}
+        <label>Gutschein<input class="form-input" name="coupon" value="{{ input.coupon|default('') }}" maxlength="40"></label>
+        <button class="ui-button ui-button--primary ng-btn" type="submit">Tarif und Vertrag prüfen</button>
+    </form>
+</section>
+{% if quote %}
+<section class="cust-panel ng-card p-6 space-y-4">
+    <h2 class="text-xl font-semibold">Vertragsübersicht</h2>
+    <p>{{ quote.name }} {{ quote.variant }} · {{ quote.billing_mode == 'wallet' ? 'Guthabenabrechnung' : 'Rechnung nach Nutzung' }}</p>
+    {% if product.kind.value == 'domain' %}
+        <p><strong>{{ (quote.period_cents/100)|number_format(2,',','.') }} {{ quote.currency }} für {{ quote.term_months }} Monate feste Domainlaufzeit.</strong></p>
+        <p>Die Kündigung verhindert die nächste Verlängerung. Der bereits bestätigte Registrierungszeitraum wird vollständig berechnet und bleibt bis zum Laufzeitende nutzbar. {{ product.provisioningOptions.registrar|default('manual') == 'autodns' ? 'Der Registrar bestätigt Registrierung und Verlängerung automatisch. Vollständige Inhaberkontaktdaten im Kundenprofil sind erforderlich.' : 'Der Betreiber bestätigt Registrierung und Verlängerung.' }} Vor der Bestätigung entstehen keine Domaingebühren.</p>
+    {% else %}
+        <p><strong>{{ (quote.monthly_cents/100)|number_format(2,',','.') }} {{ quote.currency }} je 30 Tage, entsprechend {{ (quote.monthly_cents/4320000)|number_format(8,',','.') }} {{ quote.currency }} je angefangener Minute.</strong></p>
+        <p>Unbefristeter Mietvertrag, jederzeit ohne Kündigungsfrist kündbar. Abrechnung ab bestätigter Bereitstellung bis zum Kündigungszeitpunkt in angefangenen Minuten. Kein vorausbezahlter Monatsblock.</p>
+        {% if product.kind.value in ['gameserver','kvm'] %}<p>{{ quote.cpu }} {{ product.kind.value == 'webspace' ? 'CPU-Tarif' : 'CPU-Kerne' }} · {{ quote.ram }} GiB RAM · {{ quote.disk }} GiB Speicher</p>{% elseif product.kind.value == 'webspace' %}<p>{{ quote.disk }} GiB Webspace · PHP {{ quote.php_version|default('8.4') }}</p>{% else %}<p>{{ quote.slots|default(32) }} Voice-Slots</p>{% endif %}
+    {% endif %}
+    {% if quote.discount_cents > 0 %}<p>Gutschein berücksichtigt. Der bestätigte Tarif gilt für die Vertragslaufzeit; bei Domains gilt der Preis je bestätigtem Registrierungszeitraum.</p>{% endif %}
+    <p>Alle Preise enthalten die anfallenden Steuern. Cent-Bruchteile werden über Verträge und Abrechnungen hinweg fortgeschrieben.</p>
+    <p>{{ quote.billing_mode == 'wallet' ? 'Die Nutzung wird vom Guthaben abgezogen. Vor Bereitstellung wird der Preis der ersten Minute reserviert; bei Domains der feste Laufzeitpreis. Bei nicht ausreichendem Guthaben endet die Nutzung.' : 'Monatliche Rechnung nach tatsächlicher Nutzung; bei Kündigung erfolgt die Abschlussabrechnung. Das vom Betreiber festgelegte Rechnungslimit gilt für offene Rechnungen und laufende Nutzung zusammen.' }}</p>
+    {% if ready %}
+    <form method="post" class="space-y-3">
+        <input type="hidden" name="_token" value="{{ csrf_token('rental-contract') }}">
+        <input type="hidden" name="stage" value="order"><input type="hidden" name="digest" value="{{ digest }}"><input type="hidden" name="nonce" value="{{ nonce }}">
+        {% for key in ['variant_id','billing_mode','hostname','ssh_keys','coupon','domain_action'] %}<input type="hidden" name="{{ key }}" value="{{ quote[key] }}">{% endfor %}
+        {% if product.kind.value == 'domain' %}<input type="hidden" name="auth_code" value="{{ input.auth_code|default('') }}">{% endif %}
+        <label><input type="checkbox" name="rental_terms" value="1" required> Ich bestätige den angezeigten Mietvertrag, Tarif und die Kündigungs- und Abrechnungsbedingungen.</label>
+        <button class="ui-button ui-button--primary ng-btn" type="submit">Verbindlich mieten</button>
+    </form>
+    {% elseif not availability.orderable %}<p role="status">Dieser Tarif kann derzeit nicht bestellt werden. Bitte später erneut versuchen oder einen anderen Tarif auswählen.</p>{% else %}<p>Bitte die erforderlichen Angaben ergänzen und den Tarif erneut prüfen.</p>{% endif %}
+</section>
+{% endif %}
+<p><a href="{{ public_shop ? path('public_cms_shop') : path('customer_shop') }}">Zurück zum Shop</a> · <a href="{{ path('customer_contracts') }}">Meine Verträge und Guthaben</a></p>
+</div>
+{% endblock %}

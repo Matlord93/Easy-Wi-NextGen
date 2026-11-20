@@ -1,0 +1,10 @@
+{% extends 'admin/shop/base.html.twig' %}
+{% block title %}Shop · Produktvarianten{% endblock %}
+{% block content %}<div class="pm-workspace shop-workspace">
+<header class="pm-page-head"><div><p class="shop-eyebrow">Shop-Verwaltung</p><h1>Produktvarianten</h1><p>Zuerst das Produkt auswählen. Varianten erhalten danach eigene Tarif- und Ressourceneinstellungen.</p></div></header>
+{% include 'admin/shop/_navigation.html.twig' %}
+{% if error %}<p class="shop-alert" role="alert">{{ error }}</p>{% endif %}
+<form method="get" class="shop-search" role="search"><label for="variant-product-search">Produkt suchen</label><div><input class="form-input" type="search" id="variant-product-search" name="q" maxlength="100" value="{{ search }}"><select class="form-input" name="kind" aria-label="Produktart"><option value="">Alle Produktarten</option>{% for kind in kinds %}<option value="{{ kind.value }}"{% if selected == kind %} selected{% endif %}>{{ kind.label }}</option>{% endfor %}</select><button class="ui-button" type="submit">Filtern</button></div></form>
+<section class="shop-product-list" aria-label="Produkt auswählen">{% for product in products %}<article class="shop-product-row" data-variant-product="{{ product.id }}"><div><p class="shop-eyebrow">{{ product.kind.label }}</p><h2>{{ product.name }}</h2></div><p>Varianten dieses Produkts getrennt verwalten.</p><a class="ui-button" href="{{ path('admin_shop_variants',{id:product.id}) }}">Varianten öffnen</a></article>{% else %}<div class="shop-empty"><h2>Keine passenden Produkte</h2><a href="{{ path('admin_rental_products') }}">Produkt anlegen</a></div>{% endfor %}</section>
+{% if page > 1 or has_more %}<nav class="shop-pagination" aria-label="Produktseiten">{% if page > 1 %}<a class="ui-button" href="{{ path('admin_shop_manage',{page:page-1,q:search,kind:selected ? selected.value : ''}) }}">Zurück</a>{% endif %}<span>Seite {{ page }}</span>{% if has_more %}<a class="ui-button" href="{{ path('admin_shop_manage',{page:page+1,q:search,kind:selected ? selected.value : ''}) }}">Weitere Produkte</a>{% endif %}</nav>{% endif %}
+</div>{% endblock %}

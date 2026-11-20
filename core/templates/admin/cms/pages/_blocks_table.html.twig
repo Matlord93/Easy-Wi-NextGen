@@ -1,3 +1,4 @@
+<div id="cms-blocks-table" hx-get="/admin/cms/pages/{{ page.id }}/blocks/table" hx-trigger="cms-blocks-changed from:body" hx-swap="outerHTML">
 <div class="cust-ws-table-wrap">
     <table class="cust-table">
         <thead>
@@ -34,7 +35,7 @@
                             <button
                                 class="ui-button ui-button--ghost ui-button--sm"
                                 hx-get="/admin/cms/pages/{{ page.id }}/blocks/{{ block.id }}/edit"
-                                hx-target="#cms-block-form"
+                                hx-target="#cms-block-form" data-panel-reveal="create"
                                 hx-swap="outerHTML"
                             >
                                 {{ t('edit', page_locale()) }}
@@ -56,4 +57,6 @@
             {% endfor %}
         </tbody>
     </table>
+</div>
+
 </div>

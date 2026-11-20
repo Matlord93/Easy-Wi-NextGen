@@ -38,10 +38,7 @@
                 <div>
                     <label class="text-sm font-medium text-slate-700" for="cms_template">{{ 'app.cms_template_label'|trans }}</label>
                     <select id="cms_template" name="cms_template" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                        <option value="esports" {% if application.cms_template == 'esports' %}selected{% endif %}>esports</option>
-                        <option value="minimal" {% if application.cms_template == 'minimal' %}selected{% endif %}>minimal</option>
-                        <option value="fantasy" {% if application.cms_template == 'fantasy' %}selected{% endif %}>fantasy</option>
-                        <option value="nexus-gaming" {% if application.cms_template == 'nexus-gaming' %}selected{% endif %}>nexus-gaming</option>
+                        {% for key in cms_themes() %}<option value="{{ key }}" {% if application.cms_template == key %}selected{% endif %}>{{ key in ['hosting','clan','private'] ? ('theme_' ~ key)|cms_trans({}) : key }}</option>{% endfor %}
                     </select>
                     <p class="mt-1 text-xs text-slate-700">{{ 'app.cms_template_hint'|trans }}</p>
                 </div>

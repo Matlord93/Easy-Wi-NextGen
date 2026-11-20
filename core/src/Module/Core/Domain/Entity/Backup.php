@@ -71,6 +71,28 @@ class Backup implements ResourceEventSource
         $this->updatedAt = $this->createdAt;
     }
 
+    #[ORM\Column(nullable: true)] private ?\DateTimeImmutable $deletedAt = null;
+    #[ORM\ManyToOne(targetEntity: Job::class), ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')] private ?Job $cleanupJob = null;
+    public function getDeletedAt(): ?\DateTimeImmutable
+    {
+        return $this->deletedAt;
+    }
+
+    public function markDeleted(\DateTimeImmutable $now): void
+    {
+        $this->deletedAt = $now;
+    }
+
+    public function getCleanupJob(): ?Job
+    {
+        return $this->cleanupJob;
+    }
+
+    public function setCleanupJob(Job $job): void
+    {
+        $this->cleanupJob = $job;
+    }
+
     public function getId(): ?int
     {
         return $this->id;
@@ -112,7 +134,6 @@ class Backup implements ResourceEventSource
         return $this->completedAt;
     }
 
-
     public function getSizeBytes(): ?int
     {
         return $this->sizeBytes;
@@ -137,7 +158,7 @@ class Backup implements ResourceEventSource
 
     public function getArchivePath(): ?string
     {
-        return $this->archivePath;
+        return null === $this->deletedAt ? $this->archivePath : null;
     }
 
     public function setArchivePath(?string $archivePath): void
@@ -166,10 +187,10 @@ class Backup implements ResourceEventSource
     public function markStatus(BackupStatus $status, ?\DateTimeImmutable $completedAt = null): void
     {
         $this->status = $status;
-        if ($completedAt !== null) {
+        if (null !== $completedAt) {
             $this->completedAt = $completedAt;
         }
-        if ($status === BackupStatus::Succeeded) {
+        if (BackupStatus::Succeeded === $status) {
             $this->errorCode = null;
             $this->errorMessage = null;
         }

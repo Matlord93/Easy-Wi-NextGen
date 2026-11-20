@@ -1,3 +1,4 @@
+<div id="shop-products-form" class="ng-data-card pm-editor-panel" data-panel-validation hx-get="/admin/shop/products/form" hx-trigger="shop-products-changed from:body" hx-swap="outerHTML">
 <div class="p-6">
     {% if form.errors %}
         <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -10,6 +11,7 @@
     {% endif %}
 
     <form method="post" action="/admin/shop/products{% if form.action == 'update' %}/{{ form.id }}{% endif %}" hx-post="/admin/shop/products{% if form.action == 'update' %}/{{ form.id }}{% endif %}" hx-target="#shop-products-form" hx-swap="outerHTML" class="space-y-4">
+        <input type="hidden" name="_token" value="{{ csrf_token('admin-shop') }}">
         <div>
             <label class="text-xs font-semibold uppercase text-slate-700">Kategorie</label>
             <select name="category_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
@@ -89,9 +91,11 @@
             </div>
         </div>
         <div class="flex justify-end gap-2">
-            <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+            <button type="submit" class="ui-button ui-button--primary">
                 {{ form.action == 'update' ? 'Produkt speichern' : 'Produkt anlegen' }}
             </button>
         </div>
     </form>
+</div>
+
 </div>

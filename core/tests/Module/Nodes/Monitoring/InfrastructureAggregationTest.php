@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Tests\Module\Nodes\Monitoring;
 
 use App\Module\Nodes\Application\Monitoring\InfrastructureAggregation as Aggregation;
+use App\Module\Nodes\Application\Monitoring\InfrastructureHistoryStore;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class InfrastructureAggregationTest extends TestCase
@@ -48,6 +50,45 @@ final class InfrastructureAggregationTest extends TestCase
         self::assertSame(20.0, $restored['metrics']['cpu_percent']['average']);
     }
 
+    public function testMergingKeepsIndependentOrderedSourcesAndLeftHandMetadata(): void
+    {
+        $first = Aggregation::sample('load', 100, ['cpu_percent' => 0, 'source' => 'agent_heartbeat', 'memory_source' => 'host_rss']);
+        $first += ['stream' => 'load', 'timestamp' => 60, 'resolution_seconds' => 60];
+        $second = Aggregation::sample('load', 160, ['cpu_percent' => 30, 'source' => 'proxmox_status', 'memory_source' => 'guest_balloon']);
+        $third = Aggregation::sample('load', 220, ['cpu_percent' => 60, 'source' => 'agent_heartbeat', 'memory_source' => 'host_rss']);
+
+        $result = Aggregation::merge(Aggregation::merge($first, $second), $third);
+
+        self::assertSame(['agent_heartbeat', 'proxmox_status'], $result['sources']);
+        self::assertSame(['host_rss', 'guest_balloon'], $result['memory_sources']);
+        self::assertSame('load', $result['stream']);
+        self::assertSame(60, $result['timestamp']);
+        self::assertSame(60, $result['resolution_seconds']);
+        self::assertSame(['agent_heartbeat'], $first['sources']);
+        self::assertSame(['host_rss'], $first['memory_sources']);
+    }
+
+    public function testIoArchiveRetainsCountersIntervalsAndKnownZero(): void
+    {
+        $point = Aggregation::merge(
+            Aggregation::sample('io', 100, ['net_rx_bytes_per_second' => 0, 'source' => 'counter_delta', 'interval_seconds' => 5]),
+            Aggregation::sample('io', 160, ['net_rx_bytes_per_second' => 100, 'source' => 'proxmox_rrd', 'interval_seconds' => 10]),
+        );
+        $restored = Aggregation::fromJson(json_encode($point, JSON_THROW_ON_ERROR));
+        // JSON object member order does not affect the archived statistics.
+        ksort($point);
+        ksort($restored);
+
+        self::assertSame($point, $restored);
+        self::assertSame(2, $restored['samples']);
+        self::assertSame(100, $restored['first_observed_at']);
+        self::assertSame(160, $restored['last_observed_at']);
+        self::assertSame(0.0, $restored['metrics']['net_rx_bytes_per_second']['min']);
+        self::assertSame(50.0, $restored['metrics']['net_rx_bytes_per_second']['average']);
+        self::assertSame(5.0, $restored['interval_min_seconds']);
+        self::assertSame(10.0, $restored['interval_max_seconds']);
+    }
+
     public function testMalformedArchivedMetricIsRejectedInsteadOfBecomingZero(): void
     {
         $point = Aggregation::sample('load', 100, ['cpu_percent' => 30]);
@@ -64,5 +105,35 @@ final class InfrastructureAggregationTest extends TestCase
         $this->expectException(\UnexpectedValueException::class);
 
         Aggregation::fromJson(json_encode($point, JSON_THROW_ON_ERROR));
+    }
+
+    public function testAllSupportedLoadAndIoMetricsSurviveArchiving(): void
+    {
+        $point = Aggregation::merge(
+            Aggregation::sample('load', 100, array_fill_keys(InfrastructureHistoryStore::LOAD, 0)),
+            Aggregation::sample('io', 160, array_fill_keys(InfrastructureHistoryStore::IO, 0)),
+        );
+
+        $restored = Aggregation::fromJson(json_encode($point, JSON_THROW_ON_ERROR));
+
+        self::assertSame($point, $restored);
+        self::assertCount(11, $restored['metrics']);
+    }
+
+    #[DataProvider('invalidMetricNames')]
+    public function testArchivedMetricNamesOutsideTheWhitelistAreRejected(int|string $name): void
+    {
+        $point = Aggregation::sample('load', 100, ['cpu_percent' => 30]);
+        $point['metrics'] = [$name => $point['metrics']['cpu_percent']];
+        $this->expectException(\UnexpectedValueException::class);
+        $this->expectExceptionMessage('Invalid infrastructure metric name.');
+
+        Aggregation::fromJson(json_encode($point, JSON_THROW_ON_ERROR));
+    }
+
+    public static function invalidMetricNames(): iterable
+    {
+        yield 'unsupported string' => ['unknown_metric'];
+        yield 'numeric key' => [0];
     }
 }

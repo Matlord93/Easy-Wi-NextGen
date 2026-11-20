@@ -14,6 +14,9 @@
     let session = '', seq = 0, text = '', dirty = false;
     let decoder = new TextDecoder('utf-8');
     const MAX_TEXT = 128 * 1024;
+    const hideUnityMemory = ['seven_days_to_die', 'seven_days_to_die_windows'].includes(root.dataset.gameKey);
+    const unityMemoryHeader = '[UnityMemory] Configuration Parameters - Can be set up in boot.config';
+    const unityMemoryLines = /^[\t ]*(?:\[UnityMemory\] Configuration Parameters - Can be set up in boot\.config|"memorysetup-[a-z0-9-]+=\d+")[\t ]*\n/gm;
     let ansiState = 'text', carriage = false;
     function plain(value) {
         if (ansiState === 'text' && !value.includes('\x1b')) return value.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
@@ -33,17 +36,31 @@
         frame = null;
         if (!dirty) return;
         const stick = autoScroll && log.scrollTop + log.clientHeight + 32 >= log.scrollHeight;
-        log.textContent = text; dirty = false;
+        let visible = text;
+        if (hideUnityMemory) {
+            // WebSocket chunks can end in the middle of a line. Wait before
+            // showing a possible Unity memory line until it can be classified.
+            const lineStart = text.lastIndexOf('\n') + 1;
+            const partial = text.slice(lineStart).trim();
+            if (partial && (unityMemoryHeader.startsWith(partial) || '"memorysetup-'.startsWith(partial) || /^"memorysetup-[a-z0-9-]*(?:=\d*"?)?$/.test(partial))) {
+                visible = text.slice(0, lineStart);
+            }
+        }
+        log.textContent = visible; dirty = false;
         if (stick) log.scrollTop = log.scrollHeight;
     }
     function append(value) {
         if (paused) return;
+        const lineStart = hideUnityMemory ? text.lastIndexOf('\n') + 1 : 0;
         const cleaned = plain(value);
         if (!carriage && !cleaned.includes('\r')) text += cleaned;
         else for (const char of cleaned) {
             if (carriage) { if (char !== '\n') text = text.slice(0, text.lastIndexOf('\n') + 1); carriage = false; }
             if (char === '\r') carriage = true;
             else text += char;
+        }
+        if (hideUnityMemory) {
+            text = text.slice(0, lineStart) + text.slice(lineStart).replace(unityMemoryLines, '');
         }
         if (text.length > MAX_TEXT) text = messages.truncated + text.slice(-MAX_TEXT + messages.truncated.length);
         dirty = true;

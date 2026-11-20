@@ -4,7 +4,7 @@ const vm = require('node:vm');
 (async () => {
     let now = 100000, calls = 0, healthy = false;
     const state = {textContent: ''};
-    const panel = {dataset: {pveResourcesUrl: '/resources'}, innerHTML: '', closest: () => ({querySelector: () => state})};
+    const panel = {dataset: {pveResourcesUrl: '/resources'}, innerHTML: '', querySelectorAll: () => [], closest: () => ({querySelector: () => state})};
     const document = {hidden: false, documentElement: {lang: 'de'}, addEventListener() {}, activeElement: null, querySelectorAll: selector => selector === '[data-pve-resources-url]' ? [panel] : []};
     const sandbox = {document, Date: class extends Date {static now() {return now;}}, Intl, WeakSet, console, window: {addEventListener() {}, setInterval() {}, setTimeout() {}}, fetch: async () => {calls++; return {ok: healthy, status: healthy ? 200 : 503, json: async () => ({html: 'confirmed inventory'})};}};
     vm.runInNewContext(fs.readFileSync(require.resolve('../../public/js/proxmox.js'), 'utf8'), sandbox);

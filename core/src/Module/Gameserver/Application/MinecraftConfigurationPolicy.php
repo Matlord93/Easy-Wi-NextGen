@@ -5,32 +5,48 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Application;
 
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Gameserver\Application\Configuration\GameConfigDocument;
+use App\Module\Gameserver\Application\Configuration\GameConfigurationFields;
+use App\Module\Gameserver\Application\Configuration\GameSetupProfiles;
 use Symfony\Component\Yaml\Yaml;
 
 final class MinecraftConfigurationPolicy
 {
-    public static function assertEditable(Instance $instance, string $path, string $previous, string $content): void
+    public static function assertEditable(Instance $instance, string $path, string $previous, string $content, bool $allowSlotChange = false): void
     {
-        $resolver = $instance->getTemplate()->getInstallResolver()['type'] ?? '';
-        if (!in_array($resolver, ['minecraft_vanilla', 'papermc_paper', 'minecraft_spigot', 'minecraft_bedrock', 'minecraft_bungeecord'], true)) {
-            return;
-        }
-        if ('server.properties' === basename($path)) {
-            $managed = ['max-players', 'server-port', 'server-portv6', 'server-ip', 'query.port', 'rcon.port', 'enable-query', 'enable-rcon', 'transport', 'enable-lan-visibility', 'server-udp-ports'];
-            $read = static function (string $text) use ($managed): array {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $format = GameSetupProfiles::format($instance->getTemplate()->getGameKey(), $path) ?? match ($extension) {'cfg', 'conf' => 'convar', default => $extension};
+        if (in_array($format, ['properties','ini','convar','json','jsonc','yaml','yml','xml','unreal','assignment','flat','fivem'], true)) {
+            $fixed = static function (string $text, bool $validateSlots) use ($format, $allowSlotChange, $instance, $path): array {
                 $values = [];
-                foreach (preg_split('/\R/', $text) ?: [] as $line) {
-                    if (preg_match('/^\s*([^#!\s=:]+)\s*[=:]\s*(.*)$/', $line, $match) && in_array(strtolower($match[1]), $managed, true)) {
-                        $values[strtolower($match[1])] = trim($match[2]);
+                try {
+                    $parsed = GameConfigDocument::values($text, $format, true);
+                } catch (\JsonException|\Symfony\Component\Yaml\Exception\ParseException $exception) {
+                    throw new \InvalidArgumentException('Die Konfigurationsdatei enthält ungültiges JSON oder YAML.', 0, $exception);
+                }
+                foreach ($parsed as $key => $value) {
+                    $profileManaged = GameSetupProfiles::managed($instance->getTemplate()->getGameKey(), $path, $key, $instance->getTemplate());
+                    if (GameConfigurationFields::slots($key) && $allowSlotChange && !$profileManaged) {
+                        $slots = filter_var($value, FILTER_VALIDATE_INT);
+                        if ($validateSlots && (!is_int($slots) || $slots < 1 || $slots > $instance->getMaxSlots() || ($instance->isLockSlots() && $slots !== $instance->getCurrentSlots()))) {
+                            throw new \InvalidArgumentException('Das Spielerlimit muss innerhalb der gebuchten Slots liegen.');
+                        }
+                    } elseif (GameConfigurationFields::managed($key) || $profileManaged || GameConfigurationFields::slots($key)) {
+                        $values[$key] = $value;
                     }
                 }
                 ksort($values);
-
                 return $values;
             };
-            if ($read($previous) !== $read($content)) {
-                throw new \InvalidArgumentException('Network ports and bind settings are managed by the panel.');
+            if ($fixed($previous, false) !== $fixed($content, true)) {
+                throw new \InvalidArgumentException('IP-Adresse, Ports und gebuchte Ressourcen sind fest. Das Spielerlimit kann unter Setup innerhalb der gebuchten Slots geändert werden.');
             }
+        }
+        \App\Module\Gameserver\Application\Configuration\VRisingHostConfiguration::assertEditable($instance, $path, $previous, $content, $allowSlotChange);
+        \App\Module\Gameserver\Application\Configuration\VRisingGameConfiguration::assertEditable($instance, $path, $previous, $content);
+        $resolver = $instance->getTemplate()->getInstallResolver()['type'] ?? '';
+        if (!in_array($resolver, ['minecraft_vanilla', 'papermc_paper', 'minecraft_spigot', 'minecraft_bedrock', 'minecraft_bungeecord'], true)) {
+            return;
         }
         if ('minecraft_bungeecord' === $resolver && 'config.yml' === basename($path)) {
             try {

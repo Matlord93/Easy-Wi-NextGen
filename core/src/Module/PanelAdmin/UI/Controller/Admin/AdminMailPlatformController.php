@@ -107,7 +107,7 @@ final class AdminMailPlatformController
             'domain' => $domain->getName(),
             'mail_node_id' => (string) $node->getId(),
             'roundcube_url' => $node->getRoundcubeUrl(),
-            'agent_id' => $webspace !== null ? $webspace->getNode()->getId() : null,
+            'agent_id' => $node->getAgent()?->getId() ?? $webspace?->getNode()->getId(),
         ]);
         $job->setMaxAttempts(5);
         $this->entityManager->persist($job);
@@ -154,7 +154,7 @@ final class AdminMailPlatformController
             'domain_id' => (string) $domain->getId(),
             'domain' => $domain->getName(),
             'selector' => $mailDomain->getDkimSelector(),
-            'agent_id' => $webspace !== null ? $webspace->getNode()->getId() : null,
+            'agent_id' => $mailDomain->getNode()->getAgent()?->getId() ?? $webspace?->getNode()->getId(),
         ]);
         $this->entityManager->persist($job);
 

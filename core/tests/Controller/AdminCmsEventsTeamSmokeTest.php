@@ -10,15 +10,15 @@ use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\HttpFoundation\Request;
 
-final class AdminCmsEventsTeamSmokeTest extends KernelTestCase
+final class AdminCmsEventsTeamSmokeTest extends AbstractWebTestCase
 {
     public function testAdminCanCreateEventAndTeamMember(): void
     {
-        self::bootKernel();
         $this->seedSite();
+        self::bootKernel();
+        $this->seedCmsData();
 
         /** @var EntityManagerInterface $em */
         $em = self::getContainer()->get(EntityManagerInterface::class);
@@ -58,7 +58,7 @@ final class AdminCmsEventsTeamSmokeTest extends KernelTestCase
         self::assertSame(1, (int) $em->getConnection()->fetchOne("SELECT COUNT(*) FROM team_members WHERE name='Bob'"));
     }
 
-    private function seedSite(): void
+    private function seedCmsData(): void
     {
         /** @var EntityManagerInterface $em */
         $em = self::getContainer()->get(EntityManagerInterface::class);

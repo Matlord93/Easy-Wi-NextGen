@@ -102,3 +102,16 @@ func TestWriteStartScriptPreservesShellVariables(t *testing.T) {
 		t.Fatalf("set_property call missing from script; got: %s", content)
 	}
 }
+
+func TestMaskSensitiveValuesProtectsSteamServerTokens(t *testing.T) {
+	token := strings.Repeat("a", 32)
+	key := strings.Repeat("b", 32)
+	command := "srcds_run +sv_setsteamaccount " + token + " -authkey " + key + " +map de_dust2 +exec server.cfg"
+	masked := maskSensitiveValues(command, map[string]string{"STEAM_GSLT": token, "AUTHKEY": key})
+	if strings.Contains(masked, token) || strings.Contains(masked, key) {
+		t.Fatal("Steam credentials remain visible in the startup log")
+	}
+	if !strings.Contains(masked, "+map de_dust2 +exec server.cfg") {
+		t.Fatal("non-secret startup arguments changed")
+	}
+}

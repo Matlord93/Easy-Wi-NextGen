@@ -71,7 +71,6 @@
 .mb-live-badge:before{content:"";width:7px;height:7px;border-radius:999px;background:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.18);}
 .mb-stat-card{padding:14px 16px;border:1px solid var(--ng-border);border-radius:18px;background:linear-gradient(180deg,var(--ng-surface),var(--ng-surface-soft));}
 .mb-stat-card__icon{font-size:18px;margin-bottom:8px;}
-.mb-queue-card{display:none;}
 .mb-control-ring{width:48px;height:48px;border-radius:999px;display:inline-grid;place-items:center;}
 .mb-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--ng-border);}
 .mb-filterbar{display:flex;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--ng-border);background:var(--ng-surface-soft);}
@@ -85,7 +84,7 @@
 .mb-permission-matrix th,.mb-permission-matrix td{padding:8px 10px;background:var(--ng-surface-soft);font-size:12px;text-align:left;}
 @media (max-width:760px){.mb-hero-player{grid-template-columns:1fr;text-align:center}.mb-cover{max-width:220px;margin:auto}.mb-media-row{grid-template-columns:40px 1fr}.mb-media-row form,.mb-media-row>div:last-child{grid-column:1/-1}.musicbot-experience{gap:14px!important}.musicbot-experience table{font-size:12px}.mb-control-ring{width:44px;height:44px}}
 </style>
-<div class="musicbot-experience" style="display:flex;flex-direction:column;gap:20px;">
+<div class="musicbot-experience pm-workspace pm-native-music">
 
     {# Flash messages #}
     {% for type, msgs in app.flashes(['success','error','warning','info']) %}
@@ -98,42 +97,30 @@
     {% endfor %}
 
     {# ── Hero ── #}
-    <div class="ng-card" style="overflow:hidden;">
-        <div class="tkt-hero" style="padding-bottom:0;">
-            <div class="tkt-hero__inner" style="padding-bottom:14px;">
-                <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-                    <div>
-                        <div class="tkt-hero__pill">
-                            <span class="tkt-hero__pill-dot"></span>
-                            <a href="{{ path('customer_musicbot_index') }}" style="color:inherit;text-decoration:none;">Musicbots</a>
-                            &rsaquo; {{ instance.name }}
-                        </div>
-                        <h1 class="tkt-hero__title" style="margin-top:8px;">{{ instance.name }}</h1>
-                        <p class="tkt-hero__sub" style="margin:0;">
-                            Node: {{ instance.node.name ?: instance.node.id }}
-                            &nbsp;&middot;&nbsp;
-                            <span class="ui-badge ui-badge--{{ instStatusClass }}" style="font-size:11px;vertical-align:middle;">{{ instance.status.value|title }}</span>
-                        </p>
-                    </div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;">
-                        <form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
+    {% set musicGroups = {
+        overview:{label:'overview',tabs:['dashboard']},
+        music:{label:'workspace_music_library',tabs:['musik','queue','playlists','autodj','webradio','youtube']},
+        connections:{label:'workspace_music_connections',tabs:['teamspeak','discord','verbindungen']},
+        extensions:{label:'workspace_music_plugins',tabs:['plugins']},
+        monitoring:{label:'workspace_music_monitoring',tabs:['monitoring','logs']},
+        manage:{label:'management',tabs:['einstellungen','rollen','backup']}
+    } %}
+    <header class="pm-page-head"><div><h1>{{ instance.name }}</h1><p>{{ instance.node.name ?: instance.node.id }} · <span class="ui-badge ui-badge--{{ instStatusClass }}">{{ instance.status.value|title }}</span></p></div><div class="pm-page-head__actions"><form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
                             <input type="hidden" name="action" value="start">
                             <button type="submit" class="ui-btn ui-btn--success" style="font-size:12px;padding:5px 12px;">▶ Start</button>
                         </form>
-                        <form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
+<form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
                             <input type="hidden" name="action" value="stop">
                             <button type="submit" class="ui-btn" style="font-size:12px;padding:5px 12px;">■ Stop</button>
                         </form>
-                        <form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
+<form method="post" action="{{ path('customer_musicbot_action', {id: instance.id}) }}" style="display:contents;">
                             <input type="hidden" name="action" value="restart">
                             <button type="submit" class="ui-btn" style="font-size:12px;padding:5px 12px;">↺ Restart</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {# Tab nav #}
-        <div style="display:flex;border-top:1px solid var(--ng-border);background:var(--ng-surface-soft);overflow-x:auto;-webkit-overflow-scrolling:touch;">
+                        </form><a class="ui-button ui-button--ghost" href="{{ path('customer_musicbot_index') }}">{{ 'back'|trans({},'panel_modules') }}</a></div></header>
+    <nav class="pm-tabs pm-music-tabs" id="mb-groups" aria-label="{{ 'workspace_music_sections'|trans({},'panel_modules') }}" role="tablist">
+        {% for key,group in musicGroups %}<button type="button" id="mb-group-{{ key }}" data-mb-group-tab="{{ key }}" onclick="mbGroup('{{ key }}')" role="tab">{{ group.label|trans({},'panel_modules') }}</button>{% endfor %}
+    </nav>
+        <nav class="pm-tabs pm-music-tabs" id="mb-subnav" role="tablist" aria-label="{{ 'navigation'|trans({},'panel_modules') }}">
             {% for tabId, tabLabel in {
                 'dashboard':    'Dashboard',
                 'musik':        'Musik',
@@ -152,17 +139,13 @@
                 'einstellungen':'Einstellungen',
                 'logs':         'Logs'
             } %}
-                <button type="button" id="tab-{{ tabId }}" onclick="mbTab('{{ tabId }}')"
+                <button type="button" data-mb-tab="{{ tabId }}" role="tab" aria-controls="panel-{{ tabId }}" id="tab-{{ tabId }}" onclick="mbTab('{{ tabId }}')"
                     style="padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;color:var(--ng-text-muted);transition:color .15s,border-color .15s;">
                     {{ tabLabel }}{% if tabId == 'queue' %}<span style="margin-left:4px;font-size:10px;background:var(--ng-border);border-radius:8px;padding:1px 5px;">{{ queue|length }}</span>{% endif %}
                 </button>
             {% endfor %}
-        </div>
-    </div>
-
-    {# ══════════════════════════════════════════════════════
-       DASHBOARD
-    ══════════════════════════════════════════════════════ #}
+        </nav>
+    {# Dashboard #}
     <div id="panel-dashboard">
         {% set progressPercent = runtimeStatus.durationMs|default(0) > 0 ? ((runtimeStatus.playbackPositionMs|default(0) / runtimeStatus.durationMs) * 100)|round : 0 %}
         <section class="ng-card mb-hero-player" data-live-region="now-playing" aria-label="Musicbot Dashboard">
@@ -172,8 +155,9 @@
                 <div style="margin-top:10px;opacity:.72;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Jetzt läuft</div>
                 <div class="mb-player-title" data-live-field="title">{{ nowPlaying.title|default('Kein Track aktiv') ?: 'Kein Track aktiv' }}</div>
                 <div style="opacity:.82;font-size:15px;" data-live-field="artist">{{ nowPlaying.artist|default('') ?: 'Unbekannter Künstler / Sender' }}</div>
+                <p class="pm-music-usage">{{ 'workspace_music_output'|trans({},'panel_modules') }}: {{ outputBackend == 'null' ? '—' : outputBackend }} · {{ outputStatus }}</p>
                 {% if nowPlaying.url|default('') %}<div style="opacity:.7;font-size:12px;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" data-live-field="url">{{ nowPlaying.url }}</div>{% endif %}
-                <div style="opacity:.7;font-size:12px;margin-top:6px;">Queue-ID: {{ nowPlaying.queue_item_id|default('—') }} · Track-ID: {{ nowPlaying.track_id|default('—') }} · Restlaufzeit: <span data-live-field="remaining">{% if runtimeStatus.durationMs|default(0) > 0 and not nowPlaying.is_live|default(false) %}{{ ((runtimeStatus.durationMs - runtimeStatus.playbackPositionMs|default(0)) / 1000)|round }}s{% else %}LIVE{% endif %}</span></div>
+                <div style="opacity:.7;font-size:12px;margin-top:6px;">Queue-ID: {{ nowPlaying.queue_item_id|default('—') }} · Track-ID: {{ nowPlaying.track_id|default('—') }} · Restlaufzeit: <span data-live-field="remaining">{% if runtimeStatus.durationMs|default(0) > 0 and not nowPlaying.is_live|default(false) %}{{ ((runtimeStatus.durationMs - runtimeStatus.playbackPositionMs|default(0)) / 1000)|round }}s{% elseif nowPlaying.is_live|default(false) %}LIVE{% else %}—{% endif %}</span></div>
                 {% if nowPlaying.is_live|default(false) %}<div class="mb-waveform" aria-label="Live Waveform">{% for h in [18,34,12,28,40,20,32,15,36,24,42,17,29,38,21,33,14,31,44,23,35,16,30,41,22,37,19,27,39,25,43,18,34,13,28,36] %}<i style="height:{{ h }}px"></i>{% endfor %}</div>{% else %}<div class="mb-progress" aria-label="Fortschritt"><span data-live-field="progress" style="width:{{ progressPercent }}%"></span></div>{% endif %}
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center;">
                     <button type="button" class="ui-btn mb-chip" onclick="mbTab('queue')">Live Queue ({{ queue|length }})</button>
@@ -181,49 +165,7 @@
                     <button type="button" class="ui-btn mb-chip" onclick="mbTab('monitoring')">Monitoring</button>
                 </div>
             </div>
-        </section>
-
-        {# ── Player card ── #}
-        <div class="ng-card" style="overflow:hidden;margin-bottom:16px;">
-            <div style="padding:13px 16px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;justify-content:space-between;gap:10px;">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-size:18px;">♪</span>
-                    <h3 style="margin:0;font-size:13px;font-weight:700;">Jetzt läuft</h3>
-                    <span class="ui-badge ui-badge--{{ instStatusClass }}" style="font-size:10px;">{{ instance.status.value|title }}</span>
-                </div>
-                <div style="font-size:11px;color:var(--ng-text-muted);">
-                    Output: {{ outputBackend }} · {{ outputStatus }}
-                </div>
-            </div>
-
-            {# Now playing display #}
-            <div style="padding:20px 20px 16px;text-align:center;background:linear-gradient(180deg,var(--ng-surface-soft) 0%,var(--ng-surface) 100%);min-height:80px;display:flex;align-items:center;justify-content:center;">
-                {% if nowPlaying.title|default('') %}
-                    <div>
-                        <div style="font-size:17px;font-weight:700;color:var(--ng-text);">{{ nowPlaying.title }}</div>
-                        {% if nowPlaying.artist|default('') %}
-                            <div style="font-size:13px;color:var(--ng-text-muted);margin-top:3px;">{{ nowPlaying.artist }}</div>
-                        {% endif %}
-                        {% if nowPlaying.source_label|default('') %}
-                            <div style="font-size:12px;color:var(--ng-text-muted);margin-top:4px;">Quelle: {{ nowPlaying.source_label }}{% if nowPlaying.url|default('') %} · {{ nowPlaying.url }}{% endif %}</div>
-                        {% endif %}
-                        {% if runtimeStatus.durationMs|default(0) > 0 and not nowPlaying.is_live|default(false) %}
-                            <div style="font-size:11px;color:var(--ng-text-muted);margin-top:6px;">
-                                {{ (runtimeStatus.playbackPositionMs|default(0) / 1000)|round }}s / {{ (runtimeStatus.durationMs / 1000)|round }}s
-                            </div>
-                        {% endif %}
-                    </div>
-                {% else %}
-                    <div style="color:var(--ng-text-muted);">
-                        <div style="font-size:28px;opacity:.2;margin-bottom:8px;">♪</div>
-                        <div style="font-size:13px;">Kein Track aktiv</div>
-                        <div style="font-size:12px;margin-top:4px;">Wähle einen Track aus der Bibliothek oder starte eine Playlist</div>
-                    </div>
-                {% endif %}
-            </div>
-
-            {# Transport controls #}
-            <div style="padding:12px 16px;border-top:1px solid var(--ng-border);display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:center;">
+<div class="pm-music-player-controls" style="padding:12px 16px;border-top:1px solid var(--ng-border);display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:center;">
                 <form method="post" action="{{ path('customer_musicbot_playback', {id: instance.id}) }}" style="display:contents;">
                     <input type="hidden" name="action" value="play">
                     <button type="submit" class="ui-btn ui-btn--primary" style="font-size:14px;min-width:44px;">▶</button>
@@ -275,16 +217,13 @@
                     <button type="submit" class="ui-btn" style="font-size:12px;padding:4px 10px;">Set</button>
                 </form>
             </div>
-        </div>
+        </section>
+
+
 
         {# ── KPI row ── #}
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px;" data-dashboard-status-cards>
-            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">🤖</div>
-                <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Bot-Status</div>
-                <div style="font-size:14px;font-weight:700;">
-                    <span class="ui-badge ui-badge--{{ instStatusClass }}" style="font-size:12px;">{{ instance.status.value|title }}</span>
-                </div>
-            </div>
+
             <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">🎙️</div>
                 <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">TeamSpeak</div>
                 <div style="font-size:14px;font-weight:700;">
@@ -303,7 +242,7 @@
             </div>
             <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">📋</div>
                 <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Queue</div>
-                <div style="font-size:20px;font-weight:700;">{{ queue|length }}</div>
+                <div style="font-size:20px;font-weight:700;">{{ queue|length }}</div><small style="color:var(--ng-text-muted);">Live: {{ runtimeStatus.queueLength|default(queue|length) }}</small>
             </div>
             <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">🎵</div>
                 <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Tracks</div>
@@ -313,9 +252,9 @@
                 <div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Volume</div>
                 <div data-volume-kpi style="font-size:20px;font-weight:700;">{{ runtimeStatus.volume|default(cfg_volume) }}%</div>
             </div>
-            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">🟢</div><div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Live Queue</div><div style="font-size:20px;font-weight:700;">{{ runtimeStatus.queueLength|default(queue|length) }}</div></div>
-            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">💿</div><div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Bibliothek</div><div style="font-size:20px;font-weight:700;">{{ tracks|length }}</div></div>
-            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">📈</div><div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Monitoring</div><div><span class="ui-badge ui-badge--success" style="font-size:11px;">{{ monitoring.overall|default('OK')|title }}</span></div></div>
+
+
+            <div class="ng-card mb-stat-card"><div class="mb-stat-card__icon">📈</div><div style="font-size:11px;color:var(--ng-text-muted);margin-bottom:4px;">Monitoring</div><div><span class="ui-badge ui-badge--neutral" style="font-size:11px;">{{ monitoring.overall|default('workspace_music_unreported'|trans({},'panel_modules')) }}</span></div></div>
         </div>
 
         {# ── Diagnose ── #}
@@ -1176,7 +1115,7 @@
 
     <div id="panel-webradio" style="display:none;">
         <div class="ng-card" style="overflow:hidden;">
-            <div class="mb-section-title"><h3 style="margin:0;">📻 Radio-App</h3><input data-mb-filter="radio" placeholder="Sender live filtern" style="padding:8px 10px;border:1px solid var(--ng-border);border-radius:999px;background:var(--ng-surface);color:var(--ng-text);"></div>
+            <div class="mb-section-title"><h3 style="margin:0;">📻 Radio-App</h3>{% if canWebradio %}<a class="ui-btn" href="{{ path('customer_musicbot_radio',{id:instance.id}) }}">{{ 'workspace_radio_catalog'|trans({},'panel_modules') }}</a>{% endif %}<input data-mb-filter="radio" placeholder="Sender live filtern" style="padding:8px 10px;border:1px solid var(--ng-border);border-radius:999px;background:var(--ng-surface);color:var(--ng-text);"></div>
             <div class="mb-filterbar"><span class="mb-chip">Länder</span><span class="mb-chip">Genres</span><span class="mb-chip">Sprache</span><span class="mb-chip">Trending</span><span class="mb-chip">Neu</span><span class="mb-chip">Favoriten</span><span class="mb-chip">Verlauf</span><span class="mb-chip">Eigene Sender</span></div>
             <div class="mb-grid" style="padding:16px;">
                 {% for track in tracks|filter(t => t.sourceType.value|default('') == 'webradio') %}
@@ -1196,7 +1135,11 @@
 
     <div id="panel-discord" style="display:none;"><div class="ng-card" style="padding:20px;"><h3>Discord</h3><p><strong>Status:</strong> {{ dc.connected|default(false) ? 'Verbunden' : 'Nicht verbunden' }} · Guild {{ dc.guild|default('—') }} · Voice Channel {{ dc.voice_channel|default('—') }} · Text Channel {{ dc.text_channel|default('—') }}</p><p style="color:var(--ng-text-muted);">Discord-Unterstützung folgt.</p></div></div>
 
-    <div id="panel-monitoring" style="display:none;"><div class="ng-card" style="overflow:hidden;"><div class="mb-section-title"><h3 style="margin:0;">Monitoring</h3><span class="mb-health" data-state="{{ monitoring.overall|default('healthy') }}">{{ monitoring.overall|default('healthy')|title }}</span></div><div class="mb-grid" style="padding:16px;">{% for key,label in {'runtime':'Runtime','audio':'Audio','pulseaudio':'PulseAudio','queue':'Queue','connector':'Connector','plugins':'Plugins','autodj':'AutoDJ'} %}<div class="ng-card" style="padding:14px;"><div class="mb-health" data-state="{{ monitoring[key].status|default(key == 'queue' and queue|length == 0 ? 'warning' : 'healthy') }}">{{ label }}</div><div style="font-size:12px;color:var(--ng-text-muted);margin-top:6px;">{{ monitoring[key].message|default('Live status ready') }}</div></div>{% endfor %}</div></div></div>
+    <div id="panel-monitoring" style="display:none;"><div class="ng-card" style="overflow:hidden;"><div class="mb-section-title"><h3 style="margin:0;">Monitoring</h3><span class="mb-health" data-state="{{ monitoring.overall|default('unknown') }}">{{ monitoring.overall|default('workspace_music_unreported'|trans({},'panel_modules')) }}</span></div><div class="pm-stats" style="padding:16px;">
+{% include 'components/panel/_stat.html.twig' with {value:monitoring.cpu is not null and monitoring.cpu is not iterable ? monitoring.cpu : '—',label:'CPU (Runtime)'} only %}
+{% include 'components/panel/_stat.html.twig' with {value:monitoring.ram is not null and monitoring.ram is not iterable ? monitoring.ram : '—',label:'RAM (Runtime)'} only %}
+{% include 'components/panel/_stat.html.twig' with {value:monitoring.lastRuntimeHeartbeat is not iterable ? monitoring.lastRuntimeHeartbeat|default('—') : '—',label:t('admin_schedules_last_heartbeat',page_locale())} only %}
+</div><div class="mb-grid" style="padding:16px;">{% for key,label in {'runtime':'Runtime','audio':'Audio','pulseaudio':'PulseAudio','queue':'Queue','connector':'Connector','plugins':'Plugins','autodj':'AutoDJ'} %}<div class="ng-card" style="padding:14px;"><div class="mb-health" data-state="{{ monitoring[key].status|default('unknown') }}">{{ label }}</div><div style="font-size:12px;color:var(--ng-text-muted);margin-top:6px;">{{ monitoring[key].message|default('workspace_music_unreported'|trans({},'panel_modules')) }}</div></div>{% endfor %}</div></div></div>
 
     <div id="panel-backup" style="display:none;"><div class="ng-card" style="padding:16px;"><h3>Backup</h3><div class="mb-media-row"><div class="mb-thumb">💾</div><div><strong>Konfigurations-Backup</strong><div style="font-size:12px;color:var(--ng-text-muted);">Größe — · Datum — · Typ: Musicbot</div></div><div><button class="ui-btn">Download</button> <button class="ui-btn">Restore</button> <button class="ui-btn">Löschen</button> <button class="ui-btn">Migration vorbereiten</button></div></div></div></div>
 
@@ -1328,17 +1271,38 @@
 <script>
 var MB_TABS = ['dashboard','musik','queue','playlists','autodj','plugins','webradio','youtube','teamspeak','discord','monitoring','backup','rollen','verbindungen','einstellungen','logs'];
 
-function mbTab(name) {
+const MB_GROUPS = {{ musicGroups|json_encode|raw }};
+const MB_GROUP_LAST = {};
+function mbGroup(key) {
+    if (MB_GROUPS[key]) mbTab(MB_GROUP_LAST[key] || MB_GROUPS[key].tabs[0]);
+}
+function mbTab(name, updateHash = true) {
+    if (MB_TABS.indexOf(name) === -1) name = 'dashboard';
+    var groupKey = Object.keys(MB_GROUPS).find(function(key) { return MB_GROUPS[key].tabs.indexOf(name) !== -1; });
+    var group = MB_GROUPS[groupKey];
+    MB_GROUP_LAST[groupKey] = name;
     MB_TABS.forEach(function(t) {
         var panel = document.getElementById('panel-' + t);
-        var btn   = document.getElementById('tab-' + t);
+        var btn = document.getElementById('tab-' + t);
         if (!panel || !btn) return;
-        var active = (t === name);
+        var active = t === name;
         panel.style.display = active ? '' : 'none';
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('aria-labelledby', btn.id);
+        btn.hidden = group.tabs.indexOf(t) === -1;
+        btn.setAttribute('aria-selected', String(active));
+        btn.tabIndex = active ? 0 : -1;
         btn.style.borderBottomColor = active ? 'var(--ng-primary)' : 'transparent';
         btn.style.color = active ? 'var(--ng-primary)' : 'var(--ng-text-muted)';
     });
-    try { history.replaceState(null, '', '#tab-' + name); } catch(e) {}
+    Object.keys(MB_GROUPS).forEach(function(key) {
+        var btn = document.getElementById('mb-group-' + key), active = key === groupKey;
+        btn.setAttribute('aria-selected', String(active));
+        btn.setAttribute('aria-controls', MB_GROUPS[key].tabs.map(function(t) { return 'panel-' + t; }).join(' '));
+        btn.tabIndex = active ? 0 : -1;
+    });
+    document.getElementById('mb-subnav').hidden = group.tabs.length === 1;
+    if (updateHash) { try { history.replaceState(null, '', '#tab-' + name); } catch(e) {} }
 }
 
 function musicTab(name) {
@@ -1355,7 +1319,29 @@ function musicTab(name) {
 
 (function() {
     var hash = window.location.hash.replace('#tab-', '');
-    mbTab(MB_TABS.indexOf(hash) !== -1 ? hash : 'dashboard');
+    mbTab(MB_TABS.indexOf(hash) !== -1 ? hash : 'dashboard', false);
+    window.addEventListener('hashchange', function() {
+        var key = window.location.hash.replace('#tab-', '');
+        if (MB_TABS.indexOf(key) !== -1) mbTab(key, false);
+    });
+    document.querySelectorAll('.pm-music-tabs').forEach(function(nav) {
+        nav.addEventListener('keydown', function(event) {
+            if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key) || event.target.tagName !== 'BUTTON') return;
+            var tabs = Array.from(nav.querySelectorAll('button')).filter(function(tab) { return !tab.hidden; });
+            var index = tabs.indexOf(event.target);
+            if (index < 0) return;
+            event.preventDefault();
+            index = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+            tabs[index].click(); tabs[index].focus();
+        });
+    });
+    document.addEventListener('invalid', function(event) {
+        var panel = event.target.closest('[id^="panel-"]');
+        if (panel) mbTab(panel.id.slice(6));
+        var musicPanel = event.target.closest('[id^="mpanel-"]');
+        if (musicPanel) musicTab(musicPanel.id.slice(7));
+    }, true);
+
 
     document.querySelectorAll('[data-mb-filter]').forEach(function(input){input.addEventListener('input',function(){var q=input.value.toLowerCase();document.querySelectorAll('[data-filter-item=\"'+input.dataset.mbFilter+'\"]').forEach(function(el){el.style.display=(el.dataset.filterText||'').indexOf(q)!==-1?'':'none';});});});
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Public;
 
-use App\Module\Core\Application\SiteResolver;
+use App\Module\Cms\Application\CmsSiteResolver;
 use App\Repository\CmsPageRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -13,7 +13,7 @@ use Symfony\Component\Routing\Attribute\Route;
 final class PublicSeoController
 {
     public function __construct(
-        private readonly SiteResolver $siteResolver,
+        private readonly CmsSiteResolver $siteResolver,
         private readonly CmsPageRepository $pageRepository,
     ) {
     }
@@ -29,7 +29,7 @@ final class PublicSeoController
     {
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
-            return new Response('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>', 200, ['Content-Type' => 'application/xml']);
+            return new Response('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>', 404, ['Content-Type' => 'application/xml']);
         }
 
         $pages = $this->pageRepository->findBy(['site' => $site, 'isPublished' => true], ['slug' => 'ASC']);

@@ -790,6 +790,7 @@ final class CustomerWebspaceController
             'name' => $domain->getName(),
             'status' => $domain->getStatus(),
             'ssl_expires_at' => $domain->getSslExpiresAt(),
+            'ssl_status' => self::calculateSslStatus($domain->getSslExpiresAt(), $domain->getStatus()),
             'webspace_id' => $domain->getWebspace()?->getId(),
             'server_aliases' => $domain->getServerAliases(),
         ];
@@ -797,7 +798,7 @@ final class CustomerWebspaceController
 
     /**
      * @return array{id: int|null, domain: string, path: string, docroot: string, php_version: string,
-     * php_settings: array<string, string>, cron_tasks: string, git_repo_url: null|string, git_branch:
+     * disk_limit_bytes: int, php_settings: array<string, string>, cron_tasks: string, git_repo_url: null|string, git_branch:
      * null|string, node: array{id: string, name: null|string}}
      */
     private function normalizeWebspaceDetail(Webspace $webspace): array
@@ -808,6 +809,7 @@ final class CustomerWebspaceController
             'path' => $webspace->getPath(),
             'docroot' => $webspace->getDocroot(),
             'php_version' => $webspace->getPhpVersion(),
+            'disk_limit_bytes' => $webspace->getDiskLimitBytes(),
             'php_settings' => $webspace->getPhpSettings(),
             'cron_tasks' => $webspace->getCronTasks(),
             'git_repo_url' => $webspace->getGitRepoUrl(),

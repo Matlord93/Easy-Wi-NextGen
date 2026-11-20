@@ -6,18 +6,10 @@
 {% block title %}{{ t('customer_databases_details_title', locale) }}{% endblock %}
 
 {% block content %}
-<div class="cust-page">
-    <div class="cust-hero">
-        <div class="cust-hero__inner">
-            <div>
-                <div class="cust-hero__label">{{ t('customer_databases_hero_label', locale) }}</div>
-                <h1 class="cust-hero__title">{{ t('customer_databases_details_title', locale) }}: {{ database.name }}</h1>
-                <p class="cust-hero__desc">{{ t('customer_databases_connection_details', locale) }}</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="cust-panel">
+<div class="cust-page" data-panel-tabs="database">
+    <header class="pm-page-head"><div><h1>{{ database.name }} <span class="ui-badge ui-badge--neutral">{{ database.engine|upper }}</span></h1><p>{{ t('customer_databases_connection_details',locale) }}</p></div><a class="ui-button ui-button--primary" href="/databases/{{ database.id }}/tables">{{ 'workspace_open_tables'|trans({},'panel_modules') }}</a></header>
+    {% include 'components/panel/_tabs.html.twig' with {panelKey:'database',panelTabs:{overview:'overview',access:'access',activity:'activity'}} %}
+    <div class="cust-panel" data-panel-section="overview">
         <div class="cust-panel__head">
             <div>
                 <h3 class="cust-panel__title">{{ t('customer_databases_connection_details', locale) }}</h3>
@@ -25,43 +17,14 @@
             </div>
             <a class="ui-button ui-button--ghost ui-button--sm" href="/databases">{{ t('customer_databases_back_to_overview', locale) }}</a>
         </div>
-        <div class="cust-panel__body">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
-                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
-                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_host_label', locale) }}</span>
-                    <code>{{ database.host }}</code>
-                </div>
-                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
-                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_port_label', locale) }}</span>
-                    <code>{{ database.port }}</code>
-                </div>
-                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
-                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_engine_label', locale) }}</span>
-                    <code>{{ database.engine }}</code>
-                </div>
-                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
-                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_name_label', locale) }}</span>
-                    <code>{{ database.name }}</code>
-                </div>
-                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
-                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_user_label', locale) }}</span>
-                    <code>{{ database.username }}</code>
-                </div>
-                <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
-                    <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_table_status', locale) }}</span>
-                    <code>{{ database.status }}</code>
-                </div>
-                {% if database.node %}
-                    <div style="padding:12px;border:1px solid var(--ng-border);border-radius:10px;background:var(--ng-surface-soft);">
-                        <span style="display:block;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_databases_node_label', locale) }}</span>
-                        <code>{{ database.node.name }}</code>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
+        <div class="cust-panel__body"><dl class="pm-keyvalues pm-connection-values">
+            {% for label,value in {customer_databases_host_label:database.host,customer_databases_port_label:database.port,customer_databases_name_label:database.name,customer_databases_user_label:database.username} %}<div><dt>{{ t(label,locale) }}</dt><dd><code>{{ value }}</code><button type="button" class="ui-button ui-button--ghost ui-button--sm" data-copy-value="{{ value }}" aria-label="{{ 'workspace_copy'|trans({},'panel_modules') }}">⧉</button></dd></div>{% endfor %}
+            <div><dt>{{ t('customer_databases_engine_label',locale) }}</dt><dd>{{ database.engine }}</dd></div><div><dt>Status</dt><dd>{{ database.status }}</dd></div>{% if database.node %}<div><dt>Node</dt><dd>{{ database.node.name }}</dd></div>{% endif %}
+        </dl></div>
     </div>
+    <section class="cust-panel" data-panel-section="activity"><div class="cust-panel__head"><h2 class="cust-panel__title">{{ 'activity'|trans({},'panel_modules') }}</h2></div><div class="cust-panel__body"><dl class="pm-keyvalues"><div><dt>{{ 'workspace_created'|trans({},'panel_modules') }}</dt><dd>{{ database.createdAt|date('d.m.Y H:i') }}</dd></div><div><dt>{{ 'workspace_updated'|trans({},'panel_modules') }}</dt><dd>{{ database.updatedAt|date('d.m.Y H:i') }}</dd></div></dl></div></section>
 
-    <div class="cust-panel">
+    <div class="cust-panel" data-panel-section="access">
         <div class="cust-panel__head">
             <div>
                 <h3 class="cust-panel__title">{{ t('customer_databases_password_label', locale) }}</h3>
