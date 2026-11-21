@@ -33,6 +33,11 @@ final class WebinterfaceUpdateServicePostUpdateTest extends TestCase
             'cache:clear',
         ], $this->readCommandLog($appRoot));
         self::assertStringContainsString('doctrine:schema:validate exit code: 0', (string) file_get_contents($result->logPath ?? ''));
+        $validationCache = file_get_contents($appRoot.'/schema-cache.log');
+        self::assertIsString($validationCache);
+        self::assertNotSame('', $validationCache);
+        self::assertNotSame(getenv('EASYWI_CACHE_DIR'), $validationCache);
+        self::assertDirectoryDoesNotExist($validationCache);
         self::assertNotEmpty($logger->records);
     }
 
@@ -89,6 +94,51 @@ final class WebinterfaceUpdateServicePostUpdateTest extends TestCase
         self::assertStringContainsString('err-line', $result['output']);
     }
 
+    public function testOutOfSyncSchemaStopsBothUpdatePathsAndLogsTheReadOnlyDiff(): void
+    {
+        $appRoot = $this->createFakeAppRoot(['doctrine:schema:validate' => 2]);
+        $service = $this->newService(appRoot: $appRoot, logger: new CapturingLogger());
+        $expected = ['doctrine:migrations:migrate', 'doctrine:schema:validate', 'doctrine:schema:update'];
+
+        $result = $service->applyMigrations();
+        self::assertFalse($result->success);
+        self::assertSame('Schema-Validierung fehlgeschlagen.', $result->message);
+        self::assertSame($expected, $this->readCommandLog($appRoot));
+        self::assertStringContainsString('Schema fixture differences', (string) file_get_contents($result->logPath ?? ''));
+
+        unlink($appRoot.'/commands.log');
+        $postDeploy = new \ReflectionMethod($service, 'runPostDeploy');
+        self::assertFalse($postDeploy->invoke($service, $appRoot, $appRoot.'/post-deploy.log'));
+        self::assertSame($expected, $this->readCommandLog($appRoot));
+        self::assertStringContainsString('Schema fixture differences', (string) file_get_contents($appRoot.'/post-deploy.log'));
+    }
+
+    public function testRsyncUsesTheResolvedExecutableAndPassesPathsWithoutShellExpansion(): void
+    {
+        $appRoot = $this->createFakeAppRoot([]);
+        $bin = $appRoot.'/bin';
+        $binary = $bin.'/rsync';
+        file_put_contents($binary, <<<'SH'
+#!/bin/sh
+printf '%s\n' "$@"
+SH);
+        chmod($binary, 0700);
+        $service = $this->newService(appRoot: $appRoot, logger: new CapturingLogger());
+        $method = new \ReflectionMethod($service, 'runRsync');
+        $path = getenv('PATH');
+        $log = $appRoot.'/rsync.log';
+        try {
+            putenv('PATH='.$bin);
+            self::assertTrue($method->invoke($service, $appRoot.'/new build', $appRoot.'/active panel', ['local config/*'], $log, true));
+        } finally {
+            putenv($path === false ? 'PATH' : 'PATH='.$path);
+        }
+
+        $output = (string) file_get_contents($log);
+        self::assertStringContainsString("rsync stdout: -a\n--checksum\n--delete\n--exclude=local config/*\n--\n", $output);
+        self::assertStringContainsString($appRoot."/new build/\n".$appRoot.'/active panel/', $output);
+    }
+
     public function testCleanupKeepOneRemovesOlderReleases(): void
     {
         $appRoot = $this->createFakeAppRoot([]);
@@ -143,8 +193,14 @@ if ($command === 'doctrine:migrations:migrate') {
     fwrite(STDOUT, "Doctrine migration stdout\n");
     fwrite(STDERR, "Doctrine migration stderr\n");
 } elseif ($command === 'doctrine:schema:validate') {
+    file_put_contents(__DIR__ . '/../schema-cache.log', (string) getenv('EASYWI_CACHE_DIR'));
     fwrite(STDOUT, "Schema validation stdout\n");
     fwrite(STDERR, "Schema validation stderr\n");
+} elseif ($command === 'doctrine:schema:update') {
+    if (!in_array('--dump-sql', $argv, true) || in_array('--force', $argv, true)) {
+        exit(9);
+    }
+    fwrite(STDOUT, "Schema fixture differences\n");
 } elseif ($command === 'cache:clear') {
     fwrite(STDOUT, "Cache clear stdout\n");
 }

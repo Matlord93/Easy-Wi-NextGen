@@ -60,7 +60,7 @@ final readonly class CustomerWalletController
         /** @var list<ShopContract> $pending */
         $pending = $this->em->getRepository(ShopContract::class)->createQueryBuilder('c')->join('c.account', 'a')->where("a.customer = :customer AND c.billingMode = 'wallet' AND c.pendingUnits > 0")->setParameter('customer', $customer->getId(), \Doctrine\DBAL\Types\Types::INTEGER)->orderBy('c.id')->getQuery()->getResult();
 
-        return new Response($this->twig->render('shop/contracts/wallet.html.twig', ['accounts' => $this->em->getRepository(RentalAccount::class)->findBy(['customer' => $customer]), 'entries' => $entries, 'topups' => $topups, 'pending' => $pending, 'error' => $error, 'nonce' => bin2hex(random_bytes(16)), 'page' => $page, 'currency' => $this->settings->publicSettings()['currency'], 'activeNav' => 'shop']), null !== $error ? 422 : 200);
+        return new Response($this->twig->render('shop/contracts/wallet.html.twig', ['accounts' => $this->em->getRepository(RentalAccount::class)->findBy(['customer' => $customer]), 'entries' => $entries, 'topups' => $topups, 'pending' => $pending, 'error' => $error, 'nonce' => bin2hex(random_bytes(16)), 'page' => $page, 'currency' => $this->settings->publicSettings()['currency'], 'activeNav' => 'contracts']), null !== $error ? 422 : 200);
     }
 
     #[Route('/marketplace/wallet/{id}', name: 'customer_wallet_topup', requirements: ['id' => '[a-f0-9]{32}'], methods: ['GET', 'POST'])]
@@ -107,6 +107,6 @@ final readonly class CustomerWalletController
             }
         }
 
-        return new Response($this->twig->render('shop/contracts/topup.html.twig', ['topup' => $topup, 'methods' => $this->settings->methods(), 'billing' => $this->billing->get(), 'error' => $error, 'activeNav' => 'shop']), null !== $error ? 422 : 200);
+        return new Response($this->twig->render('shop/contracts/topup.html.twig', ['topup' => $topup, 'methods' => $this->settings->methods(), 'billing' => $this->billing->get(), 'error' => $error, 'activeNav' => 'contracts']), null !== $error ? 422 : 200);
     }
 }

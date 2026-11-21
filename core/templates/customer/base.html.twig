@@ -121,6 +121,7 @@
         open: true,
         items: [
             { key: 'dashboard', label: t('customer_nav_dashboard', page_locale()), href: path('customer_dashboard'), iconSvg: icon.dashboard },
+            { key: 'contracts', label: 'workspace_contracts'|trans({}, 'panel_modules'), href: path('customer_contracts'), iconSvg: icon.files },
             moduleBilling ? { key: 'billing', label: 'billing.history'|trans({}, 'billing'), href: path('customer_billing'), iconSvg: icon.shop } : null,
             { key: 'activity',  label: t('customer_nav_activity', page_locale()),  href: path('customer_activity'),  iconSvg: icon.activity },
             { key: 'notifications', label: t('notifications', page_locale()),      href: path('customer_notifications'), iconSvg: icon.notifications }

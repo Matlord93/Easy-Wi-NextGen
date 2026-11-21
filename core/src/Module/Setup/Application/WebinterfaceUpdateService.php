@@ -23,7 +23,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterface
 {
     private const RUNTIME_MAINTENANCE_FILE = 'var/update-maintenance.flag';
-    private const ARCHIVE_SYSTEM_DIRECTORIES = ['/usr/bin', '/bin'];
+    private const SYSTEM_BINARY_DIRECTORIES = ['/usr/bin', '/bin'];
 
     private const DEFAULT_EXCLUDES = [
         '.env',
@@ -169,7 +169,8 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 );
             }
 
-            $useDelta = !$this->canUseSymlinkStrategy() && $this->shouldUseDelta($installedVersion, $manifest, $logPath);
+            $useSymlink = $this->canUseSymlinkStrategy();
+            $useDelta = !$useSymlink && $this->shouldUseDelta($installedVersion, $manifest, $logPath);
             $assetUrl = $useDelta ? $manifest->deltaAssetUrl : $manifest->assetUrl;
             if ($assetUrl === null || $assetUrl === '') {
                 $this->log($logPath, 'Update-Asset ist nicht verfügbar.');
@@ -187,6 +188,14 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 $this->log($logPath,'CLI-Update ohne Reload-Agent abgebrochen: CLI-OPcache erreicht die laufenden Web-PHP-Prozesse nicht.');
                 return new UpdateResult(false,'Für CLI-Updates muss der Reload-Agent des Panel-Hosts konfiguriert sein.','web_reload_required',$logPath,$installedVersion,$manifest->latest);
             }
+            if (!$useSymlink && $this->findRsync() === null) {
+                $message = 'rsync wird für dieses Update auf dem Panel-Host benötigt.';
+                $hint = 'Installiere das Paket rsync auf dem Panel-Host, zum Beispiel mit sudo apt install rsync unter Debian oder Ubuntu.';
+                $this->log($logPath, $message.' '.$hint);
+
+                return new UpdateResult(false, $message, $hint, $logPath, $installedVersion, $manifest->latest);
+            }
+
             $workDir = $this->createWorkDir();
             $archivePath = $this->downloadAsset($assetUrl, $workDir, $logPath, $useDelta ? null : $manifest->assetName);
             if ($archivePath === null) {
@@ -375,7 +384,8 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 );
             }
 
-            $migrate = $this->runCommand($this->buildConsoleCommand('doctrine:migrations:migrate', ['--no-interaction']), $appRoot);
+            $flags = $this->consoleEnvironmentFlags();
+            $migrate = $this->runCommand($this->buildConsoleCommand('doctrine:migrations:migrate', [...$flags, '--no-interaction']), $appRoot);
             $this->logCommandResult($logPath, 'doctrine:migrations:migrate', $migrate);
             if ($migrate['exitCode'] !== 0) {
                 return new UpdateResult(
@@ -388,23 +398,19 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
                 );
             }
 
-            $schema = $this->runCommand($this->buildConsoleCommand('doctrine:schema:validate', ['--no-interaction']), $appRoot);
-            $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema);
-            // Exit code 2 means DB not in sync with ORM mapping (mapping files are valid but schema
-            // differs); treat as a warning — the same behaviour as runPostDeploy().
-            // Exit code 1 / 3 means broken mapping files, which is a hard failure.
-            if ($schema['exitCode'] !== 0 && $schema['exitCode'] !== 2) {
+            $schemaError = $this->validateDatabaseSchema($appRoot, $logPath);
+            if ($schemaError !== null) {
                 return new UpdateResult(
                     false,
                     'Schema-Validierung fehlgeschlagen.',
-                    $this->formatCommandFailure('doctrine:schema:validate', $schema),
+                    $schemaError,
                     $logPath,
                     $this->getInstalledVersion(),
                     null,
                 );
             }
 
-            $seedSettings = $this->runCommand($this->buildConsoleCommand('app:settings:ensure-defaults', ['--no-interaction']), $appRoot);
+            $seedSettings = $this->runCommand($this->buildConsoleCommand('app:settings:ensure-defaults', [...$flags, '--no-interaction']), $appRoot);
             $this->logCommandResult($logPath, 'app:settings:ensure-defaults', $seedSettings);
             if ($seedSettings['exitCode'] !== 0) {
                 return new UpdateResult(
@@ -419,7 +425,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
             $this->logMissingEnvSecretsHint($appRoot, $logPath);
 
-            $cache = $this->runCommand($this->buildConsoleCommand('cache:clear'), $appRoot);
+            $cache = $this->runCommand($this->buildConsoleCommand('cache:clear', $flags), $appRoot);
             $this->logCommandResult($logPath, 'cache:clear', $cache);
             if ($cache['exitCode'] !== 0) {
                 return new UpdateResult(
@@ -1095,7 +1101,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     {
         // PHP-FPM can provide a PATH that omits the system directories.
         if (function_exists('proc_open')) {
-            $tar = (new ExecutableFinder())->find('tar', null, self::ARCHIVE_SYSTEM_DIRECTORIES);
+            $tar = (new ExecutableFinder())->find('tar', null, self::SYSTEM_BINARY_DIRECTORIES);
             if ($tar !== null) {
                 return $this->extractTarArchiveWithCommand($tar, $archivePath, $stagingDir, $gzipCompressed, $logPath);
             }
@@ -1280,7 +1286,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         $environment = $this->currentProcessEnvironment();
         $directories = array_filter(explode(PATH_SEPARATOR, $environment['PATH'] ?? ''), static fn (string $directory): bool => $directory !== '');
         // GNU tar starts gzip as a separate process for compressed archives.
-        $environment['PATH'] = implode(PATH_SEPARATOR, [...$directories, ...self::ARCHIVE_SYSTEM_DIRECTORIES]);
+        $environment['PATH'] = implode(PATH_SEPARATOR, [...$directories, ...self::SYSTEM_BINARY_DIRECTORIES]);
         $process = @proc_open($command, [
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
@@ -1635,11 +1641,6 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     /** @param list<string> $excludes */
     private function deployInPlaceUnderMaintenance(string $sourceDir, string $version, string $logPath, array $excludes, bool $initialInstall): bool
     {
-        if (!$this->commandExists('rsync')) {
-            $this->log($logPath, 'rsync ist erforderlich für In-Place-Updates.');
-            return false;
-        }
-
         if ($initialInstall) {
             $this->log($logPath, 'Initiale Installation erkannt. Webinterface wird erstmals bereitgestellt.');
             if (!is_dir($this->installDir)) {
@@ -1770,8 +1771,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     private function runPostDeploy(string $baseDir, string $logPath): bool
     {
         $appRoot = $this->resolveAppRoot($baseDir);
-        $debugFlag = $this->kernelDebug ? '' : '--no-debug';
-        $envFlag = sprintf('--env=%s', $this->kernelEnvironment);
+        $flags = $this->consoleEnvironmentFlags();
 
         if ($this->commandExists('composer') && is_file($appRoot . '/composer.json')) {
             $this->ensureWritableComposerEnvironment($appRoot, $logPath);
@@ -1805,7 +1805,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         }
 
         $migrate = $this->runCommand(
-            $this->buildConsoleCommand('doctrine:migrations:migrate', array_values(array_filter(['--no-interaction', '--allow-no-migration', $envFlag, $debugFlag]))),
+            $this->buildConsoleCommand('doctrine:migrations:migrate', [...$flags, '--no-interaction', '--allow-no-migration']),
             $appRoot,
         );
         $this->logCommandResult($logPath, 'doctrine:migrations:migrate', $migrate);
@@ -1813,19 +1813,12 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             return false;
         }
 
-        $schema = $this->runCommand(
-            $this->buildConsoleCommand('doctrine:schema:validate', array_values(array_filter(['--no-interaction', $envFlag, $debugFlag]))),
-            $appRoot,
-        );
-        $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema);
-        // Exit code 2 means DB not in sync (mapping is fine); treat as warning, not a hard failure.
-        // Exit code 1 or 3 means broken mapping files — that is a hard failure.
-        if ($schema['exitCode'] !== 0 && $schema['exitCode'] !== 2) {
+        if ($this->validateDatabaseSchema($appRoot, $logPath) !== null) {
             return false;
         }
 
         $seedSettings = $this->runCommand(
-            $this->buildConsoleCommand('app:settings:ensure-defaults', array_values(array_filter(['--no-interaction', $envFlag, $debugFlag]))),
+            $this->buildConsoleCommand('app:settings:ensure-defaults', [...$flags, '--no-interaction']),
             $appRoot,
         );
         $this->logCommandResult($logPath, 'app:settings:ensure-defaults', $seedSettings);
@@ -1836,7 +1829,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         $this->logMissingEnvSecretsHint($appRoot, $logPath);
 
         $cache = $this->runCommand(
-            $this->buildConsoleCommand('cache:clear', array_values(array_filter([$envFlag, $debugFlag]))),
+            $this->buildConsoleCommand('cache:clear', $flags),
             $appRoot,
         );
         $this->logCommandResult($logPath, 'cache:clear', $cache);
@@ -1847,7 +1840,31 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return true;
     }
 
+    private function validateDatabaseSchema(string $appRoot, string $logPath): ?string
+    {
+        // Production kernels can keep Doctrine metadata from the previous release in their cache.
+        $cacheDir = $this->createWorkDir();
+        $environment = ['EASYWI_CACHE_DIR' => $cacheDir];
+        $flags = [...$this->consoleEnvironmentFlags(), '--no-interaction'];
 
+        try {
+            $validation = $this->runCommand($this->buildConsoleCommand('doctrine:schema:validate', $flags), $appRoot, environment: $environment);
+            $this->logCommandResult($logPath, 'doctrine:schema:validate', $validation);
+            if ($validation['exitCode'] === 0) {
+                return null;
+            }
+
+            $this->log($logPath, 'Schema-Validierung fehlgeschlagen. Bereits ausgeführte Migrationen bleiben in der Datenbank.');
+            if ($validation['exitCode'] === 2) {
+                $difference = $this->runCommand($this->buildConsoleCommand('doctrine:schema:update', [...$flags, '--dump-sql']), $appRoot, environment: $environment);
+                $this->logCommandResult($logPath, 'doctrine:schema:update --dump-sql', $difference);
+            }
+
+            return $this->formatCommandFailure('doctrine:schema:validate', $validation);
+        } finally {
+            $this->removeDirectory($cacheDir);
+        }
+    }
 
     /**
      * @return array{exitCode: int, stdout: string, stderr: string, output: string, command: string}
@@ -2090,12 +2107,13 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function copyPath(string $sourcePath, string $destinationPath): void
     {
+        $rsync = $this->findRsync();
         if (is_dir($sourcePath) && !is_link($sourcePath)) {
             if (!is_dir($destinationPath)) {
                 mkdir($destinationPath, 0775, true);
             }
-            if ($this->commandExists('rsync')) {
-                $this->runCommand(['rsync', '-a', rtrim($sourcePath, '/\\') . '/', rtrim($destinationPath, '/\\') . '/'], $this->installDir);
+            if ($rsync !== null) {
+                $this->runCommand([$rsync, '-a', rtrim($sourcePath, '/\\') . '/', rtrim($destinationPath, '/\\') . '/'], $this->installDir);
                 return;
             }
 
@@ -2106,8 +2124,8 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         if (!is_dir(dirname($destinationPath))) {
             mkdir(dirname($destinationPath), 0775, true);
         }
-        if ($this->commandExists('rsync')) {
-            $this->runCommand(['rsync', '-a', $sourcePath, $destinationPath], $this->installDir);
+        if ($rsync !== null) {
+            $this->runCommand([$rsync, '-a', $sourcePath, $destinationPath], $this->installDir);
             return;
         }
 
@@ -2152,11 +2170,6 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function deployDeltaUpdateUnderMaintenance(string $sourceDir, string $version, string $logPath, array $deletedPaths): bool
     {
-        if (!$this->commandExists('rsync')) {
-            $this->log($logPath, 'rsync ist erforderlich für Delta-Updates.');
-            return false;
-        }
-
         $backupDir = rtrim(sys_get_temp_dir(), '/\\') . '/webinterface_backup_' . bin2hex(random_bytes(6));
         mkdir($backupDir, 0770, true);
 
@@ -2309,6 +2322,11 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return $this->findExecutable($command) !== null;
     }
 
+    private function findRsync(): ?string
+    {
+        return (new ExecutableFinder())->find('rsync', null, self::SYSTEM_BINARY_DIRECTORIES);
+    }
+
     private function findExecutable(string $command): ?string
     {
         if (str_contains($command, '/') || str_contains($command, '\\')) {
@@ -2338,6 +2356,17 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         }
 
         return array_merge([$php, 'bin/console', $name], $arguments);
+    }
+
+    /** @return list<string> */
+    private function consoleEnvironmentFlags(): array
+    {
+        $flags = ['--env='.$this->kernelEnvironment];
+        if (!$this->kernelDebug) {
+            $flags[] = '--no-debug';
+        }
+
+        return $flags;
     }
 
     private function resolvePhpCliBinary(): ?string
@@ -2450,17 +2479,18 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     /**
      * @param string|list<string> $command
+     * @param array<string, string> $environment
      *
      * @return array{exitCode: int, stdout: string, stderr: string, output: string, command: string}
      */
-    private function runCommand(string|array $command, string $cwd, int $timeoutSeconds = 600): array
+    private function runCommand(string|array $command, string $cwd, int $timeoutSeconds = 600, array $environment = []): array
     {
+        $environment += $this->currentProcessEnvironment();
         if (!class_exists(Process::class)) {
-            return $this->runCommandWithProcOpen($command, $cwd, $timeoutSeconds);
+            return $this->runCommandWithProcOpen($command, $cwd, $timeoutSeconds, $environment);
         }
 
         try {
-            $environment = $this->currentProcessEnvironment();
             $process = is_array($command)
                 ? new Process($command, $cwd, $environment, null, $timeoutSeconds)
                 : Process::fromShellCommandline($command, $cwd, $environment, null, $timeoutSeconds);
@@ -2490,10 +2520,11 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     /**
      * @param string|list<string> $command
+     * @param array<string, string> $environment
      *
      * @return array{exitCode: int, stdout: string, stderr: string, output: string, command: string}
      */
-    private function runCommandWithProcOpen(string|array $command, string $cwd, int $timeoutSeconds): array
+    private function runCommandWithProcOpen(string|array $command, string $cwd, int $timeoutSeconds, array $environment): array
     {
         if (!function_exists('proc_open')) {
             return [
@@ -2514,7 +2545,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             ],
             $pipes,
             $cwd,
-            $this->currentProcessEnvironment(),
+            $environment,
         );
 
         if (!is_resource($process)) {
@@ -2657,22 +2688,23 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
     /** @param list<string> $excludes */
     private function runRsync(string $source, string $destination, array $excludes, string $logPath, bool $delete = false): bool
     {
-        $args = ['-a', '--checksum'];
+        $rsync = $this->findRsync();
+        if ($rsync === null) {
+            $this->log($logPath, 'rsync ist auf dem Panel-Host nicht verfügbar.');
+            return false;
+        }
+
+        $args = [$rsync, '-a', '--checksum'];
         if ($delete) {
             $args[] = '--delete';
         }
         foreach ($excludes as $exclude) {
-            $args[] = '--exclude=' . escapeshellarg($exclude);
+            $args[] = '--exclude=' . $exclude;
         }
 
-        $command = sprintf(
-            'rsync %s %s %s',
-            implode(' ', $args),
-            escapeshellarg(rtrim($source, '/\\') . '/'),
-            escapeshellarg(rtrim($destination, '/\\') . '/'),
-        );
+        array_push($args, '--', rtrim($source, '/\\') . '/', rtrim($destination, '/\\') . '/');
 
-        $result = $this->runCommand($command, $this->installDir);
+        $result = $this->runCommand($args, $this->installDir);
         $this->logCommandResult($logPath, 'rsync', $result);
 
         return $result['exitCode'] === 0;

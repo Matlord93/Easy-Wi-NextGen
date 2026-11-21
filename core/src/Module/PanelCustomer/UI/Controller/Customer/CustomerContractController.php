@@ -45,7 +45,7 @@ final readonly class CustomerContractController
         /** @var list<ShopContract> $contracts */
         $contracts = $this->em->getRepository(ShopContract::class)->createQueryBuilder('c')->join('c.account', 'a')->where('a.customer = :customer')->setParameter('customer', $customer->getId(), \Doctrine\DBAL\Types\Types::INTEGER)->orderBy('c.id', 'DESC')->setMaxResults(25)->setFirstResult(($page - 1) * 25)->getQuery()->getResult();
 
-        return new Response($this->twig->render('shop/contracts/index.html.twig', ['contracts' => $contracts, 'accounts' => $this->em->getRepository(RentalAccount::class)->findBy(['customer' => $customer]), 'page' => $page, 'costs' => $this->overview->costs($customer, new \DateTimeImmutable()), 'activeNav' => 'shop']));
+        return new Response($this->twig->render('shop/contracts/index.html.twig', ['contracts' => $contracts, 'accounts' => $this->em->getRepository(RentalAccount::class)->findBy(['customer' => $customer]), 'page' => $page, 'costs' => $this->overview->costs($customer, new \DateTimeImmutable()), 'activeNav' => 'contracts']));
     }
 
     private function customer(Request $request): \App\Module\Core\Domain\Entity\User

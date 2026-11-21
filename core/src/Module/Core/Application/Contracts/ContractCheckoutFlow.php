@@ -148,14 +148,14 @@ final readonly class ContractCheckoutFlow
             return new RedirectResponse(($public ? '/shop/contracts/' : '/marketplace/contracts/').$id, 303);
         }
 
-        return new Response($this->twig->render('shop/contracts/detail.html.twig', $this->context($request, $public) + ['contract' => $contract, 'public_shop' => $public]));
+        return new Response($this->twig->render('shop/contracts/detail.html.twig', $this->context($request, $public, 'contracts') + ['contract' => $contract, 'public_shop' => $public]));
     }
 
     /** @return array<string,mixed> */
-    private function context(Request $request, bool $public): array
+    private function context(Request $request, bool $public, string $activeNav = 'shop'): array
     {
         if (!$public) {
-            return ['layout' => 'customer/base.html.twig', 'activeNav' => 'shop'];
+            return ['layout' => 'customer/base.html.twig', 'activeNav' => $activeNav];
         }
         $site = $this->sites->resolve($request);
         if (null === $site) {

@@ -2,7 +2,18 @@
 {% block title %}Mietverträge und Guthaben{% endblock %}
 {% block content %}
 <div class="pm-workspace" data-panel-tabs="contracts">
-<header class="pm-page-head"><div><h1>{{ 'workspace_my_contracts'|trans({},'panel_modules') }}</h1><p>{{ 'workspace_contract_intro'|trans({},'panel_modules') }}</p></div><div class="pm-page-head__actions"><a class="ui-button ui-button--primary" href="{{ path('customer_shop') }}">{{ 'workspace_rent_product'|trans({},'panel_modules') }}</a><a class="ui-button ui-button--ghost" href="{{ path('customer_wallet') }}">{{ 'workspace_wallet'|trans({},'panel_modules') }}</a><a class="ui-button ui-button--ghost" href="{{ path('customer_billing') }}">{{ 'workspace_invoices'|trans({},'panel_modules') }}</a></div></header>
+<header class="pm-page-head">
+    <div><h1>{{ 'workspace_my_contracts'|trans({},'panel_modules') }}</h1><p>{{ 'workspace_contract_intro'|trans({},'panel_modules') }}</p></div>
+    <div class="pm-page-head__actions">
+        {% if marketplaceVisible %}
+            <a class="ui-button ui-button--primary" href="{{ path('customer_shop') }}">{{ 'workspace_rent_product'|trans({},'panel_modules') }}</a>
+        {% endif %}
+        <a class="ui-button ui-button--ghost" href="{{ path('customer_wallet') }}">{{ 'workspace_wallet'|trans({},'panel_modules') }}</a>
+        {% if moduleBilling %}
+            <a class="ui-button ui-button--ghost" href="{{ path('customer_billing') }}">{{ 'workspace_invoices'|trans({},'panel_modules') }}</a>
+        {% endif %}
+    </div>
+</header>
 {% include 'components/panel/_tabs.html.twig' with {panelKey:'contracts',panelTabs:{overview:'workspace_inventory',costs:'workspace_cost_overview',accounts:'workspace_wallet'}} %}
 <div class="pm-stats">
     {% include 'components/panel/_stat.html.twig' with {value:contracts|length,label:'workspace_contracts_on_page'|trans({},'panel_modules')} only %}

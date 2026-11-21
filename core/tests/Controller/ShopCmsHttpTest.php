@@ -266,8 +266,21 @@ final class ShopCmsHttpTest extends AbstractWebTestCase
         $contractId = $contract->getId();
         $em->getRepository(ModuleSetting::class)->findOneBy(['moduleKey' => 'shop'])->setEnabled(false);
         $em->flush();
-        $crawler = $client->request('GET', '/marketplace/contracts/'.$contractId);
+
+        $crawler = $client->request('GET', '/dashboard');
         self::assertResponseIsSuccessful();
+        $contractsLink = $crawler->filterXPath('//nav[contains(@class,"ng-sidebar__nav")]//details[@open]//a[@href="/marketplace/contracts"]');
+        self::assertCount(1, $contractsLink);
+        self::assertSame('Mietverträge', $contractsLink->text());
+        $crawler = $client->click($contractsLink->link());
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filterXPath('//a[@href="/marketplace/contracts"][@aria-current="page"]'));
+        self::assertCount(0, $crawler->filterXPath('//main//a[@href="/marketplace"]'));
+        $contractLink = $crawler->filterXPath('//tbody//a[@href="/marketplace/contracts/'.$contractId.'"]')->first();
+        self::assertSame('HTTP game package', $contractLink->text());
+        $crawler = $client->click($contractLink->link());
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filterXPath('//a[@href="/marketplace/contracts"][@aria-current="page"]'));
         $client->submit($crawler->filterXPath('//form[input[@name="_token"]]')->form());
         self::assertResponseRedirects('/marketplace/contracts/'.$contractId, 303);
         $contract = self::getContainer()->get(EntityManagerInterface::class)->find(\App\Module\Core\Domain\Entity\ShopContract::class, $contractId);
