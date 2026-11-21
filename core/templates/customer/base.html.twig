@@ -6,6 +6,7 @@
 {% set _isNexus = (_activeTheme == 'nexus-gaming') %}
 <html lang="{{ pageLocale|default(page_locale()) }}" class="dark{% if _isNexus %} nexus-gaming-active{% endif %}">
 <head>
+{% include 'public/auth/_feedback_assets.html.twig' %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="{{ asset('js/panel-theme.js') }}"></script>

@@ -4,10 +4,24 @@
 {% block content %}
 <p><a href="{{ path('admin_proxmox_cluster', {id: cluster.id}) }}">{{ cluster.name }}</a></p>
 {% include 'proxmox/_alerts.html.twig' %}
-{% if options %}<section class="ng-data-card"><div class="ng-data-card__header"><h1>{{ 'pve.create_vm'|trans }} · {{ node }}</h1></div>
+<p><a class="ui-button ui-button--ghost" href="{{ path('admin_proxmox_address_pools', {id:cluster.id, node:node}) }}">{{ 'pve.ip_pools'|trans }}</a></p>
+{% set vmIdRange = cluster.vmIdRange(node) %}
+{% if options %}
+<section class="ng-data-card">
+    <div class="ng-data-card__header"><h2>{{ 'pve.vm_id_range'|trans }}</h2></div>
+    <form method="post" action="{{ path('admin_proxmox_vm_id_range', {id: cluster.id, node: node}) }}" class="ng-data-card__body infra-form">
+        <input type="hidden" name="_token" value="{{ csrf_token('proxmox-vm-ids-' ~ cluster.id ~ '-' ~ node) }}">
+        <label>{{ 'pve.vm_id_first'|trans }}<input class="form-input" type="number" name="first" min="100" max="999999999" value="{{ vmIdRange.first|default('') }}"></label>
+        <label>{{ 'pve.vm_id_last'|trans }}<input class="form-input" type="number" name="last" min="100" max="999999999" value="{{ vmIdRange.last|default('') }}"></label>
+        <p>{{ 'pve.vm_id_range_hint'|trans }}</p>
+        <button class="ui-button">{{ 'pve.vm_id_save'|trans }}</button>
+    </form>
+</section>
+<section class="ng-data-card"><div class="ng-data-card__header"><h1>{{ 'pve.create_vm'|trans }} · {{ node }}</h1></div>
 <form method="post" class="ng-data-card__body" data-pve-mutation style="display:grid;gap:12px;max-width:800px;">
 <input type="hidden" name="_token" value="{{ csrf_token('proxmox-new-' ~ cluster.id ~ '-' ~ node) }}"><input type="hidden" name="request_key" value="{{ requestKey }}">
 <label>{{ 'pve.name'|trans }}<input name="name" class="form-input" maxlength="63" pattern="[A-Za-z0-9][A-Za-z0-9.-]{0,62}" required></label>
+{% include 'proxmox/_vm_id.html.twig' %}
 <label>{{ 'pve.iso'|trans }}<select name="iso" class="form-input" required>{% for iso in options.isos %}<option value="{{ iso.volid }}">{{ iso.volid }}</option>{% endfor %}</select></label>
 <label>{{ 'pve.disk_storage'|trans }}<select name="storage" class="form-input" required>{% for storage in options.storages %}<option value="{{ storage.storage }}">{{ storage.storage }}</option>{% endfor %}</select></label>
 <label>{{ 'pve.cores'|trans }}<input name="cores" class="form-input" type="number" min="1" max="128" value="2" required></label>

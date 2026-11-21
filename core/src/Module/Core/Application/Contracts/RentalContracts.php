@@ -26,7 +26,7 @@ use Symfony\Component\HttpFoundation\Request;
 
 final readonly class RentalContracts
 {
-    public function __construct(private EntityManagerInterface $em, private ContractQuote $quotes, private RentalAccounts $accounts, private ContractResources $resources, private ContractInvoices $invoices, private ShopOrderRepository $orders, private AuditLoggerInterface $audit, private ModuleRegistry $modules, private ContractJobs $jobs, private RentalCapacity $capacity, private RentalSettings $runtime, private RentalNotices $notices, private \App\Module\Core\Application\Registrar\DomainRegistrarQueue $registrar)
+    public function __construct(private EntityManagerInterface $em, private ContractQuote $quotes, private RentalAccounts $accounts, private ContractResources $resources, private ContractInvoices $invoices, private ShopOrderRepository $orders, private AuditLoggerInterface $audit, private ModuleRegistry $modules, private ContractJobs $jobs, private RentalCapacity $capacity, private RentalSettings $runtime, private RentalNotices $notices, private \App\Module\Core\Application\Registrar\DomainRegistrarQueue $registrar, private ProxmoxContractProvider $proxmox)
     {
     }
 
@@ -38,7 +38,7 @@ final readonly class RentalContracts
         }
         $quote = $this->quotes->build($product, $input, true);
         $module = match ($product->getKind()) {
-            ShopProductKind::Gameserver => 'game', ShopProductKind::Teamspeak3 => 'ts', ShopProductKind::Teamspeak6 => 'ts6', ShopProductKind::Webspace => 'web', default => null,
+            ShopProductKind::Gameserver => 'game', ShopProductKind::Teamspeak3 => 'ts', ShopProductKind::Teamspeak6 => 'ts6', ShopProductKind::Webspace => 'web', ShopProductKind::Proxmox => 'proxmox', default => null,
         };
         if (null !== $module && !$this->modules->isEnabled($module)) {
             throw new \DomainException('Dieses Produktmodul ist deaktiviert.');
@@ -47,6 +47,9 @@ final readonly class RentalContracts
         $prior = $this->orders->findOneBy(['requestKey' => $priorKey, 'customer' => $customer])?->getContract();
         if (null !== $prior) {
             return $prior;
+        }
+        if (ShopProductKind::Proxmox === $product->getKind()) {
+            $this->proxmox->validateQuote($quote);
         }
         $this->registrar->validate($customer, $quote);
         $account = $this->accounts->forCustomer($customer, (string) $quote['currency']);

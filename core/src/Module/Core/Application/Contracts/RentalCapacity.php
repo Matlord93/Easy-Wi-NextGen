@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Contracts;
 
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\RentalCapacityLease;
 use App\Module\Core\Domain\Entity\RentalCapacityPool;
 use App\Module\Core\Domain\Entity\ShopContract;
 use App\Module\Core\Domain\Entity\ShopProduct;
 use App\Module\Core\Domain\Enum\ShopProductKind;
+use App\Module\Nodes\Application\Kvm\KvmPanelService;
+use App\Module\Nodes\Application\Proxmox\ProxmoxIpPools;
+use App\Module\Nodes\Domain\Entity\ProxmoxCluster;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -17,7 +21,9 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final class RentalCapacity implements \Symfony\Contracts\Service\ResetInterface
 {
-    public function __construct(private readonly EntityManagerInterface $em)
+    private const KVM_POOL_UNAVAILABLE = 'Der ausgewählte KVM-Agent hat für dieses Netz keinen IP-Pool gemeldet oder ist nicht erreichbar. Prüfe den Agent-Stand und rufe den KVM-Bestand erneut ab.';
+
+    public function __construct(private readonly EntityManagerInterface $em, private readonly \App\Module\Core\Application\ModuleRegistry $modules, private readonly KvmPanelService $kvm, private readonly ProxmoxIpPools $proxmoxPools)
     {
     }
 
@@ -25,12 +31,15 @@ final class RentalCapacity implements \Symfony\Contracts\Service\ResetInterface
     private array $catalog = [];
     /** @var array<string,?RentalCapacityPool> */
     private array $pools = [];
+    /** @var array<string, array<string, array<string, bool>>> */
+    private array $kvmPools = [];
 
     #[\Override]
     public function reset(): void
     {
         $this->catalog = [];
         $this->pools = [];
+        $this->kvmPools = [];
     }
 
     /** @param array<string,int|string|bool> $quote */
@@ -39,6 +48,12 @@ final class RentalCapacity implements \Symfony\Contracts\Service\ResetInterface
         $kind = (string) $quote['kind'];
         if ('domain' === $kind) {
             return null;
+        }
+        if ('proxmox' === $kind) {
+            $cluster = (int) ($quote['proxmox_cluster_id'] ?? 0);
+            $node = (string) ($quote['proxmox_node'] ?? '');
+
+            return $cluster > 0 && preg_match('/^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$/D', $node) ? 'proxmox:'.$cluster.':'.$node : null;
         }
 
         return in_array($kind, ['teamspeak3', 'teamspeak6'], true) ? $kind.':'.(string) ($quote['voice_node_id'] ?? 0) : 'agent:'.(string) $quote['node_id'];
@@ -51,9 +66,9 @@ final class RentalCapacity implements \Symfony\Contracts\Service\ResetInterface
     {
         $kind = (string) $quote['kind'];
         $game = 'gameserver' === $kind;
-        $compute = $game || 'kvm' === $kind;
+        $compute = $game || in_array($kind, ['kvm', 'proxmox'], true);
 
-        return ['cpu' => $compute ? (int) $quote['cpu'] : 0, 'ram_mib' => $compute ? (int) ($quote['runtime_ram_mib'] ?? $quote['ram_mib']) : 0, 'disk_mib' => in_array($kind, ['gameserver', 'kvm', 'webspace'], true) ? (int) $quote['disk_mib'] : 0, 'ports' => $game ? max(0, (int) ($quote['port_count'] ?? 0)) : 0, 'ipv4' => 'kvm' === $kind ? 1 : 0, 'slots' => in_array($kind, ['teamspeak3', 'teamspeak6'], true) ? (int) $quote['slots'] : 0, 'systems' => 1];
+        return ['cpu' => $compute ? (int) $quote['cpu'] : 0, 'ram_mib' => $compute ? (int) ($quote['runtime_ram_mib'] ?? $quote['ram_mib']) : 0, 'disk_mib' => $compute || 'webspace' === $kind ? (int) $quote['disk_mib'] : 0, 'ports' => $game ? max(0, (int) ($quote['port_count'] ?? 0)) : 0, 'ipv4' => 'kvm' === $kind ? 1 : 0, 'slots' => in_array($kind, ['teamspeak3', 'teamspeak6'], true) ? (int) $quote['slots'] : 0, 'systems' => 1];
     }
 
     /** @return array<string,int> */
@@ -80,6 +95,21 @@ final class RentalCapacity implements \Symfony\Contracts\Service\ResetInterface
     /** @param array<string,int|string|bool> $quote */
     public function reserve(ShopContract $contract, array $quote): void
     {
+        if ('kvm' === $quote['kind'] && !$this->modules->isEnabled('kvm')) {
+            throw new \DomainException('KVM ist derzeit für neue Bestellungen deaktiviert.');
+        }
+        if ('proxmox' === $quote['kind']) {
+            $error = $this->proxmoxOfferError($quote);
+            if (null !== $error) {
+                throw new \DomainException($error);
+            }
+        }
+        if ('kvm' === $quote['kind'] && 'pool' === ($quote['address_mode'] ?? null)) {
+            $node = $contract->getOrder()->getProduct()->getProvisioningNode();
+            if (null === $node || !$this->kvm->hasAddressPool($node, (string) ($quote['network_type'] ?? 'network'), (string) ($quote['network'] ?? 'default'))) {
+                throw new \DomainException(self::KVM_POOL_UNAVAILABLE);
+            }
+        }
         $target = self::target($quote);
         if (null === $target) {
             return;
@@ -148,11 +178,23 @@ final class RentalCapacity implements \Symfony\Contracts\Service\ResetInterface
         $target = self::target($quote);
         $required = ShopProductKind::Domain === $kind ? [] : $this->requirements($quote);
         $result = ['state' => 'available', 'orderable' => true, 'label' => 'Kapazität verfügbar', 'detail' => 'Das freigegebene Restbudget deckt diesen Tarif. Die endgültige Reservierung erfolgt bei der Bestellung.', 'target' => $target, 'required' => $required, 'available' => [], 'missing' => []];
+        if (ShopProductKind::Kvm === $kind && !$this->modules->isEnabled('kvm')) {
+            return array_replace($result, ['state' => 'module_disabled', 'orderable' => false, 'label' => 'Derzeit nicht zur Bestellung freigegeben', 'detail' => 'Das KVM-Modul ist deaktiviert.']);
+        }
+        if (ShopProductKind::Proxmox === $kind && null !== ($error = $this->proxmoxOfferError($quote))) {
+            return array_replace($result, ['state' => 'proxmox_unavailable', 'orderable' => false, 'label' => 'Derzeit nicht zur Bestellung freigegeben', 'detail' => $error]);
+        }
         if (ShopProductKind::Domain === $kind) {
             return array_replace($result, ['label' => 'Verfügbarkeit wird beim Registrar geprüft', 'detail' => 'Für Domains ist kein Kapazitätspool erforderlich. Registrar, Domainname und feste Laufzeit werden separat geprüft.']);
         }
         if (null === $target || 'agent:' === $target || in_array($target, ['teamspeak3:0', 'teamspeak6:0'], true)) {
             return array_replace($result, ['state' => 'target_missing', 'orderable' => false, 'label' => 'Derzeit nicht zur Bestellung freigegeben', 'detail' => 'Dem Produkt fehlt ein Bereitstellungsziel. Bitte zuerst einen Agenten beziehungsweise Voice-Node zuordnen.', 'target' => null]);
+        }
+        if (ShopProductKind::Kvm === $kind && 'pool' === ($quote['address_mode'] ?? null)) {
+            $node = $product->getProvisioningNode();
+            if (null === $node || !$this->observedKvmPool($node, (string) ($quote['network_type'] ?? 'network'), (string) ($quote['network'] ?? 'default'))) {
+                return array_replace($result, ['state' => 'address_pool_missing', 'orderable' => false, 'label' => 'Derzeit nicht zur Bestellung freigegeben', 'detail' => self::KVM_POOL_UNAVAILABLE]);
+            }
         }
         if (!array_key_exists($target, $this->pools)) {
             $this->pools[$target] = $this->em->find(RentalCapacityPool::class, $target);
@@ -178,5 +220,33 @@ final class RentalCapacity implements \Symfony\Contracts\Service\ResetInterface
         }
 
         return $result;
+    }
+
+    private function observedKvmPool(Agent $node, string $kind, string $network): bool
+    {
+        return $this->kvmPools[$node->getId()][$kind][$network] ??= $this->kvm->hasAddressPool($node, $kind, $network);
+    }
+
+    /** @param array<string,int|string|bool> $quote */
+    private function proxmoxOfferError(array $quote): ?string
+    {
+        if (!$this->modules->isEnabled('proxmox')) {
+            return 'Das Proxmox-Modul ist deaktiviert.';
+        }
+        $cluster = $this->em->find(ProxmoxCluster::class, (int) ($quote['proxmox_cluster_id'] ?? 0));
+        if (null === $cluster || !$cluster->isEnabled() || null === self::target($quote) || (int) ($quote['proxmox_template_id'] ?? 0) < 100) {
+            return 'Für diesen Tarif fehlen ein aktiver Proxmox-Cluster, ein Node oder eine VM-Vorlage.';
+        }
+        if ('pool' === ($quote['address_mode'] ?? null)) {
+            foreach ($this->proxmoxPools->pools($cluster, (string) $quote['proxmox_node']) as $pool) {
+                if ($pool->isEnabled()) {
+                    return null;
+                }
+            }
+
+            return 'Für das Proxmox-Ziel ist kein fester IP-Pool freigegeben.';
+        }
+
+        return null;
     }
 }

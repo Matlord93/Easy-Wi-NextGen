@@ -79,36 +79,53 @@ func (e *kvmEngine) updateCloudInit(g kvmGuest, p map[string]any) (map[string]an
 		return nil, errors.New("managed cloud-init user missing")
 	}
 	config["hostname"] = host
-	oldUser, err := kvmReadCloudFile(e.guestFile(g.ID, "user-data"))
-	if err != nil {
+	updated := g
+	updated.Hostname = host
+	if err = e.replaceCloudInit(g, updated, config, nil); err != nil {
 		return nil, err
 	}
-	if err = kvmSafeFile(e.guestFile(g.ID, "meta-data")); err != nil {
-		return nil, err
+	return map[string]any{"vm_id": g.ID, "cloud_init_updated": true}, nil
+}
+
+func (g kvmGuest) cloudInitInstanceID() string {
+	if g.CloudInitID != "" {
+		return g.CloudInitID
 	}
-	oldMeta, err := kvmReadCloudFile(e.guestFile(g.ID, "meta-data"))
-	if err != nil || len(oldMeta) > 1<<20 {
-		return nil, errors.New("invalid cloud-init metadata")
+	return g.ID
+}
+
+// The caller holds the host lock and has confirmed that the VM is stopped.
+func (e *kvmEngine) replaceCloudInit(old, updated kvmGuest, config map[string]any, network []byte) error {
+	files := []string{"user-data", "meta-data", "network-config"}
+	previous := make(map[string][]byte, len(files))
+	for _, name := range files {
+		data, err := kvmReadCloudFile(e.guestFile(old.ID, name))
+		if err != nil {
+			return err
+		}
+		previous[name] = data
 	}
 	var meta map[string]any
-	if yaml.Unmarshal(oldMeta, &meta) != nil || meta["instance-id"] != g.ID {
-		return nil, errors.New("cloud-init identity changed; inspection required")
+	if yaml.Unmarshal(previous["meta-data"], &meta) != nil || meta["instance-id"] != old.cloudInitInstanceID() {
+		return errors.New("cloud-init identity changed; inspection required")
 	}
-	meta["local-hostname"] = host
+	meta["instance-id"] = updated.cloudInitInstanceID()
+	meta["local-hostname"] = updated.Hostname
 	userData, err := yaml.Marshal(config)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	metaData, err := json.Marshal(meta)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if err = kvmSafeFile(e.guestFile(g.ID, "network-config")); err != nil {
-		return nil, err
+	if network == nil {
+		network = previous["network-config"]
 	}
-	stage, err := os.MkdirTemp(filepath.Join(e.root, "instances", g.ID), ".cloud-init-")
+	next := map[string][]byte{"user-data": append([]byte("#cloud-config\n"), userData...), "meta-data": metaData, "network-config": network}
+	stage, err := os.MkdirTemp(filepath.Join(e.root, "instances", old.ID), ".cloud-init-")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	cleanup := true
 	defer func() {
@@ -116,51 +133,52 @@ func (e *kvmEngine) updateCloudInit(g kvmGuest, p map[string]any) (map[string]an
 			_ = os.RemoveAll(stage)
 		}
 	}()
-	if err = os.WriteFile(filepath.Join(stage, "user-data"), append([]byte("#cloud-config\n"), userData...), 0600); err != nil {
-		return nil, err
+	for _, name := range files {
+		if err = os.WriteFile(filepath.Join(stage, name), next[name], 0600); err != nil {
+			return err
+		}
 	}
-	if err = os.WriteFile(filepath.Join(stage, "meta-data"), metaData, 0600); err != nil {
-		return nil, err
+	newSeed := filepath.Join(stage, "seed.iso")
+	if _, err = e.command("cloud-localds", "--network-config="+filepath.Join(stage, "network-config"), newSeed, filepath.Join(stage, "user-data"), filepath.Join(stage, "meta-data")); err != nil {
+		return err
 	}
-	if _, err = e.command("cloud-localds", "--network-config="+e.guestFile(g.ID, "network-config"), filepath.Join(stage, "seed.iso"), filepath.Join(stage, "user-data"), filepath.Join(stage, "meta-data")); err != nil {
-		return nil, err
+	if err = os.Chmod(newSeed, 0600); err != nil {
+		return err
 	}
-	if err = os.Chmod(filepath.Join(stage, "seed.iso"), 0600); err != nil {
-		return nil, err
+	if err = e.requireStopped(old.ID); err != nil {
+		return err
 	}
-	seed := e.guestFile(g.ID, "seed.iso")
+	seed := e.guestFile(old.ID, "seed.iso")
 	if err = kvmSafeFile(seed); err != nil {
-		return nil, err
+		return err
 	}
 	if err = os.Rename(seed, filepath.Join(stage, "seed.previous")); err != nil {
-		return nil, err
+		return err
 	}
-	rollback := func(cause error) (map[string]any, error) {
-		a := os.Rename(filepath.Join(stage, "seed.previous"), seed)
-		b := kvmAtomicWrite(e.guestFile(g.ID, "user-data"), oldUser, 0600)
-		c := kvmAtomicWrite(e.guestFile(g.ID, "meta-data"), oldMeta, 0600)
-		d := kvmWriteJSON(e.guestFile(g.ID, "manifest.json"), g)
-		if a != nil || b != nil || c != nil || d != nil {
-			cleanup = false
-			return nil, fmt.Errorf("%w: cloud-init rollback failed; inspect host", errKVMUnconfirmed)
+	rollback := func(cause error) error {
+		restoreErr := os.Rename(filepath.Join(stage, "seed.previous"), seed)
+		for _, name := range files {
+			restoreErr = errors.Join(restoreErr, kvmAtomicWrite(e.guestFile(old.ID, name), previous[name], 0600))
 		}
-		return nil, cause
+		restoreErr = errors.Join(restoreErr, kvmWriteJSON(e.guestFile(old.ID, "manifest.json"), old))
+		if restoreErr != nil {
+			cleanup = false
+			return fmt.Errorf("%w: cloud-init rollback failed; inspect host", errKVMUnconfirmed)
+		}
+		return cause
 	}
-	if err = os.Rename(filepath.Join(stage, "seed.iso"), seed); err != nil {
+	if err = os.Rename(newSeed, seed); err != nil {
 		return rollback(err)
 	}
-	if err = kvmAtomicWrite(e.guestFile(g.ID, "user-data"), append([]byte("#cloud-config\n"), userData...), 0600); err != nil {
+	for _, name := range files {
+		if err = kvmAtomicWrite(e.guestFile(old.ID, name), next[name], 0600); err != nil {
+			return rollback(err)
+		}
+	}
+	if err = kvmWriteJSON(e.guestFile(old.ID, "manifest.json"), updated); err != nil {
 		return rollback(err)
 	}
-	if err = kvmAtomicWrite(e.guestFile(g.ID, "meta-data"), metaData, 0600); err != nil {
-		return rollback(err)
-	}
-	updated := g
-	updated.Hostname = host
-	if err = kvmWriteJSON(e.guestFile(g.ID, "manifest.json"), updated); err != nil {
-		return rollback(err)
-	}
-	return map[string]any{"vm_id": g.ID, "cloud_init_updated": true}, nil
+	return nil
 }
 
 // Keep all initialization file reads bounded, including rollback copies.

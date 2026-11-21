@@ -342,6 +342,15 @@ func (e *kvmEngine) createGuest(p map[string]any) (map[string]any, error) {
 	if !kvmAccelerationAvailable() {
 		return nil, errors.New("KVM acceleration /dev/kvm is unavailable on this host")
 	}
+	number, err := e.chooseNumber(p)
+	if err != nil {
+		return nil, err
+	}
+	addresses, err := e.chooseAddresses(p, networkType, network)
+	if err != nil {
+		// This validation runs before any guest files or libvirt definition exist.
+		return map[string]any{"address_pool_rejected": true}, err
+	}
 	base := filepath.Join(e.root, "images", t.SHA256+".qcow2")
 	if _, err := e.safeImage(base); err != nil {
 		return nil, err
@@ -384,7 +393,7 @@ func (e *kvmEngine) createGuest(p map[string]any) (map[string]any, error) {
 	if err := os.Chmod(image, 0600); err != nil {
 		return nil, err
 	}
-	g := kvmGuest{ID: id, Label: label, Template: template, VCPUs: cpu, MemoryMiB: ram, DiskGiB: disk, Network: network, NetworkType: networkType, Hostname: host, Username: user, CreatedAt: kvmNow(), GuestAgentEnabled: true}
+	g := kvmGuest{ID: id, Number: number, Label: label, Template: template, VCPUs: cpu, MemoryMiB: ram, DiskGiB: disk, Network: network, NetworkType: networkType, Hostname: host, Username: user, CreatedAt: kvmNow(), GuestAgentEnabled: true, StaticAddresses: addresses}
 	if err := e.cloudInit(g, keys); err != nil {
 		return nil, err
 	}
@@ -408,7 +417,10 @@ func (e *kvmEngine) cloudInit(g kvmGuest, keys []string) error {
 		return err
 	}
 	meta, _ := json.Marshal(map[string]any{"instance-id": g.ID, "local-hostname": g.Hostname})
-	netData := []byte("version: 2\nethernets:\n  primary:\n    match:\n      name: 'e*'\n    dhcp4: true\n    dhcp6: true\n")
+	netData, err := g.cloudInitNetwork()
+	if err != nil {
+		return err
+	}
 	for name, content := range map[string][]byte{"user-data": append([]byte("#cloud-config\n"), data...), "meta-data": meta, "network-config": netData} {
 		if err := kvmAtomicWrite(e.guestFile(g.ID, name), content, 0600); err != nil {
 			return err

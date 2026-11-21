@@ -9,7 +9,13 @@ use App\Infrastructure\Http\RequestActor;
 use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Cms\Application\ThemeResolver;
+use App\Module\Core\Application\AppSettingsServiceInterface;
+use App\Module\Core\Application\CustomerBillingDetails;
 use App\Module\Core\Application\SiteResolver;
+use App\Module\Core\Domain\Entity\InvoicePreferences;
+use App\Repository\CustomerProfileRepository;
+use App\Repository\InvoicePreferencesRepository;
+use App\Security\PortalAccessResponse;
 use App\Module\Core\Domain\Entity\ShopContract;
 use App\Repository\ShopProductRepository;
 use App\Repository\ShopProductVariantRepository;
@@ -25,14 +31,14 @@ use Twig\Environment;
 
 final readonly class ContractCheckoutFlow
 {
-    public function __construct(private ShopProductRepository $products, private ShopProductVariantRepository $variants, private SiteResolver $sites, private ContractQuote $quotes, private RentalContracts $contracts, private CsrfTokenManagerInterface $csrf, private CmsSettingsProvider $cms, private CmsMaintenanceService $maintenance, private ThemeResolver $themes, private EntityManagerInterface $em, private Environment $twig, private \App\Module\Core\Application\ModuleRegistry $modules, private \App\Module\Core\Application\SecretsCryptoInterface $crypto, private \App\Module\Core\Application\Registrar\DomainRegistrarQueue $registrar, private RentalCapacity $capacity, private \App\Module\Gameserver\Application\GameserverInstallDirectory $directories)
+    public function __construct(private ShopProductRepository $products, private ShopProductVariantRepository $variants, private SiteResolver $sites, private ContractQuote $quotes, private RentalContracts $contracts, private CsrfTokenManagerInterface $csrf, private CmsSettingsProvider $cms, private CmsMaintenanceService $maintenance, private ThemeResolver $themes, private EntityManagerInterface $em, private Environment $twig, private \App\Module\Core\Application\ModuleRegistry $modules, private CheckoutSelection $selection, private CustomerProfileRepository $profiles, private InvoicePreferencesRepository $preferences, private AppSettingsServiceInterface $settings, private PortalAccessResponse $accessResponses, private \App\Module\Core\Application\Registrar\DomainRegistrarQueue $registrar, private RentalCapacity $capacity, private \App\Module\Gameserver\Application\GameserverInstallDirectory $directories)
     {
     }
 
     public function product(Request $request, int $id, bool $public): Response
     {
         if (!$this->modules->isEnabled('billing') || !$this->modules->isEnabled('shop')) {
-            throw new NotFoundHttpException();
+            throw new NotFoundHttpException('This module is not enabled.');
         }
         $product = $this->products->find($id);
         $site = $this->sites->resolve($request);
@@ -43,20 +49,24 @@ final readonly class ContractCheckoutFlow
             return new Response('Der Shop befindet sich in Wartung.', 503);
         }
         $actor = RequestActor::user($request);
-        $input = JsonMap::strings($request->isMethod('POST') ? $request->request->all() : $request->query->all());
+        $isPost = $request->isMethod('POST');
+        $input = JsonMap::strings($isPost ? $request->request->all() : $request->query->all());
         $intent = $request->query->getString('intent');
-        if ('' !== $intent) {
-            $input = JsonMap::strings($request->getSession()->remove('rental_intent_'.$intent));
-            if (isset($input['auth_code_encrypted'])) {
-                $input['auth_code'] = $this->crypto->decrypt($input['auth_code_encrypted']);
-                unset($input['auth_code_encrypted']);
-            }
+        $savedSelection = '' === $intent ? null : $this->selection->options($request, $product, $public, $intent);
+        if (!$isPost && null !== $savedSelection) {
+            $input = $savedSelection;
         }
+        $selectionExpired = '' !== $intent && null === $savedSelection;
+        $profile = $actor?->isCustomer() ? $this->profiles->findOneByCustomer($actor) : null;
+        $profileRequired = $actor?->isCustomer() && (!CustomerBillingDetails::complete($profile) || !$actor->isCustomerAccessEnabled());
+        $billing = CustomerBillingDetails::fromProfile($profile);
+        $billingErrors = [];
         $error = null;
         $domainAvailable = null;
-        if ($request->isMethod('POST') && !$this->csrf->isTokenValid(new CsrfToken('rental-contract', $request->request->getString('_token')))) {
+        if ($isPost && !$this->csrf->isTokenValid(new CsrfToken('rental-contract', $request->request->getString('_token')))) {
             throw new AccessDeniedHttpException('Invalid CSRF token.');
         }
+        $stage = $isPost ? ($input['stage'] ?? '') : '';
         try {
             $provisioningNode = $product->getProvisioningNode();
             if ('gameserver' === $product->getKind()->value && null !== $provisioningNode) {
@@ -66,48 +76,64 @@ final readonly class ContractCheckoutFlow
             if (($quote['registrar'] ?? '') === 'autodns' && '' !== $quote['hostname'] && 'register' === $quote['domain_action'] && 'order' !== $request->request->getString('stage')) {
                 $domainAvailable = $this->registrar->available((string) $quote['hostname']);
             }
-            if ($request->isMethod('POST') && 'order' === $request->request->getString('stage')) {
+            if (in_array($stage, ['account', 'order', 'profile'], true)) {
                 $availability = $this->capacity->inspect($product, $quote);
                 if (!$availability['orderable']) {
                     throw new \DomainException($availability['label'].'. Bitte später erneut versuchen.');
                 }
-                if (null === $actor) {
-                    $key = bin2hex(random_bytes(16));
-                    $saved = $input;
-                    if (isset($saved['auth_code']) && '' !== $saved['auth_code']) {
-                        $saved['auth_code_encrypted'] = $this->crypto->encrypt($saved['auth_code']);
-                        unset($saved['auth_code']);
+                if (null === $actor || 'account' === $stage) {
+                    $target = $this->selection->save($request, $product, $public, $input);
+                    if (null !== $actor) {
+                        return new RedirectResponse($target, 303);
                     }
-                    $request->getSession()->set('rental_intent_'.$key, $saved);
-                    $target = ($public ? '/shop/products/' : '/marketplace/contracts/new/').$id.'?intent='.$key;
+                    if ('1' === ($input['register'] ?? '') && $public && $this->settings->isRegistrationEnabled()) {
+                        return new RedirectResponse('/register?target='.rawurlencode($target), 303);
+                    }
 
-                    return new RedirectResponse('/login?target='.rawurlencode($target), 303);
+                    return $this->accessResponses->signIn($request, $target);
                 }
                 if (!$actor->isCustomer()) {
-                    throw new AccessDeniedHttpException('Ein Kundenkonto ist zum Bestellen erforderlich.');
+                    throw new AccessDeniedHttpException('Checkout requires a customer account.');
                 }
-                if (!$request->request->getBoolean('rental_terms')) {
-                    throw new \InvalidArgumentException('Bitte die Vertrags- und Abrechnungsbedingungen bestätigen.');
-                }
-                $contract = $this->contracts->order($actor, $product, $input, $request->request->getString('nonce'), $request->request->getString('digest'));
+                if ('profile' === $stage && $profileRequired) {
+                    $billing = CustomerBillingDetails::fields($input);
+                    $billingErrors = CustomerBillingDetails::errors($billing);
+                    if ([] === $billingErrors) {
+                        $this->em->persist(CustomerBillingDetails::apply($actor, $profile, $billing));
+                        if (null === $this->preferences->findOneByCustomer($actor)) {
+                            $language = 'en' === $request->getLocale() ? 'en' : 'de';
+                            $this->em->persist(new InvoicePreferences($actor, 'en' === $language ? 'en_GB' : 'de_DE', true, true, 'manual', $language));
+                        }
+                        $actor->setCustomerAccessEnabled(true);
+                        $this->em->flush();
 
-                return new RedirectResponse(($public ? '/shop/contracts/' : '/marketplace/contracts/').($contract->getId() ?? 0), 303);
+                        return new RedirectResponse($this->selection->save($request, $product, $public, $input), 303);
+                    }
+                } elseif ('order' === $stage && !$profileRequired) {
+                    if (!$request->request->getBoolean('rental_terms')) {
+                        throw new \InvalidArgumentException('Bitte die Vertrags- und Abrechnungsbedingungen bestätigen.');
+                    }
+                    $contract = $this->contracts->order($actor, $product, $input, $request->request->getString('nonce'), $request->request->getString('digest'));
+                    $this->selection->forget($request, $request->getPathInfo().('?intent='.$intent));
+
+                    return new RedirectResponse(($public ? '/shop/contracts/' : '/marketplace/contracts/').($contract->getId() ?? 0), 303);
+                }
             }
         } catch (\DomainException|\InvalidArgumentException $exception) {
             $error = str_starts_with($exception->getMessage(), 'AUTODNS_') ? 'Die Domainverfügbarkeit konnte gerade nicht geprüft werden. Bitte später erneut versuchen.' : $exception->getMessage();
             $quote = null;
         }
         $availability = $this->capacity->inspect($product, $quote);
-        $ready = $availability['orderable'] && false !== $domainAvailable && null !== $quote && (!in_array($product->getKind()->value, ['kvm', 'webspace', 'domain'], true) || '' !== (string) $quote['hostname']) && ('kvm' !== $product->getKind()->value || '' !== (string) $quote['ssh_keys']);
+        $ready = $availability['orderable'] && false !== $domainAvailable && null !== $quote && (!in_array($product->getKind()->value, ['kvm', 'proxmox', 'webspace', 'domain'], true) || '' !== (string) $quote['hostname']) && (!$product->getKind()->isVirtualMachine() || '' !== (string) $quote['ssh_keys']);
 
-        return new Response($this->twig->render('shop/contracts/checkout.html.twig', $this->context($request, $public) + ['product' => $product, 'availability' => $availability, 'quote' => $quote, 'input' => $input, 'ready' => $ready, 'error' => $error, 'digest' => null !== $quote ? ContractQuote::digest($quote) : '', 'nonce' => bin2hex(random_bytes(16)), 'variants' => $this->variants->findBy(['product' => $product, 'active' => true], ['priceMonthlyCents' => 'ASC']), 'public_shop' => $public, 'domain_available' => $domainAvailable]), null !== $error ? 422 : 200);
+        return new Response($this->twig->render('shop/contracts/checkout.html.twig', $this->context($request, $public) + ['product' => $product, 'availability' => $availability, 'quote' => $quote, 'input' => $input, 'ready' => $ready, 'error' => $error, 'digest' => null !== $quote ? ContractQuote::digest($quote) : '', 'nonce' => bin2hex(random_bytes(16)), 'variants' => $this->variants->findBy(['product' => $product, 'active' => true], ['priceMonthlyCents' => 'ASC']), 'public_shop' => $public, 'domain_available' => $domainAvailable, 'selection_expired' => $selectionExpired, 'requires_account' => null === $actor, 'is_customer' => $actor?->isCustomer() ?? false, 'can_register' => $public && $this->settings->isRegistrationEnabled(), 'profile_required' => $profileRequired, 'billing' => $billing, 'billing_errors' => $billingErrors, 'billing_countries' => CustomerBillingDetails::COUNTRIES, 'billing_lengths' => CustomerBillingDetails::LENGTHS]), null !== $error || [] !== $billingErrors || ('order' === $stage && $profileRequired) ? 422 : 200, ['Cache-Control' => 'private, no-store']);
     }
 
     public function contract(Request $request, int $id, bool $public): Response
     {
         $actor = RequestActor::user($request);
         if (null === $actor) {
-            return new RedirectResponse('/login?target='.rawurlencode($request->getPathInfo()));
+            return $this->accessResponses->signIn($request, $request->getPathInfo());
         }
         $contract = $this->em->find(ShopContract::class, $id);
         if (null === $contract || $contract->getCustomer()->getId() !== $actor->getId()) {

@@ -11,15 +11,22 @@ use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Nodes\Application\VmGuestAgentReport;
 use App\Module\Nodes\Application\VmProvisioningSettings;
+use App\Module\Nodes\Application\VmRootPassword;
 use App\Module\Nodes\Domain\Entity\ProxmoxCluster;
 use App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment;
 use App\Module\Nodes\Domain\Entity\ProxmoxTask;
+use App\Module\Nodes\Domain\Proxmox\ProxmoxApiException;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
 use Doctrine\ORM\EntityManagerInterface;
 
+/**
+ * @psalm-import-type Installation from ProxmoxTask
+ * @psalm-import-type RentalResources from ProxmoxTask
+ * @psalm-import-type Reinstallation from ProxmoxTask
+ */
 final readonly class ProxmoxManager
 {
-    public function __construct(private ProxmoxApiClient $api, private SecretsCryptoInterface $crypto, private EntityManagerInterface $em, private AuditLoggerInterface $audit, private ProxmoxGuestAgent $guestAgent, private ProxmoxRrdUsage $rrd)
+    public function __construct(private ProxmoxApiClient $api, private SecretsCryptoInterface $crypto, private EntityManagerInterface $em, private AuditLoggerInterface $audit, private ProxmoxGuestAgent $guestAgent, private ProxmoxRrdUsage $rrd, private ProxmoxInstallation $installation, private ProxmoxIpPools $ipPools, private ProxmoxRentalLifecycle $rental, private ProxmoxReinstallation $reinstallation)
     {
     }
 
@@ -207,10 +214,28 @@ final readonly class ProxmoxManager
             $status += $this->rrd->forGuest($connection, $node, $kind, $vmId, $status);
         }
         $status['guest_filesystem'] = $this->filesystemUsage($connection, $status + $guest, $configuration);
+        $agentOptions = explode(',', (string) ($configuration['agent'] ?? '0'));
+        $guestAgentEnabled = in_array('1', $agentOptions, true) || in_array('enabled=1', $agentOptions, true);
+        $addresses = [];
+        $ipConfig = JsonMap::strings($configuration)['ipconfig0'] ?? '';
+        foreach (explode(',', $ipConfig) as $setting) {
+            [$key, $value] = array_pad(explode('=', $setting, 2), 2, '');
+            $address = explode('/', $value, 2)[0];
+            if (in_array($key, ['ip', 'ip6'], true) && false !== filter_var($address, FILTER_VALIDATE_IP)) {
+                $addresses[] = $address;
+            }
+        }
+        $addressChoices = [];
+        $config = JsonMap::strings($configuration);
+        if ($customer && 'qemu' === $kind && 'stopped' === ($status['status'] ?? null) && self::supportsAddressSwitch($config)
+            && null !== ($origin = $this->addressOrigin($cluster, $node, $vmId, $config))) {
+            $addressChoices = $this->ipPools->switchChoices($origin, $ipConfig);
+        }
 
         return [
-            'guest' => $guest, 'status' => $status, 'configuration' => $customer ? null : $configuration, 'provisioning' => $provisioning, 'bootDevices' => !$customer && $configuration !== null ? VmProvisioningSettings::bootDevices($configuration) : [],
+            'guest' => $guest, 'status' => $status, 'configuration' => $customer ? null : $configuration, 'provisioning' => $provisioning, 'staticAddresses' => $addresses, 'guestAgentEnabled' => $guestAgentEnabled, 'bootDevices' => !$customer && $configuration !== null ? VmProvisioningSettings::bootDevices($configuration) : [],
             'disks' => $configuration !== null ? ProxmoxDisks::attached($configuration, $kind) : [],
+            'addressChoices' => $addressChoices,
             'extraDiskOptions' => !$customer && $configuration !== null ? ['devices' => ProxmoxExtraDisk::slots($configuration, $kind), 'storages' => array_values(array_filter($storages, fn (array $s): bool => $this->supports($s, 'qemu' === $kind ? 'images' : 'rootdir')))] : null,
             'nodeUsage' => $customer ? [] : (array_values(array_filter($overview['nodes'], static fn (array $row): bool => ($row['node'] ?? '') === $node))[0] ?? []),
             'snapshots' => $this->api->snapshots($connection, $node, $vmId, $kind),
@@ -218,6 +243,25 @@ final readonly class ProxmoxManager
             'backups' => $backups,
             'isos' => !$customer && 'qemu' === $kind ? $this->content($connection, $node, $storages, 'iso') : [],
         ];
+    }
+
+    /** @param array<string, string> $configuration */
+    private static function supportsAddressSwitch(array $configuration): bool
+    {
+        return '' !== ($configuration['digest'] ?? '') && '' !== ($configuration['ipconfig0'] ?? '')
+            && '' === ($configuration['lock'] ?? '') && '' === ($configuration['cicustom'] ?? '')
+            && 'nocloud' === ($configuration['citype'] ?? 'nocloud') && in_array($configuration['ostype'] ?? 'l26', ['l26', 'l24', 'other'], true)
+            && VmProvisioningSettings::hasCloudInit($configuration);
+    }
+
+    /** @param array<string, string> $configuration */
+    private function addressOrigin(ProxmoxCluster $cluster, string $node, int $vmId, array $configuration): ?ProxmoxTask
+    {
+        if (!preg_match('/^Easy-WI installation ([a-f0-9]{32})$/D', $configuration['description'] ?? '', $match)) {
+            return null;
+        }
+
+        return $this->em->getRepository(ProxmoxTask::class)->findOneBy(['cluster' => $cluster, 'node' => $node, 'targetVmId' => $vmId, 'requestKey' => $match[1], 'action' => 'install-template', 'state' => 'succeeded']);
     }
 
     /**
@@ -287,14 +331,102 @@ final readonly class ProxmoxManager
         return ['storages' => array_values(array_filter($storages, fn (array $s): bool => $this->supports($s, 'images'))), 'isos' => $this->content($connection, $node, $storages, 'iso'), 'bridges' => $this->api->networks($connection, $node)];
     }
 
+    /** @return list<array<array-key, mixed>> */
+    public function addressPoolBridges(ProxmoxCluster $cluster, string $node): array
+    {
+        $connection = $cluster->connection($this->crypto);
+        $this->assertOnlineNode($connection, $node);
+
+        return $this->api->networks($connection, $node);
+    }
+
+    public function releaseAddresses(ProxmoxTask $task, User $actor): void
+    {
+        $vmId = $task->getTargetVmId();
+        if (!$actor->isAdmin() || $task->isActive() || null === $vmId || [] === $this->ipPools->leases($task)) {
+            throw new \InvalidArgumentException('pve.error.ip_lease_release');
+        }
+        $cluster = $task->getCluster();
+        $connection = $cluster->connection($this->crypto);
+        if (!$this->api->isGuestIdFree($connection, $vmId)) {
+            throw new \InvalidArgumentException('pve.error.ip_lease_release');
+        }
+        $this->em->getConnection()->transactional(function () use ($cluster, $task, $vmId, $actor): void {
+            $this->em->refresh($cluster, \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+            $this->em->refresh($task, \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+            if ($task->isActive()) {
+                throw new \InvalidArgumentException('pve.error.ip_lease_release');
+            }
+            $leases = $this->ipPools->leases($task);
+            if ([] === $leases) {
+                return;
+            }
+            $assignment = $this->em->getRepository(ProxmoxGuestAssignment::class)->findOneBy(['cluster' => $cluster, 'vmId' => $vmId]);
+            if (null !== $assignment) {
+                $this->em->remove($assignment);
+            }
+            foreach ($leases as $lease) {
+                $this->em->remove($lease);
+            }
+            $this->audit->log($actor, 'proxmox.addresses_released', ['cluster_id' => $cluster->getId(), 'vm_id' => $vmId, 'task_id' => $task->getId()]);
+            $this->em->flush();
+        });
+    }
+
+    /** @return array{digest: string, images: array<int, string>}|null */
+    public function reinstallationChoices(ProxmoxGuestAssignment $assignment, User $actor, int $siteId): ?array
+    {
+        $guest = $this->assignedGuest($assignment, $actor);
+        if ('qemu' !== $assignment->getKind() || 'stopped' !== ($guest['status'] ?? null)) {
+            return null;
+        }
+
+        return $this->reinstallation->choices($assignment, (string) $guest['node'], $siteId);
+    }
+
+    public function queueReinstallation(ProxmoxGuestAssignment $assignment, User $actor, int $siteId, int $productId, string $digest, string $requestKey): void
+    {
+        if (!$actor->isCustomer() || 'qemu' !== $assignment->getKind() || !preg_match('/^[a-f0-9]{32}$/D', $requestKey)) {
+            throw new \InvalidArgumentException('pve.error.reinstall_unavailable');
+        }
+        $guest = $this->assignedGuest($assignment, $actor);
+        $cluster = $assignment->getCluster();
+        $node = (string) $guest['node'];
+        $vmId = $assignment->getVmId();
+        $repository = $this->em->getRepository(ProxmoxTask::class);
+        $task = $repository->findOneBy(['cluster' => $cluster, 'requestKey' => $requestKey]);
+        if (null === $task) {
+            if ('stopped' !== ($guest['status'] ?? null)) {
+                throw new \InvalidArgumentException('pve.error.resources_running');
+            }
+            if (null !== $repository->findOneBy(['cluster' => $cluster, 'targetLock' => $vmId])) {
+                throw new \InvalidArgumentException('pve.error.task_active');
+            }
+            $this->assertOnlineNode($cluster->connection($this->crypto), $node);
+            $plan = $this->reinstallation->plan($assignment, $node, $siteId, $productId, $digest);
+            [$task, $created] = $this->claim($cluster, $node, 'qemu', $vmId, 'reinstall', $requestKey, $actor, null, null, ['reinstall' => $plan], null, true);
+            if ($created) {
+                $this->audit->log($actor, 'proxmox.reinstallation_queued', ['cluster_id' => $cluster->getId(), 'vm_id' => $vmId, 'task_id' => $task->getId()]);
+                $this->em->flush();
+            }
+        }
+        $plan = $task->getReinstallation();
+        if ('reinstall' !== $task->getAction() || $task->getActorId() !== $actor->getId() || ($plan['assignment_id'] ?? null) !== $assignment->getId()
+            || ($plan['tag'] ?? null) !== $assignment->getIdentityTag() || ($plan['product_id'] ?? null) !== $productId || ($plan['digest'] ?? null) !== $digest) {
+            throw new \InvalidArgumentException('pve.error.request_key');
+        }
+    }
+
     public function perform(ProxmoxCluster $cluster, string $kind, int $vmId, string $action, array $input, string $requestKey, User $actor, ?string $allowedBackupStorage = null): ProxmoxTask
     {
         $identityTag = null;
+        $createsGuest = in_array($action, ['create-vm', 'clone', 'install-template'], true);
+        $requestedId = $createsGuest && '' !== ($input['target_vm_id'] ?? '') ? $this->boundedInt($input['target_vm_id'], 100, 999999999) : null;
         if (!preg_match('/^[a-f0-9]{32}$/D', $requestKey)) {
             throw new \InvalidArgumentException('pve.error.request_key');
         }
         if (!$actor->isAdmin()) {
-            if (!in_array($action, ['start', 'shutdown', 'stop', 'reboot', 'snapshot-create', 'snapshot-delete', 'snapshot-rollback', 'backup', 'cloud-init'], true)) {
+            if (!$actor->isCustomer() || !in_array($action, ['start', 'shutdown', 'stop', 'reboot', 'snapshot-create', 'snapshot-delete', 'snapshot-rollback', 'backup', 'backup-restore', 'cloud-init', 'root-password', 'address-switch'], true)) {
                 throw new \InvalidArgumentException('pve.error.forbidden');
             }
             $assignment = $this->em->getRepository(ProxmoxGuestAssignment::class)->findOneBy(['cluster' => $cluster, 'vmId' => $vmId, 'kind' => $kind, 'customer' => $actor]);
@@ -307,7 +439,7 @@ final readonly class ProxmoxManager
         }
         $existing = $this->em->getRepository(ProxmoxTask::class)->findOneBy(['cluster' => $cluster, 'requestKey' => $requestKey]);
         if ($existing instanceof ProxmoxTask) {
-            if ($existing->getAction() !== $action || $existing->getKind() !== $kind || $existing->getVmId() !== $vmId || $existing->getActorId() !== $actor->getId()) {
+            if ($existing->getAction() !== $action || $existing->getKind() !== $kind || $existing->getVmId() !== $vmId || $existing->getActorId() !== $actor->getId() || (null !== $requestedId && $existing->getTargetVmId() !== $requestedId)) {
                 throw new \InvalidArgumentException('pve.error.request_key');
             }
 
@@ -318,38 +450,64 @@ final readonly class ProxmoxManager
         $node = (string) $guest['node'];
         $this->assertOnlineNode($connection, $node);
         $customer = !$actor->isAdmin();
-        if ($customer && !in_array($action, ['start', 'shutdown', 'stop', 'reboot', 'snapshot-create', 'snapshot-delete', 'snapshot-rollback', 'backup', 'cloud-init'], true)) {
-            throw new \InvalidArgumentException('pve.error.forbidden');
-        }
-        if (!empty($guest['template']) && 'clone' !== $action) {
+        if (!empty($guest['template']) && !in_array($action, ['clone', 'install-template'], true)) {
             throw new \InvalidArgumentException('pve.error.template_action');
         }
         if (in_array($action, ['stop', 'reboot', 'snapshot-delete', 'snapshot-rollback', 'backup-delete', 'backup-restore', 'iso-mount'], true) && ($input['confirm'] ?? '') !== '1') {
             throw new \InvalidArgumentException('pve.error.confirm');
         }
-        $active = $this->em->getRepository(ProxmoxTask::class)->findOneBy(['cluster' => $cluster, 'vmId' => $vmId, 'state' => ['submitting', 'running']]);
-        if ($active instanceof ProxmoxTask) {
-            $this->refreshTask($active);
-            if ($active->isActive()) {
-                throw new \InvalidArgumentException('pve.error.task_active');
+        $repository = $this->em->getRepository(ProxmoxTask::class);
+        if (0 !== $vmId) {
+            $active = $repository->findOneBy(['cluster' => $cluster, 'targetLock' => $vmId])
+                ?? $repository->findOneBy(['cluster' => $cluster, 'vmId' => $vmId, 'state' => ['queued', 'submitting', 'running']]);
+            if ($active instanceof ProxmoxTask) {
+                $this->refreshTask($active);
+                if ($active->isActive()) {
+                    throw new \InvalidArgumentException('pve.error.task_active');
+                }
             }
         }
-        $operation = $this->prepare($connection, $node, $kind, $vmId, $action, $input, $guest, $customer ? $allowedBackupStorage : null, $customer, $identityTag);
+        $targetId = $createsGuest ? $this->chooseVmId($cluster, $connection, $node, $requestedId) : null;
+        $installation = 'install-template' === $action ? ProxmoxInstallation::settings($input) : null;
+        $customerId = $installation['customer_id'] ?? null;
+        if (null !== $customerId && !$this->em->find(User::class, $customerId)?->isCustomer()) {
+            throw new \InvalidArgumentException('pve.error.customer');
+        }
+        $poolNet = null;
+        if (null !== $installation) {
+            if ('qemu' !== $kind || empty($guest['template'])) {
+                throw new \InvalidArgumentException('pve.error.install_template');
+            }
+            $template = $this->api->guestConfig($connection, $node, $vmId);
+            ProxmoxInstallation::assertTemplate($template);
+            if (!in_array($input['address_mode'] ?? 'dhcp', ['dhcp', 'pool'], true)) {
+                throw new \InvalidArgumentException('pve.error.ip_pool_network');
+            }
+            if ('pool' === ($input['address_mode'] ?? null)) {
+                $poolNet = JsonMap::strings($template)['net0'] ?? '';
+            }
+        }
+        $operation = $this->prepare($cluster, $connection, $node, $kind, $vmId, $action, $input, $guest, $customer ? $allowedBackupStorage : null, $customer, $identityTag, $targetId, $installation, $requestKey);
 
         // Claim the operation before contacting PVE. The unique request key prevents duplicate mutations.
-        [$task, $claimed] = $this->claim($cluster, $node, $kind, $vmId, $action, $requestKey, $actor);
+        [$task, $claimed] = $this->claim($cluster, $node, $kind, $vmId, $action, $requestKey, $actor, $targetId, $requestedId, $installation, $poolNet);
         if (!$claimed) {
             return $task;
         }
         try {
             $result = $operation();
             $upid = JsonMap::strings($result)['task'] ?? null;
-            if (null === $upid && !in_array($action, ['iso-mount', 'backup-delete', 'resources-update', 'cloud-init', 'boot-order', 'guest-agent', 'disk-grow'], true) && !('disk-add' === $action && 'lxc' === $kind)) {
+            if (null === $upid && !in_array($action, ['iso-mount', 'backup-delete', 'resources-update', 'cloud-init', 'boot-order', 'guest-agent', 'disk-grow', 'root-password', 'address-switch'], true) && !('disk-add' === $action && 'lxc' === $kind)) {
                 throw new \RuntimeException('Missing upstream task ID.');
             }
             $task->dispatched(is_string($upid) ? $upid : null);
             $this->audit->log($actor, 'proxmox.action_dispatched', ['cluster_id' => $cluster->getId(), 'node' => $node, 'vm_id' => $vmId, 'action' => $action, 'task_id' => $task->getId()]);
         } catch (\Throwable $error) {
+            if (in_array($action, ['address-switch', 'backup-restore'], true) && $error instanceof \InvalidArgumentException) {
+                $task->finish(false, 'preflight_failed');
+                $this->em->flush();
+                throw $error;
+            }
             if ($error instanceof \App\Module\Nodes\Domain\Proxmox\ProxmoxApiException && $error->statusCode >= 400 && $error->statusCode < 500) {
                 $task->finish(false, in_array($error->statusCode, [401, 403], true) ? 'permission_denied' : 'dispatch_failed');
             } else {
@@ -363,9 +521,137 @@ final readonly class ProxmoxManager
         return $task;
     }
 
+    /** @param RentalResources|null $resources */
+    public function queueInstallation(ProxmoxCluster $cluster, int $vmId, array $input, string $requestKey, ?User $actor, ?int $rentalId = null, ?array $resources = null, ?string $expectedNode = null): ProxmoxTask
+    {
+        if (!preg_match('/^[a-f0-9]{32}$/D', $requestKey) || (null === $rentalId ? !$actor?->isAdmin() : (null !== $actor || null === $resources))) {
+            throw new \InvalidArgumentException('pve.error.forbidden');
+        }
+        $requested = '' !== ($input['target_vm_id'] ?? '') ? $this->boundedInt($input['target_vm_id'], 100, 999999999) : null;
+        $repository = $this->em->getRepository(ProxmoxTask::class);
+        $previous = $repository->findOneBy(['cluster' => $cluster, 'requestKey' => $requestKey]);
+        if (null !== $previous) {
+            if ('install-template' !== $previous->getAction() || $previous->getVmId() !== $vmId || $previous->getActorId() !== $actor?->getId()
+                || ($previous->getInstallation()['rental_id'] ?? null) !== $rentalId || (null !== $requested && $requested !== $previous->getTargetVmId())) {
+                throw new \InvalidArgumentException('pve.error.request_key');
+            }
+
+            return $previous;
+        }
+        $settings = ProxmoxInstallation::settings($input);
+        if (null !== $rentalId && null !== $resources) {
+            $settings['rental_id'] = $rentalId;
+            $settings['resources'] = $resources;
+        }
+        $customer = $settings['customer_id'];
+        if (null !== $customer && !$this->em->find(User::class, $customer)?->isCustomer()) {
+            throw new \InvalidArgumentException('pve.error.customer');
+        }
+        $connection = $cluster->connection($this->crypto);
+        [$node, $source] = $this->installationSource($cluster, $connection, $vmId, $expectedNode);
+        if (null !== $resources) {
+            ProxmoxInstallation::rentalSystemDisk($source, $resources);
+        }
+        $poolNet = match ($input['address_mode'] ?? 'dhcp') {
+            'pool' => JsonMap::strings($source)['net0'] ?? '',
+            'dhcp' => null,
+            default => throw new \InvalidArgumentException('pve.error.ip_pool_network'),
+        };
+        $target = $this->chooseVmId($cluster, $connection, $node, $requested);
+        [$task] = $this->claim($cluster, $node, 'qemu', $vmId, 'install-template', $requestKey, $actor, $target, $requested, $settings, $poolNet, true);
+
+        return $task;
+    }
+
+    /** @param RentalResources $resources */
+    public function validateRentalTemplate(ProxmoxCluster $cluster, int $vmId, string $expectedNode, string $addressMode, array $resources): void
+    {
+        $connection = $cluster->connection($this->crypto);
+        [$node, $source] = $this->installationSource($cluster, $connection, $vmId, $expectedNode);
+        ProxmoxInstallation::rentalSystemDisk($source, $resources);
+        if ('pool' === $addressMode) {
+            $net0 = JsonMap::strings($source)['net0'] ?? '';
+            foreach ($this->ipPools->pools($cluster, $node) as $pool) {
+                if ($pool->isEnabled()) {
+                    ProxmoxIpPools::assertPort($net0, $pool->getBridge(), $pool->getVlan());
+                }
+            }
+        }
+    }
+
+    /** @return array{string, array<array-key, mixed>} */
+    private function installationSource(ProxmoxCluster $cluster, ProxmoxConnection $connection, int $vmId, ?string $expectedNode): array
+    {
+        $guest = $this->guest($cluster, 'qemu', $vmId);
+        $node = JsonMap::strings($guest)['node'] ?? '';
+        if (empty($guest['template']) || (null !== $expectedNode && $node !== $expectedNode)) {
+            throw new \InvalidArgumentException('pve.error.install_template');
+        }
+        $this->assertOnlineNode($connection, $node);
+        $source = $this->api->guestConfig($connection, $node, $vmId);
+        ProxmoxInstallation::assertTemplate($source);
+
+        return [$node, $source];
+    }
+
+    private function chooseVmId(ProxmoxCluster $cluster, ProxmoxConnection $connection, string $node, ?int $requested): int
+    {
+        $clusterId = $cluster->getId();
+        $db = $this->em->getConnection();
+        $legacy = $db->fetchOne("SELECT id FROM proxmox_tasks WHERE cluster_id = ? AND target_vm_id IS NULL AND action IN ('create-vm', 'clone') AND state IN ('submitting', 'running', 'uncertain')", [$clusterId]);
+        if (false !== $legacy) {
+            throw new \InvalidArgumentException('pve.error.task_active');
+        }
+        $occupied = [];
+        foreach (array_map('intval', $db->fetchFirstColumn('SELECT target_vm_id FROM proxmox_tasks t WHERE t.cluster_id = ? AND t.target_vm_id IS NOT NULL AND (t.target_lock IS NOT NULL OR EXISTS (SELECT 1 FROM proxmox_ip_leases l WHERE l.task_id = t.id))', [$clusterId])) as $id) {
+            $occupied[$id] = true;
+        }
+        $range = $cluster->vmIdRange($node);
+        $candidate = $requested ?? $range['first'] ?? $this->api->nextVmId($connection);
+        if (null !== $requested && (($range !== null && ($requested < $range['first'] || $requested > $range['last'])) || $requested !== $cluster->nextAllowedVmId($node, $requested))) {
+            throw new \InvalidArgumentException('pve.error.vm_id_range');
+        }
+        if (null === $requested && null === $range && !isset($occupied[$candidate]) && $candidate === $cluster->nextAllowedVmId($node, $candidate)) {
+            return $candidate;
+        }
+        foreach ($this->overview($cluster)['guests'] as $guest) {
+            $occupied[(int) ($guest['vmid'] ?? 0)] = true;
+        }
+        if (null !== $requested) {
+            if (isset($occupied[$requested])) {
+                throw new \InvalidArgumentException('pve.error.vm_id_taken');
+            }
+
+            return $requested;
+        }
+        $last = $range['last'] ?? 999999999;
+        for ($candidate = $cluster->nextAllowedVmId($node, $candidate); $candidate <= $last; $candidate = $cluster->nextAllowedVmId($node, $candidate + 1)) {
+            if (!isset($occupied[$candidate])) {
+                return $candidate;
+            }
+        }
+
+        throw new \InvalidArgumentException('pve.error.vm_id_exhausted');
+    }
+
     public function refreshTask(ProxmoxTask $task): void
     {
         if (!$task->isActive() || 'uncertain' === $task->getState()) {
+            return;
+        }
+        if ('install-template' === $task->getAction()) {
+            $this->installation->advance($task);
+
+            return;
+        }
+        if ('reinstall' === $task->getAction()) {
+            $this->reinstallation->advance($task);
+
+            return;
+        }
+        if (null !== $task->getOriginTaskId()) {
+            $this->rental->advance($task);
+
             return;
         }
         $upid = $task->getUpid();
@@ -389,8 +675,15 @@ final readonly class ProxmoxManager
     /** Resolve bookkeeping only after explicit operator review and fresh upstream checks. */
     public function reviewTask(ProxmoxTask $task, User $actor, bool $success, string $note): void
     {
-        if (!$actor->isAdmin() || 'uncertain' !== $task->getState() || mb_strlen(trim($note)) < 10 || mb_strlen($note) > 1000 || preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $note)) {
+        if (!$actor->isAdmin() || 'uncertain' !== $task->getState() || ($success && null !== $task->getOriginTaskId()) || mb_strlen(trim($note)) < 10 || mb_strlen($note) > 1000 || preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $note)) {
             throw new \InvalidArgumentException('pve.error.review');
+        }
+        $installation = $task->getInstallation();
+        if ($success && isset($installation['rental_id'])) {
+            throw new \InvalidArgumentException('pve.error.review_rental_installation');
+        }
+        if ($success && 'reinstall' === $task->getAction()) {
+            throw new \InvalidArgumentException('pve.error.review_reinstallation');
         }
         $connection = $task->getCluster()->connection($this->crypto);
         $overview = $this->overview($task->getCluster());
@@ -407,7 +700,10 @@ final readonly class ProxmoxManager
             if (empty($permissions[$path]['Sys.Audit'])) {
                 throw new \InvalidArgumentException('pve.error.review_permissions');
             }
-            if ([] !== $this->api->activeTasks($connection, $name, $task->getVmId() ?: null)) {
+            if ([] !== $this->api->activeTasks($connection, $name, $task->getTargetVmId() ?? ($task->getVmId() ?: null))) {
+                throw new \InvalidArgumentException('pve.error.review_active');
+            }
+            if ($name === $task->getNode() && 'cloning' === ($installation['phase'] ?? null) && [] !== $this->api->activeTasks($connection, $name, $task->getVmId())) {
                 throw new \InvalidArgumentException('pve.error.review_active');
             }
         }
@@ -415,8 +711,9 @@ final readonly class ProxmoxManager
             throw new \InvalidArgumentException('pve.error.review_nodes');
         }
         foreach ($overview['guests'] as $guest) {
-            if (($guest['type'] ?? '') === $task->getKind() && (int) ($guest['vmid'] ?? 0) === $task->getVmId()) {
-                $config = $this->api->guestConfig($connection, (string) $guest['node'], $task->getVmId(), $task->getKind());
+            $reviewId = $task->getTargetVmId() ?? $task->getVmId();
+            if (($guest['type'] ?? '') === $task->getKind() && (int) ($guest['vmid'] ?? 0) === $reviewId) {
+                $config = $this->api->guestConfig($connection, (string) $guest['node'], $reviewId, $task->getKind());
                 if (!empty($config['lock'])) {
                     throw new \InvalidArgumentException('pve.error.review_active');
                 }
@@ -433,25 +730,42 @@ final readonly class ProxmoxManager
         });
     }
 
-    /** @return array{ProxmoxTask, bool} */
-    private function claim(ProxmoxCluster $cluster, string $node, string $kind, int $vmId, string $action, string $requestKey, User $actor): array
+    /**
+     * @param Installation|array{reinstall: Reinstallation}|null $installation
+     * @return array{ProxmoxTask, bool}
+     */
+    private function claim(ProxmoxCluster $cluster, string $node, string $kind, int $vmId, string $action, string $requestKey, ?User $actor, ?int $targetId, ?int $requestedId, ?array $installation, ?string $poolNet, bool $queued = false): array
     {
         $connection = $this->em->getConnection();
         try {
             // DBAL keeps the entity manager usable if a concurrent unique claim wins.
-            $connection->insert('proxmox_tasks', ['cluster_id' => $cluster->getId(), 'node' => $node, 'kind' => $kind, 'vm_id' => $vmId, 'action' => $action, 'request_key' => $requestKey, 'state' => 'submitting', 'guest_lock' => $kind.':'.$vmId, 'actor_id' => $actor->getId(), 'created_at' => new \DateTimeImmutable()], ['created_at' => \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE]);
+            $taskId = $connection->transactional(function () use ($connection, $cluster, $node, $kind, $vmId, $action, $requestKey, $actor, $targetId, $installation, $poolNet, $queued): int {
+                if (null !== $targetId || 'backup-restore' === $action) {
+                    $this->em->refresh($cluster, \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+                }
+                $connection->insert('proxmox_tasks', ['cluster_id' => $cluster->getId(), 'node' => $node, 'kind' => $kind, 'vm_id' => $vmId, 'action' => $action, 'request_key' => $requestKey, 'state' => $queued ? 'queued' : 'submitting', 'guest_lock' => 'create-vm' === $action ? 'new:'.($targetId ?? throw new \LogicException('Missing VM ID.')) : $kind.':'.$vmId, 'target_vm_id' => $targetId, 'target_lock' => $targetId, 'installation' => $installation, 'actor_id' => $actor?->getId(), 'created_at' => new \DateTimeImmutable()], ['installation' => \Doctrine\DBAL\Types\Types::JSON, 'created_at' => \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE]);
+                $id = (int) $connection->lastInsertId();
+                if (null !== $targetId && false !== $connection->fetchOne('SELECT 1 FROM proxmox_tasks t JOIN proxmox_ip_leases l ON l.task_id = t.id WHERE t.cluster_id = ? AND t.target_vm_id = ? LIMIT 1', [$cluster->getId(), $targetId])) {
+                    throw new \InvalidArgumentException('pve.error.vm_id_taken');
+                }
+                if (null !== $poolNet) {
+                    $this->ipPools->reserve($id, $cluster, $node, $poolNet);
+                }
+
+                return $id;
+            });
         } catch (\Doctrine\DBAL\Exception\UniqueConstraintViolationException) {
             $existing = $this->em->getRepository(ProxmoxTask::class)->findOneBy(['cluster' => $cluster, 'requestKey' => $requestKey]);
             if (!$existing instanceof ProxmoxTask) {
                 throw new \InvalidArgumentException('pve.error.task_active');
             }
-            if ($existing->getAction() !== $action || $existing->getKind() !== $kind || $existing->getVmId() !== $vmId || $existing->getActorId() !== $actor->getId()) {
+            if ($existing->getAction() !== $action || $existing->getKind() !== $kind || $existing->getVmId() !== $vmId || $existing->getActorId() !== $actor?->getId() || (null !== $requestedId && $existing->getTargetVmId() !== $requestedId)) {
                 throw new \InvalidArgumentException('pve.error.request_key');
             }
 
             return [$existing, false];
         }
-        $task = $this->em->find(ProxmoxTask::class, (int) $connection->lastInsertId());
+        $task = $this->em->find(ProxmoxTask::class, $taskId);
         if (!$task instanceof ProxmoxTask) {
             throw new \RuntimeException('Unable to read claimed Proxmox operation.');
         }
@@ -459,8 +773,11 @@ final readonly class ProxmoxManager
         return [$task, true];
     }
 
-    /** @return \Closure(): array<array-key, mixed> */
-    private function prepare(ProxmoxConnection $connection, string $node, string $kind, int $vmId, string $action, array $input, array $guest, ?string $allowedStorage, bool $customer, ?string $identityTag = null): \Closure
+    /**
+     * @param Installation|null $installation
+     * @return \Closure(): array<array-key, mixed>
+     */
+    private function prepare(ProxmoxCluster $cluster, ProxmoxConnection $connection, string $node, string $kind, int $vmId, string $action, array $input, array $guest, ?string $allowedStorage, bool $customer, ?string $identityTag, ?int $targetId, ?array $installation, string $requestKey): \Closure
     {
         if ('disk-add' === $action) {
             if ($customer) {
@@ -515,6 +832,32 @@ final readonly class ProxmoxManager
             }
 
             return fn (): array => $this->api->growDisk($connection, $node, $vmId, $kind, $disk, $size, $digest);
+        }
+        if ('root-password' === $action) {
+            $hash = JsonMap::strings($input)['password_hash'] ?? '';
+            if ('qemu' !== $kind || !$customer || ($input['confirm'] ?? '') !== '1' || !preg_match(VmRootPassword::HASH_PATTERN, $hash)) {
+                throw new \InvalidArgumentException('pve.error.forbidden');
+            }
+            if (($this->api->status($connection, $node, $vmId)['status'] ?? null) !== 'running') {
+                throw new \InvalidArgumentException('pve.error.unavailable');
+            }
+
+            return function () use ($connection, $node, $vmId, $identityTag, $hash): array {
+                $config = $this->api->guestConfig($connection, $node, $vmId, current: true);
+                if (null === $identityTag || !in_array($identityTag, explode(';', JsonMap::strings($config)['tags'] ?? ''), true)) {
+                    throw new \InvalidArgumentException('pve.error.identity');
+                }
+
+                return $this->api->setRootPasswordHash($connection, $node, $vmId, $hash);
+            };
+        }
+        if ('address-switch' === $action) {
+            $address = JsonMap::strings($input)['expected_address'] ?? '';
+            if (!$customer || 'qemu' !== $kind || null === $identityTag || '1' !== ($input['confirm'] ?? '') || !filter_var($address, FILTER_VALIDATE_IP)) {
+                throw new \InvalidArgumentException('vm_config.address_switch_unavailable');
+            }
+
+            return fn (): array => $this->switchAddress($cluster, $connection, $node, $vmId, $identityTag, $address);
         }
         if (in_array($action, ['cloud-init', 'boot-order', 'guest-agent'], true)) {
             if ('qemu' !== $kind || ($customer && 'cloud-init' !== $action)) {
@@ -623,6 +966,9 @@ final readonly class ProxmoxManager
             if (($this->api->status($connection, $node, $vmId, $kind)['status'] ?? '') !== 'stopped') {
                 throw new \InvalidArgumentException('pve.error.restore_running');
             }
+            if ($customer) {
+                return fn (): array => $this->restoreCustomerBackup($connection, $node, $kind, $vmId, $volume, $identityTag ?? '');
+            }
             $target = (string) ($input['target_storage'] ?? '');
             $this->assertStorage($connection, $node, $target, 'qemu' === $kind ? 'images' : 'rootdir');
 
@@ -649,12 +995,19 @@ final readonly class ProxmoxManager
 
             return fn (): array => $this->api->mountIso($connection, $node, $vmId, $volume, $slot, JsonMap::strings($config)['digest'] ?? null);
         }
+        if ('install-template' === $action) {
+            if ('qemu' !== $kind || empty($guest['template']) || null === $installation || null === $targetId) {
+                throw new \InvalidArgumentException('pve.error.install_template');
+            }
+
+            return fn (): array => $this->api->cloneTemplate($connection, $node, $vmId, $targetId, $installation['hostname'], 'qemu', ProxmoxInstallation::marker($requestKey));
+        }
         if ('clone' === $action) {
             if (empty($guest['template'])) {
                 throw new \InvalidArgumentException('pve.error.template_action');
             }
             $name = $this->guestName((string) ($input['name'] ?? ''));
-            $newId = $this->api->nextVmId($connection);
+            $newId = $targetId ?? throw new \LogicException('Missing clone destination ID.');
 
             return fn (): array => $this->api->cloneTemplate($connection, $node, $vmId, $newId, $name, $kind);
         }
@@ -670,7 +1023,7 @@ final readonly class ProxmoxManager
             if (!in_array($bridge, array_column($this->api->networks($connection, $node), 'iface'), true) || !preg_match('/^[A-Za-z0-9_.-]+$/D', $bridge)) {
                 throw new \InvalidArgumentException('pve.error.bridge');
             }
-            $id = $this->api->nextVmId($connection);
+            $id = $targetId ?? throw new \LogicException('Missing creation destination ID.');
             $config = ['vmid' => $id, 'name' => $name, 'cores' => $cores, 'memory' => $memory, 'scsihw' => 'virtio-scsi-single', 'scsi0' => $storage.':'.$disk, 'ide2' => $iso.',media=cdrom', 'net0' => 'virtio,bridge='.$bridge, 'boot' => 'order=ide2;scsi0', 'ostype' => 'l26', 'start' => 0];
 
             return fn (): array => $this->api->createVm($connection, $node, $config);
@@ -733,6 +1086,86 @@ final readonly class ProxmoxManager
         }
 
         return $volume;
+    }
+
+    /** @return array<array-key, mixed> */
+    private function switchAddress(ProxmoxCluster $cluster, ProxmoxConnection $connection, string $node, int $vmId, string $identityTag, string $expectedAddress): array
+    {
+        if ('stopped' !== ($this->api->status($connection, $node, $vmId)['status'] ?? null)) {
+            throw new \InvalidArgumentException('pve.error.resources_running');
+        }
+        $config = JsonMap::strings($this->api->guestConfig($connection, $node, $vmId, current: true));
+        if (!in_array($identityTag, explode(';', $config['tags'] ?? ''), true)) {
+            throw new \InvalidArgumentException('pve.error.identity');
+        }
+        $digest = $config['digest'] ?? '';
+        $origin = $this->addressOrigin($cluster, $node, $vmId, $config);
+        if ('' === $digest || null === $origin || !self::supportsAddressSwitch($config) || $this->api->hasPendingGuestConfiguration($connection, $node, $vmId)) {
+            throw new \InvalidArgumentException('vm_config.address_switch_unavailable');
+        }
+        $nodePath = '/nodes/'.$node;
+        $vmPath = '/vms/'.$vmId;
+        if (empty($this->api->permissions($connection, $nodePath)[$nodePath]['Sys.Audit'])
+            || empty($this->api->permissions($connection, $vmPath)[$vmPath]['VM.Config.Cloudinit'])) {
+            throw new \InvalidArgumentException('pve.error.permissions');
+        }
+        if ([] !== $this->api->activeTasks($connection, $node, $vmId)) {
+            throw new \InvalidArgumentException('pve.error.task_active');
+        }
+
+        // Commit the second reservation before sending a configuration write.
+        // Both addresses stay with this installation after a lost API response.
+        $next = $this->ipPools->reserveSwitch($origin, $config['net0'] ?? '', $config['ipconfig0'] ?? '', $expectedAddress);
+        $result = $this->api->updatePoolAddress($connection, $node, $vmId, $next, $digest);
+        $fresh = JsonMap::strings($this->api->guestConfig($connection, $node, $vmId, current: true));
+        if (!in_array($identityTag, explode(';', $fresh['tags'] ?? ''), true)
+            || ProxmoxIpPools::networkSettings($next) !== ProxmoxIpPools::networkSettings($fresh['ipconfig0'] ?? '')) {
+            throw new \RuntimeException('Proxmox did not confirm the reserved address switch.');
+        }
+
+        return $result;
+    }
+
+    /** @return array<array-key, mixed> */
+    private function restoreCustomerBackup(ProxmoxConnection $connection, string $node, string $kind, int $vmId, string $volume, string $identityTag): array
+    {
+        try {
+            $archive = ProxmoxBackupConfiguration::archive($this->api->backupConfiguration($connection, $node, $volume));
+            if ('' === $identityTag || !in_array($identityTag, explode(';', $archive['tags'] ?? ''), true)) {
+                throw new \InvalidArgumentException('pve.error.restore_ownership');
+            }
+            if (($this->api->status($connection, $node, $vmId, $kind)['status'] ?? '') !== 'stopped') {
+                throw new \InvalidArgumentException('pve.error.restore_running');
+            }
+            $current = $this->api->guestConfig($connection, $node, $vmId, $kind, current: true);
+            if (!in_array($identityTag, explode(';', JsonMap::strings($current)['tags'] ?? ''), true)) {
+                throw new \InvalidArgumentException('pve.error.identity');
+            }
+            if (!empty($current['lock'])) {
+                throw new \InvalidArgumentException('pve.error.task_active');
+            }
+            if (!empty($current['protection'])) {
+                throw new \InvalidArgumentException('pve.error.restore_protected');
+            }
+            foreach ($this->api->snapshots($connection, $node, $vmId, $kind) as $snapshot) {
+                if ('current' !== ($snapshot['name'] ?? null)) {
+                    throw new \InvalidArgumentException('pve.error.restore_snapshots');
+                }
+            }
+            $configuration = ProxmoxBackupConfiguration::comparable($current);
+            if (ProxmoxBackupConfiguration::comparable($archive) !== $configuration) {
+                throw new \InvalidArgumentException('pve.error.restore_configuration');
+            }
+            // QEMU keeps the original storage of each backed-up disk when no override is sent.
+            $storage = 'lxc' === $kind ? ProxmoxBackupConfiguration::containerStorage($configuration) : null;
+            if (null !== $storage) {
+                $this->assertStorage($connection, $node, $storage, 'rootdir');
+            }
+        } catch (ProxmoxApiException $exception) {
+            throw new \InvalidArgumentException(in_array($exception->statusCode, [401, 403], true) ? 'pve.error.permissions' : 'pve.error.restore_verification', previous: $exception);
+        }
+
+        return $this->api->restoreBackup($connection, $node, $vmId, $volume, $kind, $storage, true);
     }
 
     private function backupMatches(array $backup, int $vmId, string $kind): bool

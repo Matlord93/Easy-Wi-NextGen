@@ -47,10 +47,11 @@ final class InfrastructureMonitoringWorkflowTest extends KernelTestCase
             $em->flush();
             $fixture = new ProxmoxFixture();
             $api = $fixture->client();
-            $manager = new ProxmoxManager($api, $crypto, $em, $c->get(AuditLogger::class), new ProxmoxGuestAgent($api, new ArrayAdapter()), new ProxmoxRrdUsage($api, new ArrayAdapter()));
+            $ipPools = new \App\Module\Nodes\Application\Proxmox\ProxmoxIpPools($em);
+            $manager = new ProxmoxManager($api, $crypto, $em, $c->get(AuditLogger::class), new ProxmoxGuestAgent($api, new ArrayAdapter()), new ProxmoxRrdUsage($api, new ArrayAdapter()), new \App\Module\Nodes\Application\Proxmox\ProxmoxInstallation($api, $crypto, $em, new LockFactory(new InMemoryStore()), $c->get(AuditLogger::class), $ipPools), $ipPools, new \App\Module\Nodes\Application\Proxmox\ProxmoxRentalLifecycle($em, $api, $crypto, $ipPools, new LockFactory(new InMemoryStore())), new \App\Module\Nodes\Application\Proxmox\ProxmoxReinstallation($api, $crypto, $em, new LockFactory(new InMemoryStore()), $c->get(AuditLogger::class)));
             $settings = $c->get(InfrastructureMonitoringSettings::class);
             $settings->save($settings->get() + ['enabled' => true]);
-            $collector = new InfrastructureCollector($em, $c->get(\App\Module\Nodes\Application\Monitoring\InfrastructureHistoryStore::class), $c->get(\App\Module\Nodes\Application\Monitoring\InfrastructureAlerts::class), $c->get(\App\Module\Nodes\Application\Monitoring\InfrastructureTargets::class), new InfrastructureUsage(), $c->get(\App\Module\Nodes\Application\Kvm\KvmPanelService::class), $manager, $settings, new LockFactory(new InMemoryStore()));
+            $collector = new InfrastructureCollector($em, $c->get(\App\Module\Nodes\Application\Monitoring\InfrastructureHistoryStore::class), $c->get(\App\Module\Nodes\Application\Monitoring\InfrastructureAlerts::class), $c->get(\App\Module\Nodes\Application\Monitoring\InfrastructureTargets::class), new InfrastructureUsage(), $c->get(\App\Module\Nodes\Application\Kvm\KvmPanelService::class), $manager, $settings, new LockFactory(new InMemoryStore()), $c->get(\App\Module\Core\Application\ModuleRegistry::class));
             $first = $collector->run(true);
             self::assertGreaterThanOrEqual(3, $first['samples']);
             $count = $em->getConnection()->fetchOne('SELECT COUNT(*) FROM infrastructure_samples');

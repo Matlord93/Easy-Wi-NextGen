@@ -52,6 +52,9 @@ final class LogoutController
         }
 
         $this->entityManager->flush();
+        if ($request->hasPreviousSession()) {
+            $request->getSession()->remove('last_login_at');
+        }
 
         $response = new RedirectResponse('/login');
         foreach ($cookieNames as $cookieName) {

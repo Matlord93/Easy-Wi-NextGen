@@ -88,6 +88,8 @@ kvm.customer_confirm: "Die Bestätigung für diese Aktion fehlt."
 kvm.customer_stopped: "Snapshots und Backups können bei ausgeschaltetem Server verwaltet werden."
 kvm.customer_snapshot: "Dieser Snapshot gehört nicht zum aktuellen Serverbestand."
 kvm.customer_backup: "Dieses Backup gehört nicht zum aktuellen Serverbestand."
+kvm.customer_backup_checksum: "Die Prüfsumme des Backups stimmt nicht. Der bisherige Datenträger wurde beibehalten."
+kvm.customer_restore_failed: "Die Wiederherstellung ist fehlgeschlagen. Bitte wende dich mit der Auftragszeit an den Betreiber."
 kvm.customer_restore_snapshots: "Vor der Backup-Wiederherstellung müssen die vorhandenen VM-Snapshots entfernt werden."
 kvm.customer_no_snapshots: "Noch keine Snapshots vorhanden."
 kvm.customer_no_backups: "Noch keine Backups vorhanden."
@@ -111,4 +113,40 @@ kvm.network_config.current: "Bisheriger Anschluss"
 kvm.network_config.target: "Neuer Anschluss"
 kvm.network_config.confirm: "Ich bestätige den Netzwerkwechsel und habe die IP-Konfiguration im Gast berücksichtigt."
 kvm.network_config.submit: "Netzwerk ändern"
+kvm.action.host.address_pool: "IP-Adresspool verwalten"
+kvm.address_pools: "IP-Adresspools"
+kvm.address_pool_hint: "Je Netz ist ein IPv4- und ein IPv6-Pool möglich. Halte die Bereiche exklusiv für diesen Host und außerhalb von DHCP und manueller Vergabe frei. Änderungen gelten für neue VMs."
+kvm.address_assignment: "Adressvergabe"
+kvm.configured_addresses: "Zugewiesene IP-Adressen"
+kvm.address_pool_allocate: "Feste Adressen aus dem gewählten Netz"
+kvm.address_range: "Adressbereich"
+kvm.address_family: "Adressfamilie"
+kvm.address_first: "Erste Adresse"
+kvm.address_last: "Letzte Adresse"
+kvm.address_prefix: "Präfixlänge"
+kvm.address_dns: "DNS-Server"
+kvm.address_pool_save: "IP-Pool speichern"
+kvm.address_pool_remove: "Pool entfernen"
+kvm.address_pool_remove_confirm: "Diesen Pool für neue VMs entfernen? Bestehende Adressen bleiben reserviert."
+kvm.address_pool_network_bound: "Das Netzwerk ist an die reservierten Adressen gebunden."
+kvm.dhcp_start: "Erste DHCP-Adresse (optional)"
+kvm.dhcp_start_hint: "Adressen zwischen dem Gateway und dem DHCP-Beginn können einem festen IP-Pool zugewiesen werden."
 kvm.action.vm.network: "VM-Netzwerk ändern"
+kvm.host_setup: 'KVM-Host einrichten'
+kvm.host_setup_hint: 'Der Agent installiert fehlende KVM-Werkzeuge auf Debian oder Ubuntu und prüft den Zugriff auf libvirt und Hardwarevirtualisierung.'
+kvm.host_setup_confirm: 'Ich bestätige die Installation der KVM-Pakete auf diesem Host.'
+kvm.action.host.setup: 'Host einrichten oder erneut prüfen'
+kvm.vm_number_range: 'VM-Nummern dieses Hosts'
+kvm.vm_number: 'VM-Nummer'
+kvm.action.host.vm_number_range: 'VM-Nummernbereich speichern'
+
+kvm.action.vm.root_password: "Root-Passwort ändern"
+kvm.action.vm.reinstall: "System neu installieren"
+kvm.reinstall: "System neu installieren"
+kvm.reinstall_template: "Betriebssystem wählen"
+kvm.reinstall_hint: "Die VM startet nach dem Austausch ihrer Systemdisk automatisch. Hostname, SSH-Schlüssel und Netzwerkeinstellungen bleiben erhalten."
+kvm.reinstall_confirm: "Ich bestätige, dass die Daten auf der bisherigen Systemdisk gelöscht werden dürfen."
+kvm.customer_reinstall_unavailable: "Für die Neuinstallation muss die VM ausgeschaltet sein und vom Datenträger starten. Es müssen eine passende Vorlage und ein aktueller Host-Agent verfügbar sein. Vorhandene Snapshots sperren den Austausch."
+kvm.role_required: 'Für die Host-Einrichtung muss dem Agenten die Rolle KVM zugewiesen sein.'
+kvm.assign_role: 'Agent-Rollen öffnen'
+kvm.action.vm.address_switch: 'Reservierte IP wechseln'

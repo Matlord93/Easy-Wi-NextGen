@@ -79,6 +79,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AgentApiController
 {
     private const DEFAULT_JOB_LOCK_TTL = '+10 minutes';
+    private const KVM_SETUP_JOB_LOCK_TTL = '+15 minutes';
     private const BACKUP_JOB_LOCK_TTL = '+12 hours';
     private const INSTANCE_METRIC_SAMPLES_PER_DAY = 288;
 
@@ -441,6 +442,11 @@ final class AgentApiController
                 $rejections['agent_mismatch']++;
                 continue;
             }
+            if (!$this->allowsKvmRoleSetup($job, $agent)) {
+                $job->transitionTo(JobStatus::Cancelled);
+                $this->jobLogger->log($job, 'KVM host setup requires the assigned KVM role.', 100);
+                continue;
+            }
 
             if (in_array($job->getType(), $updateJobTypes, true) && $runningUpdateJobs >= $maxUpdateJobsPerAgent) {
                 $rejections['update_limit']++;
@@ -496,6 +502,20 @@ final class AgentApiController
             'jobs' => $jobPayloads,
             'max_concurrency' => $maxConcurrency,
         ]);
+    }
+
+    private function allowsKvmRoleSetup(Job $job, Agent $agent): bool
+    {
+        if (!$this->isKvmRoleSetup($job)) {
+            return true;
+        }
+
+        return ($job->getPayload()['agent_id'] ?? '') === $agent->getId() && $agent->hasKvmRole();
+    }
+
+    private function isKvmRoleSetup(Job $job): bool
+    {
+        return 'role.ensure_base' === $job->getType() && 0 === strcasecmp(JsonMap::strings($job->getPayload())['role'] ?? '', 'KVM');
     }
 
     private function runJobDispatchWithDeadlockRetry(Agent $agent): JsonResponse
@@ -572,6 +592,17 @@ final class AgentApiController
             $this->markJobFailedForDecommissionedAgent($job, $agent, 'start');
 
             return new JsonResponse(['error' => 'agent_decommissioned'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        if (!$this->allowsKvmRoleSetup($job, $agent)) {
+            if ($job->getLockedBy() === $agent->getId() && JobStatus::Claimed === $job->getStatus()) {
+                $job->transitionTo(JobStatus::Cancelled);
+                $job->clearLock();
+                $this->jobLogger->log($job, 'KVM host setup requires the assigned KVM role.', 100);
+                $this->entityManager->flush();
+            }
+
+            return new JsonResponse(['error' => 'kvm_role_required'], JsonResponse::HTTP_FORBIDDEN);
         }
 
         if ($job->getStatus()->isTerminal()) {
@@ -982,6 +1013,9 @@ final class AgentApiController
 
     private function resolveJobLockExpiresAt(Job $job, DateTimeImmutable $now): DateTimeImmutable
     {
+        if ($this->isKvmRoleSetup($job)) {
+            return $now->modify(self::KVM_SETUP_JOB_LOCK_TTL);
+        }
         return $now->modify($this->isNonRetryableAfterStartJobType($job->getType())
             ? self::BACKUP_JOB_LOCK_TTL
             : self::DEFAULT_JOB_LOCK_TTL);

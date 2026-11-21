@@ -36,10 +36,25 @@ type kvmNetworkIP struct {
 	DHCP    *kvmDHCP `xml:"dhcp"`
 }
 type kvmDHCP struct {
-	Range struct {
-		Start string `xml:"start,attr"`
-		End   string `xml:"end,attr"`
-	} `xml:"range"`
+	Ranges []kvmDHCPRange `xml:"range"`
+	Hosts  []struct {
+		IP string `xml:"ip,attr"`
+	} `xml:"host" json:",omitempty"`
+}
+type kvmDHCPRange struct {
+	Start string `xml:"start,attr"`
+	End   string `xml:"end,attr"`
+}
+
+func (ip kvmNetworkIP) subnet() (netip.Prefix, error) {
+	if ip.Prefix != "" {
+		return netip.ParsePrefix(ip.Address + "/" + ip.Prefix)
+	}
+	bits, size := net.IPMask(net.ParseIP(ip.Netmask).To4()).Size()
+	if size != 32 {
+		return netip.Prefix{}, errors.New("cannot verify libvirt subnet without a prefix or netmask")
+	}
+	return netip.ParsePrefix(ip.Address + "/" + strconv.Itoa(bits))
 }
 
 func (e *kvmEngine) checkNetwork(kind, name string) error {
@@ -160,9 +175,16 @@ func (e *kvmEngine) createNetwork(p map[string]any) (map[string]any, error) {
 	last := prefix.Addr().As4()
 	count := 1 << (32 - prefix.Bits())
 	last[3] += byte(count - 2)
-	n.IPs = append(n.IPs, kvmNetworkIP{Address: gateway.String(), Prefix: strconv.Itoa(prefix.Bits()), DHCP: &kvmDHCP{}})
-	n.IPs[0].DHCP.Range.Start = start.String()
-	n.IPs[0].DHCP.Range.End = netip.AddrFrom4(last).String()
+	dhcpLast := netip.AddrFrom4(last)
+	if first := payloadValue(p, "dhcp_start"); first != "" {
+		start, err = netip.ParseAddr(first)
+		if err != nil || !prefix.Contains(start) || start.Compare(gateway) <= 0 || start.Compare(dhcpLast) > 0 {
+			return nil, errors.New("DHCP start must be between the first guest address and the last usable address")
+		}
+	}
+	n.IPs = append(n.IPs, kvmNetworkIP{Address: gateway.String(), Prefix: strconv.Itoa(prefix.Bits()), DHCP: &kvmDHCP{
+		Ranges: []kvmDHCPRange{{Start: start.String(), End: dhcpLast.String()}},
+	}})
 	if _, err := net.InterfaceByName(n.Bridge.Name); err == nil {
 		return nil, errors.New("generated network bridge already exists")
 	}
@@ -389,7 +411,15 @@ func (e *kvmEngine) inventory() (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"pending_operations": pending, "guests": guests, "templates": templates, "networks": networks, "bridges": bridges, "capabilities": kvmCapabilities(), "observed_at": kvmNow()}, nil
+	span, err := e.numberRange()
+	if err != nil {
+		return nil, err
+	}
+	pools, err := e.addressPools()
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"address_pools": pools, "vm_number_range": span, "pending_operations": pending, "guests": guests, "templates": templates, "networks": networks, "bridges": bridges, "capabilities": kvmCapabilities(), "observed_at": kvmNow()}, nil
 }
 func regexpUUIDLoose(s string) bool {
 	if len(s) != 36 {

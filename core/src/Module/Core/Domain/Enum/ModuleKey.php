@@ -19,4 +19,6 @@ enum ModuleKey: string
     case Unifi = 'unifi';
     case Cms = 'cms';
     case Shop = 'shop';
+    case Kvm = 'kvm';
+    case Proxmox = 'proxmox';
 }

@@ -44,7 +44,7 @@ final readonly class GameserverContractProvider implements ContractResourceProvi
         }
         $instance = $contract->getOrder()->getInstance();
         if (null === $instance) {
-            $instance = new Instance($contract->getCustomer(), $template, $node, (int) $config['cpu_percent'], (int) $config['ram_mib'], (int) $config['disk_mib'], null, InstanceStatus::PendingSetup, InstanceUpdatePolicy::Manual);
+            $instance = new Instance($contract->getCustomer(), $template, $node, (int) $config['cpu_percent'], (int) $config['ram_mib'], (int) $config['disk_mib'], null, InstanceStatus::PendingSetup, InstanceUpdatePolicy::Manual, initialSlots: (int) ($config['game_slots'] ?? Instance::DEFAULT_SLOTS));
             $instance->setInstanceBaseDir($this->directories->resolve($node, (string) ($config['instance_base_dir'] ?? '')));
             $this->em->persist($instance);
             $contract->getOrder()->setInstance($instance);
@@ -78,7 +78,7 @@ final readonly class GameserverContractProvider implements ContractResourceProvi
         if (null === $node || null === $template || null !== $this->disk->guardNodeProvisioning($node, new \DateTimeImmutable())) {
             throw new \DomainException('Gameserver-Ziel oder freier Speicher nicht verfügbar.');
         }
-        $instance = new Instance($contract->getCustomer(), $template, $node, (int) $config['cpu_percent'], (int) $config['ram_mib'], (int) $config['disk_mib'], null, InstanceStatus::PendingSetup, InstanceUpdatePolicy::Manual);
+        $instance = new Instance($contract->getCustomer(), $template, $node, (int) $config['cpu_percent'], (int) $config['ram_mib'], (int) $config['disk_mib'], null, InstanceStatus::PendingSetup, InstanceUpdatePolicy::Manual, initialSlots: (int) ($config['game_slots'] ?? Instance::DEFAULT_SLOTS));
         $instance->setInstanceBaseDir($this->directories->resolve($node, (string) ($config['instance_base_dir'] ?? '')));
         $this->em->persist($instance);
         $contract->getOrder()->setInstance($instance);

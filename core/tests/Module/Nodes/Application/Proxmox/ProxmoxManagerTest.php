@@ -9,9 +9,12 @@ use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Nodes\Application\Proxmox\ProxmoxManager;
+use App\Module\Nodes\Application\Proxmox\ProxmoxIpPools;
 use App\Module\Nodes\Domain\Entity\ProxmoxCluster;
 use App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
+use App\Module\Nodes\Domain\Proxmox\ProxmoxIpRange;
+use App\Module\Nodes\Domain\Entity\ProxmoxTask;
 use App\Tests\Support\ProxmoxFixture;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
@@ -23,6 +26,7 @@ final class ProxmoxManagerTest extends KernelTestCase
     private EntityManagerInterface $em;
     private ProxmoxFixture $fixture;
     private ProxmoxManager $manager;
+    private ProxmoxIpPools $ipPools;
     private ProxmoxCluster $cluster;
     private User $admin;
     private User $customer;
@@ -40,7 +44,8 @@ final class ProxmoxManagerTest extends KernelTestCase
         (new SchemaTool($this->em))->createSchema($this->em->getMetadataFactory()->getAllMetadata());
         $this->fixture = new ProxmoxFixture();
         $crypto = self::getContainer()->get(SecretsCrypto::class);
-        $this->manager = new ProxmoxManager($this->fixture->client(), $crypto, $this->em, self::getContainer()->get(AuditLogger::class), new \App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()), new \App\Module\Nodes\Application\Proxmox\ProxmoxRrdUsage($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()));
+        $this->ipPools = new ProxmoxIpPools($this->em);
+        $this->manager = new ProxmoxManager($this->fixture->client(), $crypto, $this->em, self::getContainer()->get(AuditLogger::class), new \App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()), new \App\Module\Nodes\Application\Proxmox\ProxmoxRrdUsage($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()), new \App\Module\Nodes\Application\Proxmox\ProxmoxInstallation($this->fixture->client(), $crypto, $this->em, new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore()), self::getContainer()->get(AuditLogger::class), $this->ipPools), $this->ipPools, new \App\Module\Nodes\Application\Proxmox\ProxmoxRentalLifecycle($this->em, $this->fixture->client(), $crypto, $this->ipPools, new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore())), new \App\Module\Nodes\Application\Proxmox\ProxmoxReinstallation($this->fixture->client(), $crypto, $this->em, new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore()), self::getContainer()->get(AuditLogger::class)));
         $this->cluster = new ProxmoxCluster('Test cluster', new ProxmoxConnection('https://pve.example.test:8006', 'panel@pve!test', 'synthetic-secret'), $crypto);
         $this->admin = new User('pve-admin@example.test', UserType::Admin);
         $this->admin->setPasswordHash('unused');
@@ -245,10 +250,10 @@ final class ProxmoxManagerTest extends KernelTestCase
         self::assertSame('0', $this->fixture->writes()[0]['body']['remove']);
     }
 
-    public function testCustomerCannotRestoreOrDeleteBackups(): void
+    public function testCustomerCannotDeleteBackupsOrUseAdminActions(): void
     {
         $this->assign();
-        foreach (['backup-restore', 'backup-delete', 'create-vm', 'resources-update', 'boot-order', 'guest-agent'] as $action) {
+        foreach (['backup-delete', 'create-vm', 'resources-update', 'boot-order', 'guest-agent'] as $action) {
             try {
                 $this->manager->perform($this->cluster, 'qemu', 101, $action, ['confirm' => '1'], bin2hex(random_bytes(16)), $this->customer);
                 self::fail('Forbidden customer action accepted.');
@@ -257,6 +262,46 @@ final class ProxmoxManagerTest extends KernelTestCase
             }
         }
         self::assertSame([], $this->fixture->writes());
+    }
+
+    public function testCustomerCannotRestoreAnOlderAssignmentOrChangedNetwork(): void
+    {
+        $this->assign();
+        $this->fixture->snapshots = [['name' => 'current']];
+        $this->fixture->configs[101] = ['net0' => 'virtio=02:00:00:00:00:01,bridge=vmbr0'];
+        $volume = 'local:backup/vzdump-qemu-101-2026_11_12.vma.zst';
+        $request = ['storage' => 'local', 'volume' => $volume, 'confirm' => '1'];
+        foreach ([
+            'pve.error.restore_ownership' => "tags: easywi-owned-fedcba9876543210\nnet0: virtio=02:00:00:00:00:01,bridge=vmbr0",
+            'pve.error.restore_configuration' => "tags: easywi-owned-0123456789abcdef\nnet0: virtio=02:00:00:00:00:02,bridge=vmbr0",
+        ] as $reason => $configuration) {
+            $this->fixture->backupConfigurations[$volume] = $configuration;
+            try {
+                $this->manager->perform($this->cluster, 'qemu', 101, 'backup-restore', $request, bin2hex(random_bytes(16)), $this->customer);
+                self::fail('Invalid backup was accepted.');
+            } catch (\InvalidArgumentException $error) {
+                self::assertSame($reason, $error->getMessage());
+            }
+        }
+        self::assertSame([], $this->fixture->writes());
+        self::assertSame(0, $this->em->getRepository(ProxmoxTask::class)->count(['guestLock' => 'qemu:101']));
+    }
+
+    public function testCustomerRestoreUsesTheExistingContainerStorage(): void
+    {
+        $this->fixture->guests[1]['status'] = 'stopped';
+        $this->fixture->snapshots = [];
+        $tag = $this->fixture->guests[1]['tags'];
+        $this->em->persist(new ProxmoxGuestAssignment($this->cluster, 102, 'lxc', $this->customer, $tag, 'local'));
+        $this->em->flush();
+        $this->fixture->configs[102] = ['rootfs' => 'local-lvm:vm-102-disk-0,size=8G', 'unprivileged' => 1];
+        $volume = 'local:backup/vzdump-lxc-102-2026_11_12.tar.zst';
+        $this->fixture->backupConfigurations[$volume] = "tags: $tag\nrootfs: local-lvm:vm-102-disk-0,size=8G\nunprivileged: 1";
+        $request = ['storage' => 'local', 'volume' => $volume, 'target_storage' => 'forged', 'confirm' => '1'];
+        $task = $this->manager->perform($this->cluster, 'lxc', 102, 'backup-restore', $request, bin2hex(random_bytes(16)), $this->customer);
+        self::assertSame('running', $task->getState());
+        self::assertSame('/nodes/pve-b/lxc', $this->fixture->writes()[0]['path']);
+        self::assertSame(['vmid' => '102', 'start' => '0', 'force' => '1', 'storage' => 'local-lvm', 'ostemplate' => $volume, 'restore' => '1'], $this->fixture->writes()[0]['body']);
     }
 
     #[DataProvider('resourceKinds')]
@@ -513,6 +558,143 @@ final class ProxmoxManagerTest extends KernelTestCase
         self::assertArrayNotHasKey('ide0', $write);
         self::assertArrayNotHasKey('ide2', $write);
         self::assertSame('fixture-digest', $write['digest']);
+    }
+
+    public function testVmIdRangeSkipsLxcAndUnconfirmedAllocationsAcrossTheCluster(): void
+    {
+        $this->cluster->setVmIdRange('pve-a', 101, 106);
+        $this->em->flush();
+        $this->fixture->loseWriteResponse = true;
+        $first = $this->manager->perform($this->cluster, 'qemu', 0, 'create-vm', $this->creationInput(), bin2hex(random_bytes(16)), $this->admin);
+        self::assertSame(103, $first->getTargetVmId());
+        self::assertSame('uncertain', $first->getState());
+        $this->fixture->loseWriteResponse = false;
+        $second = $this->manager->perform($this->cluster, 'qemu', 0, 'create-vm', $this->creationInput(), bin2hex(random_bytes(16)), $this->admin);
+        self::assertSame(104, $second->getTargetVmId());
+        self::assertSame(['103', '104'], array_column(array_column($this->fixture->writes(), 'body'), 'vmid'));
+        $this->expectExceptionMessage('pve.error.vm_id_taken');
+        $this->manager->perform($this->cluster, 'qemu', 0, 'create-vm', $this->creationInput() + ['target_vm_id' => '103'], bin2hex(random_bytes(16)), $this->admin);
+    }
+
+    public static function installationStartOutcomes(): iterable
+    {
+        yield 'confirmed start' => [false];
+        yield 'start response lost' => [true];
+        yield 'dual-stack pool' => [false, true];
+    }
+
+    #[DataProvider('installationStartOutcomes')]
+    public function testTemplateInstallationTracksCloneStartAndCloudInitBeforeSuccess(bool $loseStartResponse, bool $pooled = false): void
+    {
+        $key = \phpseclib3\Crypt\EC::createKey('Ed25519')->getPublicKey()->toString('OpenSSH');
+        $this->fixture->configs[900] = ['ide2' => 'local-lvm:vm-900-cloudinit,media=cdrom', 'net0' => 'virtio=52:54:00:12:34:56,bridge=vmbr0'];
+        if ($pooled) {
+            $this->ipPools->save($this->cluster, 'pve-a', new ProxmoxIpRange(4, '192.0.2.55', '192.0.2.60', 24, '192.0.2.1'), 'vmbr0', null, true);
+            $this->ipPools->save($this->cluster, 'pve-a', new ProxmoxIpRange(6, '2001:db8::66', '2001:db8::70', 64, 'fe80::1'), 'vmbr0', null, true);
+        }
+        $requestKey = bin2hex(random_bytes(16));
+        $task = $this->manager->perform($this->cluster, 'qemu', 900, 'install-template', ['name' => 'test-vm', 'username' => 'debian', 'target_vm_id' => '1001', 'ssh_keys' => $key, 'customer_id' => $this->customer->getId(), 'address_mode' => $pooled ? 'pool' : 'dhcp'], $requestKey, $this->admin);
+        self::assertSame(1001, $task->getTargetVmId());
+        self::assertSame('Easy-WI installation '.$requestKey, $this->fixture->writes()[0]['body']['description']);
+        $this->manager->refreshTask($task);
+        self::assertCount(1, $this->fixture->writes());
+
+        $this->fixture->complete = true;
+        $this->fixture->configs[1001] = ['description' => 'Easy-WI installation '.$requestKey] + $this->fixture->configs[900];
+        $this->fixture->guests[] = ['type' => 'qemu', 'vmid' => 1001, 'node' => 'pve-a', 'status' => 'stopped'];
+        if ($loseStartResponse) {
+            $this->fixture->lostWritePath = '/nodes/pve-a/qemu/1001/status/start';
+        }
+        $this->manager->refreshTask($task);
+        $writes = $this->fixture->writes();
+        self::assertSame($pooled ? 'ip=192.0.2.55/24,gw=192.0.2.1,ip6=2001:db8::66/64,gw6=fe80::1' : 'ip=dhcp', $writes[1]['body']['ipconfig0']);
+        self::assertSame('/nodes/pve-a/qemu/1001/status/start', $writes[2]['path']);
+        $this->fixture->guests[3]['status'] = 'running';
+        $this->manager->refreshTask($task);
+        self::assertTrue($task->isActive());
+        $this->fixture->cloudInitFinished = true;
+        if ($pooled) {
+            self::assertSame(2, count($this->ipPools->leases($task)));
+            $this->manager->refreshTask($task);
+            self::assertTrue($task->isActive(), 'The inherited fixture addresses differ from the leased addresses.');
+            $this->fixture->guestInterfaces[0]['ip-addresses'] = [
+                ['ip-address-type' => 'ipv4', 'ip-address' => '192.0.2.55', 'prefix' => 24],
+                ['ip-address-type' => 'ipv6', 'ip-address' => '2001:db8:0:0:0:0:0:66', 'prefix' => 64],
+            ];
+        }
+        $sync = new \App\Module\Nodes\Application\Proxmox\ProxmoxTaskSynchronizer($this->em, $this->manager, new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore()));
+        self::assertSame(['checked' => 1, 'errors' => 0], $sync->run(25));
+        self::assertSame('succeeded', $task->getState());
+        $assignment = $this->em->getRepository(ProxmoxGuestAssignment::class)->findOneBy(['cluster' => $this->cluster, 'vmId' => 1001]);
+        self::assertSame($this->customer, $assignment?->getCustomer());
+        self::assertSame('easywi-owned-'.substr($requestKey, 0, 16), $assignment->getIdentityTag());
+        $this->manager->refreshTask($task);
+        self::assertCount(4, $this->fixture->writes());
+        if ($pooled) {
+            $this->fixture->guests[3]['status'] = 'stopped';
+            $origin = $this->fixture->configs[1001]['ipconfig0'];
+            $switch = ['expected_address' => '192.0.2.55', 'confirm' => '1', 'ip' => '192.0.2.250'];
+            $switchKey = bin2hex(random_bytes(16));
+            $change = $this->manager->perform($this->cluster, 'qemu', 1001, 'address-switch', $switch, $switchKey, $this->customer);
+            self::assertSame('succeeded', $change->getState());
+            self::assertSame('fixture-digest', $this->fixture->writes()[4]['body']['digest']);
+            self::assertSame(['gw' => '192.0.2.1', 'gw6' => 'fe80::1', 'ip' => '192.0.2.56/24', 'ip6' => '2001:db8::66/64'], ProxmoxIpPools::networkSettings($this->fixture->configs[1001]['ipconfig0']));
+            self::assertSame($change, $this->manager->perform($this->cluster, 'qemu', 1001, 'address-switch', $switch, $switchKey, $this->customer));
+            self::assertCount(5, $this->fixture->writes());
+            try {
+                $this->manager->perform($this->cluster, 'qemu', 1001, 'address-switch', $switch, bin2hex(random_bytes(16)), $this->customer);
+                self::fail('A stale active address must not rotate the new reservation.');
+            } catch (\InvalidArgumentException $exception) {
+                self::assertSame('vm_config.address_switch_unavailable', $exception->getMessage());
+            }
+            $changeBack = $this->manager->perform($this->cluster, 'qemu', 1001, 'address-switch', ['expected_address' => '192.0.2.56', 'confirm' => '1'], bin2hex(random_bytes(16)), $this->customer);
+            self::assertSame('succeeded', $changeBack->getState());
+            self::assertSame(ProxmoxIpPools::networkSettings($origin), ProxmoxIpPools::networkSettings($this->fixture->configs[1001]['ipconfig0']));
+            $this->fixture->lostWritePath = '/nodes/pve-a/qemu/1001/config';
+            $unknown = $this->manager->perform($this->cluster, 'qemu', 1001, 'address-switch', ['expected_address' => '2001:db8::66', 'confirm' => '1'], bin2hex(random_bytes(16)), $this->customer);
+            self::assertSame('uncertain', $unknown->getState());
+            self::assertContains('2001:db8::67', array_map(static fn (\App\Module\Nodes\Domain\Entity\ProxmoxIpLease $lease): string => $lease->getAddress(), $this->ipPools->leases($task)));
+            try {
+                $this->manager->releaseAddresses($task, $this->admin);
+                self::fail('An existing VM still occupies its addresses.');
+            } catch (\InvalidArgumentException $exception) {
+                self::assertSame('pve.error.ip_lease_release', $exception->getMessage());
+            }
+            self::assertCount(4, $this->ipPools->leases($task));
+            unset($this->fixture->guests[3]);
+            $this->manager->releaseAddresses($task, $this->admin);
+            self::assertSame([], $this->ipPools->leases($task));
+            self::assertNull($this->em->getRepository(ProxmoxGuestAssignment::class)->findOneBy(['cluster' => $this->cluster, 'vmId' => 1001]));
+        }
+    }
+
+    public function testExhaustedPoolRollsBackTaskAndOtherAddressFamily(): void
+    {
+        $this->ipPools->save($this->cluster, 'pve-a', new ProxmoxIpRange(4, '192.0.2.40', '192.0.2.45', 24, '192.0.2.1'), 'vmbr0', 42, true);
+        $this->ipPools->save($this->cluster, 'pve-a', new ProxmoxIpRange(6, '2001:db8::100', '2001:db8::100', 64, 'fe80::1'), 'vmbr0', 42, true);
+        $this->fixture->configs[900] = ['ide2' => 'local-lvm:vm-900-cloudinit,media=cdrom', 'net0' => 'virtio=52:54:00:12:34:56,bridge=vmbr0,tag=42'];
+        $this->fixture->configs[901] = $this->fixture->configs[900];
+        $this->fixture->guests[] = ['vmid' => 901, 'type' => 'qemu', 'node' => 'pve-a', 'status' => 'stopped', 'template' => 1];
+        $key = \phpseclib3\Crypt\EC::createKey('Ed25519')->getPublicKey()->toString('OpenSSH');
+        $input = ['name' => 'test-vm', 'username' => 'debian', 'ssh_keys' => $key, 'address_mode' => 'pool'];
+        $this->fixture->loseWriteResponse = true;
+        $first = $this->manager->perform($this->cluster, 'qemu', 900, 'install-template', $input + ['target_vm_id' => '1001'], bin2hex(random_bytes(16)), $this->admin);
+        self::assertSame('uncertain', $first->getState());
+        self::assertCount(2, $this->ipPools->leases($first));
+        try {
+            $this->manager->perform($this->cluster, 'qemu', 901, 'install-template', $input + ['target_vm_id' => '1002'], bin2hex(random_bytes(16)), $this->admin);
+            self::fail('Exhausted IPv6 pool must block the installation.');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('pve.error.ip_pool_exhausted', $error->getMessage());
+        }
+        self::assertSame(1, $this->em->getRepository(ProxmoxTask::class)->count());
+        self::assertSame(2, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM proxmox_ip_leases'));
+        self::assertCount(1, $this->fixture->writes());
+    }
+
+    private function creationInput(): array
+    {
+        return ['node' => 'pve-a', 'name' => 'test', 'iso' => 'local:iso/debian.iso', 'storage' => 'local-lvm', 'cores' => '2', 'memory' => '2048', 'disk' => '32', 'bridge' => 'vmbr0'];
     }
 
     public function testCloudInitOnlyWritesValidatedDefaultsAndServerDigest(): void

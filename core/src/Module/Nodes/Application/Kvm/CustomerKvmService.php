@@ -10,7 +10,9 @@ use App\Repository\EntityQueryResult;
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Domain\Entity\ShopProduct;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\ShopProductKind;
 use App\Module\Nodes\Application\VmGuestAgentReport;
 use App\Module\Nodes\Domain\Entity\KvmGuestAssignment;
 use Doctrine\ORM\EntityManagerInterface;
@@ -19,13 +21,15 @@ use Doctrine\ORM\EntityManagerInterface;
  * @psalm-type CustomerGuest = array{
  *     network_boot_first: bool, guest_agent_enabled: bool,
  *     cloud_init: array{hostname: string, username: string, ssh_keys: list<string>}|null,
- *     snapshots: list<string>, backups: list<array{id: string, created_at: string|null, size: int|null}>,
+ *     static_addresses: list<string>,
+ *     reinstall_templates: list<string>,
+ *     snapshots: list<string>, has_snapshots: bool, backups: list<array{id: string, created_at: string|null, size: int|null}>,
  *     ...<array-key, mixed>
  * }
  */
 final readonly class CustomerKvmService
 {
-    public const ACTIONS = ['vm.start', 'vm.shutdown', 'vm.stop', 'vm.reboot', 'vm.cloud_init', 'vm.boot_order', 'vm.agent_status', 'snapshot.create', 'snapshot.revert', 'snapshot.delete', 'backup.create', 'backup.restore', 'backup.delete'];
+    public const ACTIONS = ['vm.start', 'vm.shutdown', 'vm.stop', 'vm.reboot', 'vm.cloud_init', 'vm.boot_order', 'vm.agent_status', 'vm.root_password', 'vm.address_switch', 'vm.reinstall', 'snapshot.create', 'snapshot.revert', 'snapshot.delete', 'backup.create', 'backup.restore', 'backup.delete'];
 
     /**
      * Symfony constructs this autowired service.
@@ -40,20 +44,51 @@ final readonly class CustomerKvmService
     public function guest(KvmGuestAssignment $assignment, User $actor): ?array
     {
         $this->assertOwner($assignment, $actor);
-        foreach ($this->kvm->inventory($assignment->getNode())['guests'] ?? [] as $row) {
+        $inventory = $this->kvm->inventory($assignment->getNode());
+        foreach ($inventory['guests'] ?? [] as $row) {
             if (($row['id'] ?? '') !== $assignment->getVmUuid() || true !== ($row['managed'] ?? false) || !empty($row['error'])) {
                 continue;
             }
             $safe = array_intersect_key($row, array_flip(['id', 'label', 'state', 'vcpus', 'memory_mib', 'disk_gib', 'console_enabled']));
             $safe['network_boot_first'] = true === ($row['network_boot_first'] ?? false);
             $safe['guest_agent_enabled'] = true === ($row['guest_agent_enabled'] ?? false);
+            $staticAddresses = [];
+            $addresses = JsonArray::orEmpty($row['static_addresses'] ?? null);
+            foreach (array_slice(array_keys($addresses), 0, 2) as $key) {
+                $fields = JsonMap::strings(JsonArray::orEmpty($addresses[$key]));
+                [$address] = explode('/', $fields['address'] ?? '', 2);
+                if (false !== filter_var($address, FILTER_VALIDATE_IP)) {
+                    $staticAddresses[] = $address;
+                }
+            }
+            $safe['static_addresses'] = $staticAddresses;
             $safe['cloud_init'] = null;
             if (is_array($row['cloud_init'] ?? null)) {
                 $ci = JsonArray::orEmpty($row['cloud_init']);
                 $fields = JsonMap::strings($ci);
                 $safe['cloud_init'] = ['hostname' => $fields['hostname'] ?? '', 'username' => $fields['username'] ?? '', 'ssh_keys' => array_values(array_filter(JsonArray::orEmpty($ci['ssh_keys'] ?? null), 'is_string'))];
             }
-            $safe['snapshots'] = array_values(array_filter(JsonArray::orEmpty($row['snapshots'] ?? null), static fn ($name): bool => is_string($name) && 1 === preg_match('/^[a-z][a-z0-9-]{0,47}$/D', $name)));
+            $snapshots = JsonArray::orEmpty($row['snapshots'] ?? null);
+            $safe['has_snapshots'] = [] !== $snapshots;
+            $safe['snapshots'] = array_values(array_filter($snapshots, static fn ($name): bool => is_string($name) && 1 === preg_match('/^[a-z][a-z0-9-]{0,47}$/D', $name)));
+            $reinstallTemplates = [];
+            if (($row['state'] ?? null) === 'shut off' && !$safe['network_boot_first'] && [] === $safe['snapshots'] && null !== $safe['cloud_init']
+                && 1 === ($assignment->getNode()->getMetadata()['kvm_managed']['reinstall_version'] ?? null)) {
+                $approved = [(string) ($row['template'] ?? '')];
+                foreach ($this->em->getRepository(ShopProduct::class)->findBy(['kind' => ShopProductKind::Kvm, 'node' => $assignment->getNode(), 'isActive' => true, 'isPublicActive' => true]) as $product) {
+                    $approved[] = (string) ($product->getProvisioningOptions()['kvm_template'] ?? '');
+                }
+                $diskBytes = (int) ($row['disk_gib'] ?? 0) * 1073741824;
+                foreach ($inventory['templates'] ?? [] as $template) {
+                    $fields = JsonMap::strings($template);
+                    $reference = ($fields['id'] ?? '').'--'.($fields['version'] ?? '');
+                    $size = self::backupSize($template['virtual_size'] ?? null);
+                    if (null !== $size && $size > 0 && $size <= $diskBytes && in_array($reference, $approved, true)) {
+                        $reinstallTemplates[] = $reference;
+                    }
+                }
+            }
+            $safe['reinstall_templates'] = $reinstallTemplates;
             $safe['backups'] = [];
             $backups = JsonArray::orEmpty($row['backups'] ?? null);
             foreach (array_keys($backups) as $index) {
@@ -104,6 +139,26 @@ final readonly class CustomerKvmService
             $payload['ssh_keys'] = $input['ssh_keys'] ?? '';
         } elseif ('vm.boot_order' === $action) {
             $payload['boot_order'] = $input['boot_order'] ?? '';
+        } elseif ('vm.root_password' === $action) {
+            if (($guest['state'] ?? '') !== 'running' || !$guest['guest_agent_enabled'] || ($input['confirm'] ?? '') !== '1') {
+                throw new \InvalidArgumentException('kvm.customer_unavailable');
+            }
+            $payload['password_hash'] = $input['password_hash'] ?? '';
+            $payload['confirm'] = '1';
+        } elseif ('vm.reinstall' === $action) {
+            $template = $input['template'] ?? '';
+            if (!in_array($template, $guest['reinstall_templates'], true) || ($input['confirm'] ?? '') !== '1') {
+                throw new \InvalidArgumentException('kvm.customer_reinstall_unavailable');
+            }
+            $payload['template'] = $template;
+            $payload['confirm'] = '1';
+        } elseif ('vm.address_switch' === $action) {
+            $address = $input['expected_address'] ?? '';
+            if (($guest['state'] ?? null) !== 'shut off' || null === $guest['cloud_init'] || $guest['network_boot_first'] || !in_array($address, $guest['static_addresses'], true) || ($input['confirm'] ?? '') !== '1') {
+                throw new \InvalidArgumentException('vm_config.address_switch_unavailable');
+            }
+            $payload['expected_address'] = $address;
+            $payload['confirm'] = '1';
         }
         if (str_starts_with($action, 'snapshot.')) {
             $payload['snapshot'] = $input['snapshot'] ?? '';
@@ -116,7 +171,7 @@ final readonly class CustomerKvmService
             if (!in_array($payload['backup_id'], array_column($guest['backups'], 'id'), true)) {
                 throw new \InvalidArgumentException('kvm.customer_backup');
             }
-            if ('backup.restore' === $action && [] !== $guest['snapshots']) {
+            if ('backup.restore' === $action && $guest['has_snapshots']) {
                 throw new \InvalidArgumentException('kvm.customer_restore_snapshots');
             }
         }
@@ -134,7 +189,7 @@ final readonly class CustomerKvmService
         });
     }
 
-    /** @return list<array{id: string, action: string, status: string, created_at: string}> */
+    /** @return list<array{id: string, action: string, status: string, created_at: string, restore_error: ?string}> */
     public function recent(KvmGuestAssignment $assignment, User $actor): array
     {
         $this->assertOwner($assignment, $actor);
@@ -146,7 +201,16 @@ final readonly class CustomerKvmService
         foreach ($rows as $job) {
             $payload = JsonMap::strings($job->getPayload());
             if (($payload['vm_id'] ?? '') === $assignment->getVmUuid() && isset($payload['action']) && in_array($payload['action'], self::ACTIONS, true)) {
-                $result[] = ['id' => $job->getId(), 'action' => $payload['action'], 'status' => $job->getStatus()->value, 'created_at' => $job->getCreatedAt()->format(DATE_ATOM)];
+                $restoreError = 'backup.restore' === $payload['action'] && AgentJobStatus::Failed === $job->getStatus()
+                    ? match ($job->getErrorText()) {
+                        'VM must be shut off for this operation' => 'kvm.customer_stopped',
+                        'delete VM snapshots before restoring a backup' => 'kvm.customer_restore_snapshots',
+                        'backup not found or invalid manifest' => 'kvm.customer_backup',
+                        'backup checksum mismatch; original VM disk retained' => 'kvm.customer_backup_checksum',
+                        default => 'kvm.customer_restore_failed',
+                    }
+                    : null;
+                $result[] = ['id' => $job->getId(), 'action' => $payload['action'], 'status' => $job->getStatus()->value, 'created_at' => $job->getCreatedAt()->format(DATE_ATOM), 'restore_error' => $restoreError];
                 if (20 === count($result)) {
                     break;
                 }

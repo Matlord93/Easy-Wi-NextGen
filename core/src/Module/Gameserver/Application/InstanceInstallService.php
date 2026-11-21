@@ -371,6 +371,7 @@ final class InstanceInstallService
             }
         }
 
+        $vars = InstanceSlotService::applyStartupVariables($instance, $vars);
         $normalized = [];
         foreach ($vars as $key => $value) {
             $normalized[] = [

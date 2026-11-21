@@ -79,7 +79,7 @@ final class AccountSecurityFlowTest extends WebTestCase
 
         $client->request('GET', '/account/security');
 
-        self::assertResponseRedirects('/login?target=%2Faccount%2Fsecurity');
+        self::assertResponseRedirects('/session-expired?target=%2Faccount%2Fsecurity', 303);
     }
 
     public function testQrRouteNeedsLoginAndReturnsImageForLoggedInUser(): void

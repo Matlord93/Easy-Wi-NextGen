@@ -73,7 +73,7 @@ final class AdminShopOffersHttpTest extends AbstractWebTestCase
         $url = '/admin/shop/products/'.$product->getId().'/variants/new';
         $view = $client->request('GET', $url);
         self::assertResponseIsSuccessful();
-        foreach (['cpu' => ['gameserver', 'kvm'], 'ram' => ['gameserver', 'kvm'], 'disk' => ['gameserver', 'kvm', 'webspace'], 'slots' => ['teamspeak3', 'teamspeak6']] as $field => $kinds) {
+        foreach (['cpu' => ['gameserver', 'kvm', 'proxmox'], 'ram' => ['gameserver', 'kvm', 'proxmox'], 'disk' => ['gameserver', 'kvm', 'proxmox', 'webspace'], 'slots' => ['gameserver', 'teamspeak3', 'teamspeak6']] as $field => $kinds) {
             self::assertCount(in_array($kind->value, $kinds, true) ? 1 : 0, $view->filterXPath('//form[@data-variant-editor]//*[@name="'.$field.'"]'));
         }
         $token = $view->filterXPath('//input[@name="_token"]')->attr('value');
@@ -91,9 +91,9 @@ final class AdminShopOffersHttpTest extends AbstractWebTestCase
         $em = self::getContainer()->get(EntityManagerInterface::class);
         $variant = $em->getRepository(ShopProductVariant::class)->findOneBy(['product' => $product->getId()]);
         self::assertSame(1500, $variant->getPriceMonthlyCents());
-        self::assertSame(in_array($kind->value, ['gameserver', 'kvm'], true) ? 4 : 2, $variant->getCpuLimit());
-        self::assertSame(in_array($kind->value, ['gameserver', 'kvm', 'webspace'], true) ? 40 : 20, $variant->getDiskLimit());
-        self::assertSame(in_array($kind->value, ['teamspeak3', 'teamspeak6'], true) ? 64 : null, $variant->getSlots());
+        self::assertSame(in_array($kind->value, ['gameserver', 'kvm', 'proxmox'], true) ? 4 : 2, $variant->getCpuLimit());
+        self::assertSame(in_array($kind->value, ['gameserver', 'kvm', 'proxmox', 'webspace'], true) ? 40 : 20, $variant->getDiskLimit());
+        self::assertSame(in_array($kind->value, ['gameserver', 'teamspeak3', 'teamspeak6'], true) ? 64 : null, $variant->getSlots());
         $id = $variant->getId();
         $editUrl = '/admin/shop/products/'.$product->getId().'/variants/'.$id.'/edit';
         $payload['_token'] = $edit->filterXPath('//input[@name="_token"]')->attr('value');

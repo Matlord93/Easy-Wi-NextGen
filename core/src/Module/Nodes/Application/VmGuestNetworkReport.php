@@ -7,14 +7,19 @@ namespace App\Module\Nodes\Application;
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\JsonMap;
 
-/** Bounded observations from the guest; never an IP allocation or host inventory. */
+/**
+ * Bounded observations from the guest.
+ * @psalm-type GuestNetwork = array{state: string, interfaces: list<array{name:string, mac:?string, addresses:list<array{family:'ipv4'|'ipv6', address:string, prefix:int}>}>, limited: bool}
+ */
 final class VmGuestNetworkReport
 {
+    /** @return GuestNetwork */
     public static function empty(string $state): array
     {
         return ['state' => $state, 'interfaces' => [], 'limited' => false];
     }
 
+    /** @return GuestNetwork */
     public static function fromQga(mixed $input): array
     {
         if (!is_array($input) || !array_is_list($input)) {
@@ -54,6 +59,7 @@ final class VmGuestNetworkReport
         return is_int($value) ? $value : null;
     }
 
+    /** @return GuestNetwork */
     public static function sanitize(mixed $input): array
     {
         if (!is_array($input)) {
@@ -96,12 +102,14 @@ final class VmGuestNetworkReport
                 $ip = JsonArray::orEmpty($addresses[$index]);
                 $strings = JsonMap::strings($ip);
                 $family = $strings['family'] ?? null;
-                $flag = match ($family) {
-                    'ipv4' => FILTER_FLAG_IPV4, 'ipv6' => FILTER_FLAG_IPV6, default => null,
-                };
+                if ('ipv4' !== $family && 'ipv6' !== $family) {
+                    $limited = true;
+                    continue;
+                }
+                $flag = 'ipv4' === $family ? FILTER_FLAG_IPV4 : FILTER_FLAG_IPV6;
                 $address = $strings['address'] ?? null;
                 $prefix = self::prefix($ip['prefix'] ?? null);
-                if (null === $flag || !is_string($address) || strlen($address) > 45 || !filter_var($address, FILTER_VALIDATE_IP, $flag) || !is_int($prefix) || $prefix < 0 || $prefix > ('ipv4' === $family ? 32 : 128)) {
+                if (!is_string($address) || strlen($address) > 45 || !filter_var($address, FILTER_VALIDATE_IP, $flag) || !is_int($prefix) || $prefix < 0 || $prefix > ('ipv4' === $family ? 32 : 128)) {
                     $limited = true;
                     continue;
                 }

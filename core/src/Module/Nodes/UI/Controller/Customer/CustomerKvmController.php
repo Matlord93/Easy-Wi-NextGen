@@ -21,6 +21,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
 
+#[\App\Module\Core\Attribute\RequiresModule('kvm')]
 #[Route('/customer/kvm')]
 final class CustomerKvmController extends AbstractController
 {
@@ -60,20 +61,56 @@ final class CustomerKvmController extends AbstractController
             throw new AccessDeniedHttpException();
         }
         $action = (string) $request->request->get('action', '');
+        if ('vm.root_password' === $action) {
+            throw new AccessDeniedHttpException();
+        }
+        $submitted = false;
         try {
             $job = $this->kvm->submit($assignment, $actor, $action, $request->request->all());
             if ($request->isXmlHttpRequest()) {
                 return new JsonResponse(['job_id' => $job->getId(), 'status' => $job->getStatus()->value], 202, ['Cache-Control' => 'private, no-store']);
             }
+            $submitted = true;
         } catch (\InvalidArgumentException $exception) {
             if ($request->isXmlHttpRequest()) {
                 return new JsonResponse(['error' => 'kvm.customer_unavailable'], 422, ['Cache-Control' => 'private, no-store']);
             }
             $this->addFlash('kvm_customer_error', str_starts_with($exception->getMessage(), 'kvm.') || str_starts_with($exception->getMessage(), 'vm_config.') ? $exception->getMessage() : 'kvm.customer_unavailable');
         }
-        $pane = str_starts_with($action, 'snapshot.') ? 'snapshots' : (str_starts_with($action, 'backup.') ? 'backups' : (in_array($action, ['vm.cloud_init', 'vm.boot_order'], true) ? 'settings' : 'overview'));
+        $pane = match (true) {
+            str_starts_with($action, 'snapshot.') => 'snapshots',
+            'backup.restore' === $action && $submitted => 'activity',
+            str_starts_with($action, 'backup.') => 'backups',
+            in_array($action, ['vm.cloud_init', 'vm.boot_order'], true) => 'settings',
+            in_array($action, ['vm.reinstall', 'vm.address_switch'], true) => 'activity',
+            default => 'overview',
+        };
 
         return $this->redirectToRoute('customer_kvm_guest', ['id' => $id, '_fragment' => 'kvm-'.$pane], 303);
+    }
+
+    #[Route('/{id<\d+>}/root-password', name: 'customer_kvm_root_password', methods: ['POST'])]
+    public function rootPassword(Request $request, int $id): Response
+    {
+        $actor = $this->actor($request);
+        $assignment = $this->assignment($id, $actor);
+        if (!$this->isCsrfTokenValid('kvm-customer-'.$id, $request->request->getString('_token')) || '1' !== $request->request->getString('confirm')) {
+            throw new AccessDeniedHttpException();
+        }
+        try {
+            $credentials = \App\Module\Nodes\Application\VmRootPassword::generate();
+            $this->kvm->submit($assignment, $actor, 'vm.root_password', [
+                'operation_id' => Uuid::v4()->toRfc4122(), 'confirm' => '1', 'password_hash' => $credentials->hash,
+            ]);
+        } catch (\InvalidArgumentException|\RuntimeException) {
+            $this->addFlash('kvm_customer_error', 'kvm.customer_unavailable');
+
+            return $this->redirectToRoute('customer_kvm_guest', ['id' => $id], 303);
+        }
+
+        return $this->render('customer/vm/root-password.html.twig', [
+            'password' => $credentials->password, 'pending' => true, 'back' => $this->generateUrl('customer_kvm_guest', ['id' => $id, '_fragment' => 'kvm-activity']), 'activeNav' => 'kvm',
+        ], new Response(headers: ['Cache-Control' => 'private, no-store', 'Referrer-Policy' => 'no-referrer']));
     }
 
     #[Route('/{id<\d+>}/jobs/{jobId}', name: 'customer_kvm_job', methods: ['GET'])]

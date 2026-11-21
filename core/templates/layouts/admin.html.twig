@@ -40,6 +40,8 @@
 {% set moduleUnifi = module_enabled('unifi') %}
 {% set moduleCms = module_enabled('cms') %}
 {% set moduleShop = module_enabled('shop') %}
+{% set moduleProxmox = module_enabled('proxmox') %}
+{% set moduleKvm = module_enabled('kvm') %}
 
 {# Profile summary for topbar #}
 {% set adminUser = current_user() %}
@@ -107,8 +109,8 @@
 
 
 {% set systemModuleItems = [
-    { key: 'proxmox', label: 'Proxmox', href: path('admin_proxmox'), iconSvg: icon.server },
-    { key: 'kvm', label: 'KVM', href: path('admin_kvm'), iconSvg: icon.server },
+    moduleProxmox ? { key: 'proxmox', label: 'Proxmox', href: path('admin_proxmox'), iconSvg: icon.server } : null,
+    moduleKvm ? { key: 'kvm', label: 'KVM', href: path('admin_kvm'), iconSvg: icon.server } : null,
     { key: 'monitoring', label: 'monitor.title'|trans({}, 'monitoring'), href: path('admin_infrastructure_monitoring'), iconSvg: icon.server },
     { key: 'firewall',         label: t('admin_nav_firewall', page_locale()),        href: path('admin_security'),              iconSvg: icon.shield },
     { key: 'port-pools',       label: t('admin_nav_server_ports', page_locale()),    href: path('admin_port_pools'),            iconSvg: icon.port },
@@ -155,7 +157,6 @@
 {% set serverItems = [
     moduleGame ? {key:'game-instances',label:'gameservers'|trans({},'panel_modules'),href:path('admin_instances'),iconSvg:icon.gamepad} : null,
     moduleTsCombined ? {key:activeNav in ['voice-workspace','ts3-servers','ts6-servers','ts-nodes'] ? activeNav : 'voice-workspace',label:'voice'|trans({},'panel_modules'),href:path('admin_voice_workspace'),iconSvg:icon.voice} : null,
-    {key:activeNav in ['proxmox','kvm'] ? activeNav : 'virtual-servers',label:'virtual_servers'|trans({},'panel_modules'),href:path(activeNav == 'kvm' ? 'admin_kvm' : 'admin_proxmox'),iconSvg:icon.server},
     moduleSinusbot ? {key:'sinusbot',label:t('admin_nav_sinusbot',page_locale()),href:path('admin_sinusbot_nodes_index'),iconSvg:icon.sinusbot} : null,
     moduleMusicbot ? {key:'musicbots',label:t('admin_nav_musicbots',page_locale()),href:path('admin_musicbot_index'),iconSvg:icon.plugins} : null
 ]|filter(v => v) %}
@@ -175,7 +176,7 @@
         {key:'tickets',label:t('admin_nav_tickets',page_locale()),href:path('admin_tickets'),iconSvg:icon.ticket},
         {key:'audit-logs',label:t('admin_nav_audit_logs',page_locale()),href:path('admin_audit_logs'),iconSvg:icon.audit}
     ])},
-    {label:t('admin_nav_group_system',page_locale()),open:false,items:systemModuleItems|filter(item => item.key not in ['proxmox','kvm'])},
+    {label:t('admin_nav_group_system',page_locale()),open:false,items:systemModuleItems},
     gameModuleItems is not empty ? {label:t('admin_nav_group_games',page_locale()),open:false,items:gameModuleItems|filter(item => item.key != 'game-instances')} : null,
     {label:t('admin_nav_group_webinterface',page_locale()),open:false,items:webinterfaceModuleItems|merge([{key:'getting-started',label:'workspace.setup'|trans({},'admin_workspace'),href:path('admin_getting_started'),iconSvg:icon.templates}])},
     shopItems is not empty ? {label:t('admin_nav_group_shop',page_locale()),open:false,items:shopItems} : null,

@@ -9,6 +9,7 @@ use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\ShopContract;
 use App\Module\Core\Domain\Enum\JobStatus;
+use App\Module\Nodes\Domain\Entity\ProxmoxTask;
 use Doctrine\ORM\EntityManagerInterface;
 
 final readonly class ContractJobs
@@ -32,6 +33,14 @@ final readonly class ContractJobs
             if (null !== $job && in_array($job->getStatus(), [JobStatus::Failed, JobStatus::Cancelled], true)) {
                 $contract->fail($stopping ? 'STOP_FAILED' : 'PROVISION_FAILED');
             }
+        } elseif ('proxmox' === $system) {
+            $task = $this->em->find(ProxmoxTask::class, (int) $id);
+            if (null !== $task && 'succeeded' === $task->getState() && 'OK' === $task->getResult()) {
+                return $task->getFinishedAt();
+            }
+            if (in_array($task?->getState(), ['failed', 'succeeded'], true)) {
+                $contract->fail($stopping ? 'STOP_FAILED' : 'PROVISION_FAILED');
+            }
         } elseif ('agent' === $system) {
             $job = $this->em->find(AgentJob::class, $id);
             if (null !== $job && AgentJobStatus::Success === $job->getStatus()) {
@@ -53,6 +62,12 @@ final readonly class ContractJobs
             return;
         }
         $cutoff = $now->modify('-'.(int) $this->settings->get()['retry_minutes'].' minutes');
+        if ('proxmox' === $contract->getStopJobSystem() && null !== $contract->getStopJobId()) {
+            $task = $this->em->find(ProxmoxTask::class, (int) $contract->getStopJobId());
+            if (null !== $task && 'failed' === $task->getState() && null !== ($finishedAt = $task->getFinishedAt()) && $finishedAt <= $cutoff) {
+                $contract->retryStop();
+            }
+        }
         if ('core' === $contract->getStopJobSystem() && null !== $contract->getStopJobId()) {
             $job = $this->em->find(Job::class, $contract->getStopJobId());
             if (null !== $job && in_array($job->getStatus(), [JobStatus::Failed, JobStatus::Cancelled], true) && $job->getUpdatedAt() <= $cutoff) {

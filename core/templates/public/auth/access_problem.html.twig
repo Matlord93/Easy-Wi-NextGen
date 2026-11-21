@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="{{ locale }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="{{ asset('ui.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/styles/portal-feedback.css') }}">
+</head>
+<body class="portal-problem-page">
+    <main class="portal-feedback-card">
+        <h1>{{ title }}</h1>
+        <p>{{ message }}</p>
+        {% if destination %}<a class="ui-button ui-button--primary" href="{{ destination }}">{{ action }}</a>{% endif %}
+        <a class="ui-button ui-button--ghost" href="{{ path('public_cms_home') }}">{{ t('portal_problem_home', locale) }}</a>
+    </main>
+</body>
+</html>

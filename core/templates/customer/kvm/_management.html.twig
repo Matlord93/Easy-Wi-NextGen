@@ -7,11 +7,41 @@
  <div class="infra-table-wrap"><table class="infra-table"><tbody>{% for snapshot in guest.snapshots %}<tr><td><strong>{{ snapshot }}</strong></td><td>{% for action in ['snapshot.revert', 'snapshot.delete'] %}{{ form.start(assignment, operationId, action) }}<input type="hidden" name="snapshot" value="{{ snapshot }}"><label class="infra-span"><span><input type="checkbox" name="confirm" value="1" required> {{ (action == 'snapshot.revert' ? 'kvm.confirm_revert' : 'kvm.confirm_delete')|trans }}</span></label><button class="ui-button ui-button--ghost" {% if not stopped or busy %}disabled{% endif %}>{{ ('kvm.action.' ~ action)|trans }}</button></form>{% endfor %}</td></tr>{% else %}<tr><td>{{ 'kvm.customer_no_snapshots'|trans }}</td></tr>{% endfor %}</tbody></table></div></div>{% else %}<p>{{ 'kvm.customer_unavailable'|trans }}</p>{% endif %}
 </section>
 <section class="infra-pane infra-card" id="kvm-backups" data-infra-pane>
- <div class="infra-card__head"><h2>{{ 'kvm.backups'|trans }}</h2></div><p>{{ 'kvm.restore_hint'|trans }}</p><p>{{ 'kvm.customer_stopped'|trans }}</p>
- {% if guest %}<div class="infra-operation-grid"><div>{{ form.start(assignment, operationId, 'backup.create') }}<button class="ui-button ui-button--primary" {% if not stopped or busy %}disabled{% endif %}>{{ 'kvm.action.backup.create'|trans }}</button></form></div>
- <div class="infra-table-wrap"><table class="infra-table"><tbody>{% for backup in guest.backups %}<tr><td>{{ backup.created_at ? backup.created_at|date('d.m.Y H:i', 'Europe/Berlin') : '—' }}<small>{{ backup.size is not null ? (backup.size / 1048576)|number_format(1) ~ ' MiB' : '—' }}</small></td><td>{% for action in ['backup.restore', 'backup.delete'] %}{{ form.start(assignment, operationId, action) }}<input type="hidden" name="backup_id" value="{{ backup.id }}"><label class="infra-span"><span><input type="checkbox" name="confirm" value="1" required> {{ (action == 'backup.restore' ? 'kvm.confirm_restore' : 'kvm.confirm_delete')|trans }}</span></label><button class="ui-button ui-button--ghost" {% if not stopped or busy or (action == 'backup.restore' and guest.snapshots is not empty) %}disabled{% endif %}>{{ ('kvm.action.' ~ action)|trans }}</button></form>{% endfor %}</td></tr>{% else %}<tr><td>{{ 'kvm.customer_no_backups'|trans }}</td></tr>{% endfor %}</tbody></table></div></div>{% else %}<p>{{ 'kvm.customer_unavailable'|trans }}</p>{% endif %}
+    <div class="infra-card__head"><h2>{{ 'kvm.backups'|trans }}</h2></div>
+    {% if guest %}
+        <p>{{ 'kvm.restore_hint'|trans }}</p>
+        {% if busy %}
+            <p role="status">{{ 'kvm.customer_pending'|trans }}</p>
+        {% elseif not stopped %}
+            <p role="status">{{ 'kvm.customer_stopped'|trans }} <a href="#kvm-overview" data-infra-shortcut>{{ 'kvm.customer_power'|trans }}</a></p>
+        {% elseif guest.has_snapshots and guest.backups is not empty %}
+            <p role="status">{{ 'kvm.customer_restore_snapshots'|trans }} <a href="#kvm-snapshots" data-infra-shortcut>{{ 'kvm.snapshots'|trans }}</a></p>
+        {% endif %}
+        <div class="infra-operation-grid">
+            <div>{{ form.start(assignment, operationId, 'backup.create') }}<button class="ui-button ui-button--primary" {% if not stopped or busy %}disabled{% endif %}>{{ 'kvm.action.backup.create'|trans }}</button></form></div>
+            <div class="infra-table-wrap"><table class="infra-table"><tbody>
+                {% for backup in guest.backups %}
+                    <tr><td>{{ backup.created_at ? backup.created_at|date('d.m.Y H:i', 'Europe/Berlin') : '—' }}
+                        <small>{{ backup.size is not null ? (backup.size / 1048576)|number_format(1) ~ ' MiB' : '—' }}</small>
+                    </td><td>
+                        {% for action in ['backup.restore', 'backup.delete'] %}
+                            {% set restore = action == 'backup.restore' %}
+                            {% set blocked = not stopped or busy or (restore and guest.has_snapshots) %}
+                            {{ form.start(assignment, operationId, action) }}
+                                <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                                <label class="infra-span"><span><input type="checkbox" name="confirm" value="1" required {{ blocked ? 'disabled' : '' }}> {{ (restore ? 'kvm.confirm_restore' : 'kvm.confirm_delete')|trans }}</span></label>
+                                <button class="ui-button ui-button--ghost" type="submit" {{ blocked ? 'disabled' : '' }}>{{ ('kvm.action.' ~ action)|trans }}</button>
+                            </form>
+                        {% endfor %}
+                    </td></tr>
+                {% else %}<tr><td>{{ 'kvm.customer_no_backups'|trans }}</td></tr>{% endfor %}
+            </tbody></table></div>
+        </div>
+    {% else %}
+        <p>{{ 'kvm.customer_unavailable'|trans }}</p>
+    {% endif %}
 </section>
 <section class="infra-pane infra-card" id="kvm-activity" data-infra-pane>
  <div class="infra-card__head"><h2>{{ 'kvm.jobs'|trans }}</h2><button type="button" class="ui-button ui-button--primary" data-kvm-refresh-ready hidden>{{ 'kvm.refresh'|trans }}</button></div>
- <div class="infra-table-wrap"><table class="infra-table"><thead><tr><th>{{ 'kvm.time'|trans }}</th><th>{{ 'kvm.action'|trans }}</th><th>{{ 'kvm.status'|trans }}</th></tr></thead><tbody>{% for job in jobs %}<tr {% if job.status in ['queued', 'running'] %}data-kvm-job="{{ path('customer_kvm_job', {id: assignment.id, jobId: job.id}) }}"{% endif %}><td>{{ job.created_at|date('d.m.Y H:i', 'Europe/Berlin') }}</td><td>{{ ('kvm.action.' ~ job.action)|trans }}</td><td>{{ ('kvm.status.' ~ job.status)|trans }}</td></tr>{% else %}<tr><td colspan="3">{{ 'kvm.no_jobs'|trans }}</td></tr>{% endfor %}</tbody></table></div><p data-kvm-poll-error hidden>{{ 'kvm.poll_error'|trans }}</p>
+ <div class="infra-table-wrap"><table class="infra-table"><thead><tr><th>{{ 'kvm.time'|trans }}</th><th>{{ 'kvm.action'|trans }}</th><th>{{ 'kvm.status'|trans }}</th></tr></thead><tbody>{% for job in jobs %}<tr {% if job.status in ['queued', 'running'] %}data-kvm-job="{{ path('customer_kvm_job', {id: assignment.id, jobId: job.id}) }}"{% endif %}><td>{{ job.created_at|date('d.m.Y H:i', 'Europe/Berlin') }}</td><td>{{ ('kvm.action.' ~ job.action)|trans }}</td><td>{{ ('kvm.status.' ~ job.status)|trans }}{% if job.restore_error %}<p>{{ job.restore_error|trans }}</p>{% endif %}</td></tr>{% else %}<tr><td colspan="3">{{ 'kvm.no_jobs'|trans }}</td></tr>{% endfor %}</tbody></table></div><p data-kvm-poll-error hidden>{{ 'kvm.poll_error'|trans }}</p>
 </section>

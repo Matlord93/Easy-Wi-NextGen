@@ -23,6 +23,8 @@ use App\Module\Core\Domain\Entity\Ts6VirtualServer;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\ShopProductKind;
+use App\Module\Nodes\Application\Proxmox\ProxmoxRentalLifecycle;
+use App\Module\Nodes\Domain\Entity\ProxmoxTask;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,7 +32,7 @@ use Symfony\Component\Uid\Uuid;
 
 final readonly class RentalCleanup
 {
-    public function __construct(private EntityManagerInterface $em, private RentalSettings $settings, private RentalCapacity $capacity, private RentalNotices $notices, private AgentJobDispatcher $dispatcher, private SecretsCryptoInterface $crypto, private AuditLoggerInterface $audit, private BackupLeaseStoreInterface $plans, private WritableBackupPlanStoreInterface $writablePlans, private BackupRetentionRunner $retention, private BackupArchiveInventory $inventory, private RentalBackupCleanup $legacyBackups)
+    public function __construct(private EntityManagerInterface $em, private RentalSettings $settings, private RentalCapacity $capacity, private RentalNotices $notices, private AgentJobDispatcher $dispatcher, private SecretsCryptoInterface $crypto, private AuditLoggerInterface $audit, private BackupLeaseStoreInterface $plans, private WritableBackupPlanStoreInterface $writablePlans, private BackupRetentionRunner $retention, private BackupArchiveInventory $inventory, private RentalBackupCleanup $legacyBackups, private ProxmoxContractProvider $proxmox, private ProxmoxRentalLifecycle $proxmoxLifecycle)
     {
     }
 
@@ -81,6 +83,9 @@ final readonly class RentalCleanup
                     if (null === $contract->getPurgedAt()) {
                         if ([] === $contract->getCleanupJobs()) {
                             $contract->cleanupJobs($this->queue($contract, false));
+                        } elseif (ShopProductKind::Proxmox === $contract->getKind() && null === $contract->getError()) {
+                            // An explicit operator retry clears the previous error. Uncertain tasks remain locked.
+                            $contract->cleanupJobs($this->queue($contract, false));
                         }
                         if ($this->completed($contract->getCleanupJobs())) {
                             $contract->purged($now);
@@ -109,6 +114,14 @@ final readonly class RentalCleanup
     private function queue(ShopContract $contract, bool $backups): array
     {
         $kind = $contract->getKind();
+        if (ShopProductKind::Proxmox === $kind) {
+            if ($backups || null === $contract->getJobId()) {
+                return [];
+            }
+            $task = $this->proxmoxLifecycle->queue($this->proxmox->installation($contract), 'rental-delete');
+
+            return [['system' => 'proxmox', 'id' => (string) $task->getId()]];
+        }
         if (ShopProductKind::Kvm === $kind) {
             $node = $this->em->find(Agent::class, (string) $contract->getConfiguration()['node_id']);
             if (null === $node || ($node->getMetadata()['kvm_managed']['retirement_version'] ?? null) !== 1) {
@@ -169,6 +182,14 @@ final readonly class RentalCleanup
                 if (JobStatus::Failed === $status || JobStatus::Cancelled === $status) {
                     throw new \DomainException('CLEANUP_JOB_FAILED');
                 } if (JobStatus::Succeeded !== $status) {
+                    return false;
+                }
+            } elseif ('proxmox' === $job['system']) {
+                $task = $this->em->find(ProxmoxTask::class, (int) $job['id']);
+                if (in_array($task?->getState(), ['failed', 'uncertain'], true)) {
+                    throw new \DomainException('PROXMOX_CLEANUP_JOB_REQUIRES_REVIEW');
+                }
+                if (null === $task || 'succeeded' !== $task->getState() || 'OK' !== $task->getResult()) {
                     return false;
                 }
             } else {

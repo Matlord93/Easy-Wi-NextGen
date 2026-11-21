@@ -34,15 +34,16 @@ final readonly class ShopVariantEditor
             throw new \InvalidArgumentException('Der Tarif überschreitet das unterstützte Maximum.');
         }
         $kind = $product->getKind()->value;
-        $compute = in_array($kind, ['gameserver', 'kvm'], true);
+        $virtualMachine = $product->getKind()->isVirtualMachine();
+        $compute = 'gameserver' === $kind || $virtualMachine;
         $cpu = $compute || $legacyResources ? $this->number($input, 'cpu') : ($variant?->getCpuLimit() ?? $product->getCpuLimit());
         $ram = $compute || $legacyResources ? $this->number($input, 'ram') : ($variant?->getRamLimit() ?? $product->getRamLimit());
         $disk = $compute || 'webspace' === $kind || $legacyResources ? $this->number($input, 'disk') : ($variant?->getDiskLimit() ?? $product->getDiskLimit());
-        if ('kvm' === $kind && ($cpu > 256 || $ram > 1024 || $disk > 2048)) {
-            throw new \InvalidArgumentException('KVM-Varianten unterstützen höchstens 256 CPU-Kerne, 1.024 GiB RAM und 2.048 GiB Speicher.');
+        if ($virtualMachine && ($cpu > 256 || $ram > 1024 || $disk > 2048)) {
+            throw new \InvalidArgumentException('VM-Varianten unterstützen höchstens 256 CPU-Kerne, 1.024 GiB RAM und 2.048 GiB Speicher.');
         }
         $slots = $variant?->getSlots();
-        if (in_array($kind, ['teamspeak3', 'teamspeak6'], true) || $legacyResources) {
+        if (in_array($kind, ['gameserver', 'teamspeak3', 'teamspeak6'], true) || $legacyResources) {
             $slots = '' === ($input['slots'] ?? '') ? null : $this->number($input, 'slots');
         }
         $active = filter_var($input['active'] ?? '0', FILTER_VALIDATE_BOOLEAN);

@@ -6,10 +6,15 @@ namespace App\Tests\Controller;
 
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
+use App\Module\Core\Application\AgentSignatureVerifier;
+use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\AuditLog;
+use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Enum\JobStatus;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\WithEnvironmentVariable;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Component\Uid\Uuid;
 
@@ -30,6 +35,84 @@ final class KvmHttpTest extends AbstractWebTestCase
         $em->persist($node);
         $em->flush();
         self::ensureKernelShutdown();
+    }
+
+    public function testKvmCanBeDisabledIndependentlyThroughModuleSettings(): void
+    {
+        $client = $this->client();
+        $crawler = $client->request('GET', '/admin/modules');
+        self::assertResponseIsSuccessful();
+        $token = $crawler->filterXPath('//form[@action="/admin/modules/kvm/toggle"]//input[@name="_token"]')->attr('value');
+        $client->request('POST', '/admin/modules/kvm/toggle', ['_token' => $token, 'enabled' => '0']);
+        self::assertResponseStatusCodeSame(302);
+        try {
+            $client->request('GET', '/admin/kvm');
+            self::assertResponseStatusCodeSame(404);
+            $client->request('GET', '/admin/proxmox');
+            self::assertResponseIsSuccessful();
+        } finally {
+            $client->request('POST', '/admin/modules/kvm/toggle', ['_token' => $token, 'enabled' => '1']);
+        }
+        $client->request('GET', '/admin/kvm');
+        self::assertResponseIsSuccessful();
+    }
+
+    #[WithEnvironmentVariable('APP_ENCRYPTION_KEYS', 'v1:dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHQ=')]
+    #[WithEnvironmentVariable('ACTIVE_ENCRYPTION_KEY_ID', 'v1')]
+    public function testHostSetupRequiresAssignedRoleAndConfirmation(): void
+    {
+        $client = $this->client();
+        $body = $this->body($client, 'host.setup');
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $body + ['confirm' => '1']);
+        self::assertResponseStatusCodeSame(422);
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $node = $em->find(Agent::class, self::NODE);
+        self::assertNotNull($node);
+        $metadata = $node->getMetadata();
+        $metadata['kvm_managed']['host_setup_version'] = 1;
+        $node->setMetadata($metadata);
+        $em->flush();
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $body + ['confirm' => '1']);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('kvm.role_required', json_decode($client->getResponse()->getContent(), true)['error']);
+        self::assertSame(0, $this->countJobs());
+        $rolesUrl = '/admin/nodes/'.self::NODE.'/roles';
+        $view = $client->request('GET', $rolesUrl);
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $view->filterXPath('//input[@name="roles[]" and @value="KVM" and not(@checked)]'));
+        $token = $view->filterXPath('//form[@action="'.$rolesUrl.'"]//input[@name="_token"]')->attr('value');
+        $client->request('POST', $rolesUrl, ['roles' => ['KVM']]);
+        self::assertResponseStatusCodeSame(403);
+        $client->request('POST', $rolesUrl, ['roles' => ['KVM'], '_token' => $token]);
+        self::assertResponseIsSuccessful();
+        self::assertSame(['KVM'], $em->find(Agent::class, self::NODE)->getRoles());
+        $roleJobs = array_filter($em->getRepository(Job::class)->findBy(['type' => 'role.ensure_base']), static fn (Job $job): bool => ($job->getPayload()['agent_id'] ?? null) === self::NODE);
+        self::assertCount(1, $roleJobs);
+        self::assertSame('KVM', array_values($roleJobs)[0]->getPayload()['role']);
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $body);
+        self::assertResponseStatusCodeSame(422);
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $body + ['confirm' => '1', 'packages' => 'untrusted']);
+        self::assertResponseStatusCodeSame(202);
+        self::assertSame(['action' => 'host.setup', 'operation_id' => $body['operation_id'], 'confirm' => '1', 'role' => 'KVM'], $this->latest()->getPayload());
+
+        $secret = 'kvm-test-secret-only';
+        $node = $em->find(Agent::class, self::NODE);
+        $node->setSecretPayload(self::getContainer()->get(EncryptionServiceInterface::class)->encrypt($secret));
+        $em->flush();
+        $jobId = $this->latest()->getId();
+        $client->request('POST', $rolesUrl, ['_token' => $token]);
+        self::assertResponseIsSuccessful();
+        self::assertSame([], $em->find(Agent::class, self::NODE)->getRoles());
+        $start = '/agent/'.self::NODE.'/jobs/'.$jobId.'/start';
+        $client->request('POST', $start, server: $this->agentHeaders($secret, 'POST', $start));
+        self::assertResponseStatusCodeSame(403);
+        self::assertSame('kvm_role_required', json_decode($client->getResponse()->getContent(), true)['error']);
+        self::assertSame(AgentJobStatus::Failed, $em->find(AgentJob::class, $jobId)->getStatus());
+
+        $client->request('GET', '/agent/jobs', server: $this->agentHeaders($secret, 'GET', '/agent/jobs'));
+        self::assertResponseIsSuccessful();
+        self::assertSame([], json_decode($client->getResponse()->getContent(), true)['jobs']);
+        self::assertSame(JobStatus::Cancelled, $em->find(Job::class, array_values($roleJobs)[0]->getId())->getStatus());
     }
 
     public function testDiskExpansionRequiresCapabilityAndDispatchesOnlyApprovedFields(): void
@@ -258,6 +341,60 @@ final class KvmHttpTest extends AbstractWebTestCase
         self::assertIsArray($payload['ssh_keys']);
         self::assertArrayNotHasKey('disk_path', $payload);
         self::assertArrayNotHasKey('user_data', $payload);
+    }
+
+    public function testStaticAddressPoolsRequireAgentSupportAndAppearInVmCreation(): void
+    {
+        $client = $this->client();
+        $body = $this->body($client, 'host.address_pool');
+        $pool = ['network_type' => 'network', 'network' => 'easywi-guests', 'family' => 6, 'first' => '2001:db8::10', 'last' => '2001:db8::19', 'gateway' => 'fe80::1', 'dns' => '2001:db8::1', 'prefix' => 64];
+        $fields = ['network_choice' => 'network:easywi-guests'] + array_diff_key($pool, array_flip(['network_type', 'network']));
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $body + $fields);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(0, $this->countJobs());
+
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $node = $em->find(Agent::class, self::NODE);
+        self::assertNotNull($node);
+        $node->recordHeartbeat([], 'test', '127.0.0.1', [], ['kvm_managed' => ['version' => 1, 'supported' => true, 'acceleration' => true, 'address_pool_version' => 1]], Agent::STATUS_ACTIVE);
+        $em->flush();
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $body + ['dns' => '192.0.2.1'] + $fields);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(0, $this->countJobs());
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $body + $fields + ['raw_network_config' => 'unused']);
+        self::assertResponseStatusCodeSame(202);
+        $job = $this->latest();
+        self::assertEquals(['action' => 'host.address_pool', 'operation_id' => $body['operation_id']] + $pool, $job->getPayload());
+        $this->finish($job, ['inventory' => $this->inventory() + ['address_pools' => [$pool]]]);
+        $crawler = $client->request('GET', $this->nodeUrl());
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filterXPath('//*[@data-kvm-address-pools]//input[@name="remove"]'));
+        self::assertCount(1, $crawler->filterXPath('//select[@name="address_mode"]/option[@value="pool"]'));
+
+        $create = $this->body($client, 'vm.create') + ['label' => 'Static VM', 'template' => 'ubuntu--24.04-v1', 'hostname' => 'test-vm', 'username' => 'easywi', 'network_choice' => 'network:easywi-guests', 'disk_gib' => 20, 'vcpus' => 2, 'memory_mib' => 2048, 'ssh_keys' => 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakePublicKeyOnly', 'address_mode' => 'pool'];
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $create);
+        self::assertResponseStatusCodeSame(202);
+        $result = json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        $createJob = $em->find(AgentJob::class, $result['job_id']);
+        self::assertNotNull($createJob);
+        self::assertSame('pool', $createJob->getPayload()['address_mode'] ?? null);
+        self::assertArrayNotHasKey('gateway', $createJob->getPayload());
+    }
+
+    /** @return array<string, string> */
+    private function agentHeaders(string $secret, string $method, string $path): array
+    {
+        $nonce = bin2hex(random_bytes(16));
+        $now = time();
+        $timestamp = gmdate(DATE_RFC3339, $now);
+        $signature = hash_hmac('sha256', AgentSignatureVerifier::buildSignaturePayload(self::NODE, $method, $path, $timestamp, $nonce, ''), $secret);
+        $base64 = static fn (string $data): string => rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+        $container = self::getContainer();
+        $claims = ['iss' => $container->getParameter('app.agent_jwt_issuer'), 'aud' => $container->getParameter('app.agent_jwt_audience'), 'sub' => self::NODE, 'iat' => $now, 'exp' => $now + 60, 'jti' => $nonce];
+        $token = $base64('{"alg":"HS256"}').'.'.$base64(json_encode($claims, JSON_THROW_ON_ERROR));
+        $token .= '.'.$base64(hash_hmac('sha256', $token, $secret, true));
+
+        return ['HTTP_X_AGENT_ID' => self::NODE, 'HTTP_X_TIMESTAMP' => $timestamp, 'HTTP_X_NONCE' => $nonce, 'HTTP_X_SIGNATURE' => $signature, 'HTTP_AUTHORIZATION' => 'Bearer '.$token];
     }
 
     private function client(bool $admin = true): KernelBrowser

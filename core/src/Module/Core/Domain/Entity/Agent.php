@@ -330,6 +330,11 @@ class Agent
         return $this->roles;
     }
 
+    public function hasKvmRole(): bool
+    {
+        return array_any($this->roles, static fn (string $role): bool => 0 === strcasecmp($role, 'KVM'));
+    }
+
     /**
      * @param string[] $roles
      */

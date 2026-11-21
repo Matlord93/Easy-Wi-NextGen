@@ -30,6 +30,7 @@ final readonly class VmConsoleBroker
 {
     public function __construct(
         private EntityManagerInterface $em,
+        private \App\Module\Core\Application\ModuleRegistry $modules,
         private ProxmoxManager $proxmox,
         private ProxmoxApiClient $api,
         private KvmPanelService $kvm,
@@ -112,6 +113,9 @@ final readonly class VmConsoleBroker
 
     public function assignment(string $provider, int $id, User $actor): KvmGuestAssignment|ProxmoxGuestAssignment
     {
+        if (!$this->modules->isEnabled($provider)) {
+            throw new NotFoundHttpException();
+        }
         $class = match ($provider) {
             'proxmox' => ProxmoxGuestAssignment::class, 'kvm' => KvmGuestAssignment::class, default => throw new NotFoundHttpException()
         };

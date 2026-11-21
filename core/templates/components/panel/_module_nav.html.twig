@@ -20,7 +20,7 @@
 {% elseif activeNav in ['schedules','jobs'] %}
     {% set moduleLinks = [{href:path('admin_schedules'),label:'workspace_scheduled_tasks',active:activeNav == 'schedules'},{href:path('admin_jobs'),label:'workspace_job_queue',active:activeNav == 'jobs'}] %}
 {% elseif activeNav in ['proxmox','kvm'] %}
-    {% set moduleLinks = [{href:path('admin_proxmox'),label:'Proxmox',literal:true,active:activeNav == 'proxmox'},{href:path('admin_kvm'),label:'KVM',literal:true,active:activeNav == 'kvm'}] %}
+    {% set moduleLinks = [module_enabled('proxmox') ? {href:path('admin_proxmox'),label:'Proxmox',literal:true,active:activeNav == 'proxmox'} : null, module_enabled('kvm') ? {href:path('admin_kvm'),label:'KVM',literal:true,active:activeNav == 'kvm'} : null]|filter(v => v) %}
 {% elseif activeNav in ['mail-system','mailboxes','mail-aliases','mail-health','mail-matrix','mail-servers'] %}
     {% set moduleLinks = [{href:path('admin_mailboxes'),label:'Postfächer',literal:true,active:activeNav == 'mailboxes'},{href:path('admin_mail_aliases'),label:'Aliase',literal:true,active:activeNav == 'mail-aliases'},{href:path('admin_mail_servers'),label:'mail_servers',active:activeNav == 'mail-servers'},{href:path('admin_mail_system'),label:'configuration',active:activeNav == 'mail-system'},{href:path('admin_mail_health'),label:'Status',literal:true,active:activeNav == 'mail-health'},{href:path('admin_mail_matrix'),label:'Mail-Matrix',literal:true,active:activeNav == 'mail-matrix'}] %}
 {% endif %}

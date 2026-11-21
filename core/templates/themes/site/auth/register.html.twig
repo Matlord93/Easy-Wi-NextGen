@@ -2,28 +2,7 @@
 {% set cms_pages = [] %}
 {% block content %}
 <section class="cms-container cms-auth auth-box">
-  <h1>{{ t('theme_register_heading', page_locale()) }}</h1>
-  {% for error in errors %}<p class="error">{{ error }}</p>{% endfor %}
-
-  {% if not registrationAllowed %}
-    <p class="error">{{ t('theme_register_disabled', page_locale()) }}</p>
-  {% else %}
-    {% if registered %}<p class="success">{{ t('theme_register_success', page_locale()) }}</p>{% endif %}
-    <form method="post" action="/register">
-      <input type="hidden" name="_token" value="{{ csrf_token('public_register') }}">
-      <input type="text" name="website" class="hidden" tabindex="-1" autocomplete="off">
-      <input type="hidden" name="pow_solution" id="pow_solution">
-      <input aria-label="{{ t('email_address',page_locale()) }}" name="email" type="email" value="{{ form.email }}" placeholder="E-Mail" required>
-      <input aria-label="{{ t('password',page_locale()) }}" name="password" type="password" placeholder="{{ t('theme_register_password_placeholder', page_locale()) }}" required>
-      <input aria-label="{{ t('theme_register_password_repeat_placeholder',page_locale()) }}" name="password_confirm" type="password" placeholder="{{ t('theme_register_password_repeat_placeholder', page_locale()) }}" required>
-      {% if captcha_question %}
-        <label>{{ captcha_question }} <input name="captcha_answer" required></label>
-      {% endif %}
-      <button type="submit">{{ t('theme_register_submit_btn', page_locale()) }}</button>
-    </form>
-  {% endif %}
+  <h1>{{ t(customer_account ? 'registration_customer_heading' : 'create_account_title', page_locale()) }}</h1>
+  {% include 'public/auth/_registration_form.html.twig' %}
 </section>
-<script>
-(async()=>{const nonce="{{ anti_abuse_nonce|default('') }}";const difficulty={{ pow_difficulty|default(4) }};const target="0".repeat(difficulty);const out=document.getElementById("pow_solution");if(!nonce||!out||!window.crypto?.subtle){return;}const enc=new TextEncoder();for(let i=0;i<2000000;i++){const data=enc.encode(nonce+String(i));const h=await crypto.subtle.digest("SHA-256",data);const hex=[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join("");if(hex.startsWith(target)){out.value=String(i);break;}}})();
-</script>
 {% endblock %}

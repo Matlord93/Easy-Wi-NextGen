@@ -62,7 +62,7 @@ final readonly class CustomerShopController
         return new Response($this->twig->render('customer/shop/index.html.twig', ['activeNav' => 'shop', 'categories' => $this->categories->findBy(['siteId' => $site->getId(), 'active' => true], ['sortOrder' => 'ASC', 'name' => 'ASC']), 'products' => $products, 'product_page' => $productPage, 'more_products' => $moreProducts, 'rentals' => $this->rentals->findBy(['customer' => $customer], ['expiresAt' => 'ASC'], 100), 'orders' => $this->orders->findBy(['customer' => $customer], ['id' => 'DESC'], 25, ($page - 1) * 25), 'page' => $page, 'nonce' => bin2hex(random_bytes(16)), 'currency' => $this->payments->publicSettings()['currency']]));
     }
 
-    #[Route('/checkout', name: 'customer_shop_checkout', methods: ['GET'])]
+    #[Route('/checkout', name: 'customer_shop_checkout', methods: ['GET', 'POST'])]
     public function checkout(Request $request): Response
     {
         $this->customer($request);

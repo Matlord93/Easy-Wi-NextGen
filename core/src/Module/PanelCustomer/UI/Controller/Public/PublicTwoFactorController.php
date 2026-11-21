@@ -137,7 +137,7 @@ final class PublicTwoFactorController
         }
 
         $user = $this->users->find($pendingUserId);
-        if (!$user instanceof User || !$user->isTotpEnabled()) {
+        if (!$user instanceof User || $user->isEmailVerificationPending() || !$user->isTotpEnabled()) {
             $this->clearPending($session);
             return null;
         }

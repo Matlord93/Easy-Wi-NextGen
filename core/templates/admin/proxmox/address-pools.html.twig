@@ -1,0 +1,47 @@
+{% extends 'admin/base.html.twig' %}
+{% trans_default_domain 'proxmox' %}
+{% set pageTitle = 'pve.ip_pools'|trans %}
+{% block content %}
+<div class="infra-page">
+    <nav class="infra-breadcrumb"><a href="{{ path('admin_proxmox_cluster', {id:cluster.id}) }}">{{ cluster.name }}</a><span>/</span><span>{{ node }}</span></nav>
+    <header class="infra-hero"><div><h1>{{ 'pve.ip_pools'|trans }}</h1><p>{{ 'pve.ip_pool_exclusive_hint'|trans }}</p></div></header>
+    {% include 'proxmox/_alerts.html.twig' %}
+    <datalist id="pve-pool-bridges">{% for bridge in bridges %}<option value="{{ bridge.iface }}">{% endfor %}</datalist>
+    <div class="infra-grid infra-grid--two">
+        {% for family in [4, 6] %}
+            {% set pool = pools[family]|default(null) %}
+            {% set example = family == 4 ? ['192.0.2.10', '192.0.2.30', '24', '192.0.2.1'] : ['2001:db8::10', '2001:db8::30', '64', 'fe80::1'] %}
+            <section class="infra-card">
+                <div class="infra-card__head"><h2>IPv{{ family }}</h2></div>
+                <form method="post" class="infra-form">
+                    <input type="hidden" name="_token" value="{{ csrf_token('proxmox-address-pool-' ~ cluster.id ~ '-' ~ node ~ '-' ~ family) }}">
+                    <input type="hidden" name="family" value="{{ family }}">
+                    <label>{{ 'pve.ip_pool_first'|trans }}<input class="form-input" name="first" value="{{ pool.first|default('') }}" placeholder="{{ example[0] }}" maxlength="45" required></label>
+                    <label>{{ 'pve.ip_pool_last'|trans }}<input class="form-input" name="last" value="{{ pool.last|default('') }}" placeholder="{{ example[1] }}" maxlength="45" required></label>
+                    <label>{{ 'pve.ip_pool_prefix'|trans }}<input class="form-input" type="number" name="prefix" min="1" max="{{ family == 4 ? 30 : 127 }}" value="{{ pool.prefix|default('') }}" placeholder="{{ example[2] }}" required></label>
+                    <label>{{ 'pve.ip_pool_gateway'|trans }}<input class="form-input" name="gateway" value="{{ pool.gateway|default('') }}" placeholder="{{ example[3] }}" maxlength="45" required></label>
+                    <label>{{ 'pve.bridge'|trans }}<input class="form-input" name="bridge" list="pve-pool-bridges" value="{{ pool.bridge|default('') }}" placeholder="vmbr0" maxlength="32" required></label>
+                    <label>{{ 'pve.ip_pool_vlan'|trans }}<input class="form-input" type="number" name="vlan" min="1" max="4094" value="{{ pool.vlan|default('') }}"></label>
+                    <label><input type="checkbox" name="enabled" value="1" {% if pool.enabled|default(false) %}checked{% endif %}> {{ 'pve.ip_pool_enabled'|trans }}</label>
+                    <button class="ui-button ui-button--primary">{{ 'pve.ip_pool_save'|trans }}</button>
+                </form>
+            </section>
+        {% endfor %}
+    </div>
+    <section class="infra-card">
+        <div class="infra-card__head"><h2>{{ 'pve.ip_leases'|trans }}</h2></div>
+        <div style="overflow-x:auto"><table class="ui-table">
+            <thead><tr><th>{{ 'pve.ip_address'|trans }}</th><th>{{ 'pve.vm_id'|trans }}</th><th>{{ 'pve.state'|trans }}</th><th>{{ 'pve.action'|trans }}</th></tr></thead>
+            <tbody>{% for lease in leases %}
+                <tr><td>{{ lease.address }}/{{ lease.prefix }}</td><td>{{ lease.task.targetVmId }}</td><td>{{ ('pve.state.' ~ lease.task.state)|trans }}</td>
+                    <td>{% if not lease.task.active %}<form method="post" action="{{ path('admin_proxmox_release_addresses', {id:cluster.id, taskId:lease.task.id}) }}" class="infra-form">
+                        <input type="hidden" name="_token" value="{{ csrf_token('proxmox-release-addresses-' ~ cluster.id ~ '-' ~ lease.task.id) }}">
+                        <label><input type="checkbox" name="confirm" value="1" required> {{ 'pve.ip_lease_confirm'|trans }}</label>
+                        <button class="ui-button ui-button--ghost">{{ 'pve.ip_lease_release'|trans }}</button>
+                    </form>{% endif %}</td></tr>
+            {% else %}<tr><td colspan="4">{{ 'pve.ip_leases_empty'|trans }}</td></tr>{% endfor %}</tbody>
+        </table></div>
+        {% if next %}<a class="ui-button ui-button--ghost" href="{{ path('admin_proxmox_address_pools', {id:cluster.id, node:node, after:next}) }}">{{ 'pve.ip_leases_next'|trans }}</a>{% endif %}
+    </section>
+</div>
+{% endblock %}

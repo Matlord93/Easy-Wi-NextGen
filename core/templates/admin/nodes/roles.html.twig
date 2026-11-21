@@ -70,6 +70,7 @@
       </div>
       <div class="ng-data-card__body">
         <form method="post" action="/admin/nodes/{{ selectedNode.id }}/roles">
+          <input type="hidden" name="_token" value="{{ csrf_token('node-roles-' ~ selectedNode.id) }}">
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
             {% for roleOption in roleOptions %}
               {% set roleKey = roleOption|lower %}
@@ -150,7 +151,8 @@
           'DB': 'db',
           'TS3': 'ts3',
           'TS6': 'ts6',
-          'Sinusbot': 'sinusbot'
+          'Sinusbot': 'sinusbot',
+          'KVM': 'kvm'
         } %}
           <div>
             <p style="font-weight:600;font-size:13px;color:var(--ng-text);margin-bottom:2px;">{{ roleName }}</p>

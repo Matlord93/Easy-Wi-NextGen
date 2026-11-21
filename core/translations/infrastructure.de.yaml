@@ -70,3 +70,5 @@ infra.disk_measured_scope: "Belegung der erfassten Dateisysteme (Teilwert)"
 infra.disk_loading: "Dateisystem-Belegung wird geladen …"
 infra.disk_unavailable_short: "Keine Gast-Messung verfügbar"
 infra.disk_agent_required: "Gast-Belegung nicht verfügbar. Benötigt eine laufende VM mit installiertem und aktiviertem QEMU Guest Agent. Die zugewiesene Kapazität steht unter Übersicht."
+
+infra.access: "Zugang"

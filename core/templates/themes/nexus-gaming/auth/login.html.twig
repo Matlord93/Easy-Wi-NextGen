@@ -30,7 +30,8 @@
             <div class="ng-alert ng-alert--danger">{{ error }}</div>
         {% endfor %}
 
-        <form method="post" action="/login" class="ng-auth-form">
+        {% include 'public/auth/_login_feedback.html.twig' %}
+    <form method="post" action="/login" class="ng-auth-form">
             <input type="hidden" name="target" value="{{ loginTarget|default('') }}">
 
             <div class="ng-field">
@@ -57,7 +58,7 @@
         {% if registrationAllowed|default(false) %}
             <p class="ng-auth-footer">
                 {{ t('theme_login_no_account', page_locale()) }}
-                <a href="/register" class="ng-link">{{ t('theme_login_register_link', page_locale()) }}</a>
+                <a href="{{ path('public_register', registrationTarget|default(null) ? {target: registrationTarget} : {}) }}" class="ng-link">{{ t('theme_login_register_link', page_locale()) }}</a>
             </p>
         {% else %}
             <p class="ng-auth-footer ng-auth-footer--muted">{{ t('theme_login_registration_disabled', page_locale()) }}</p>

@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\ModuleSetting;
+use App\Module\Core\Domain\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class AdminWorkspaceHttpTest extends AbstractWebTestCase
 {
@@ -42,6 +43,53 @@ final class AdminWorkspaceHttpTest extends AbstractWebTestCase
         }
         self::assertStringNotContainsString('class="aw-context"', $html);
         self::assertStringContainsString('panel-theme.js', $html);
+    }
+
+    public static function virtualizationModules(): iterable
+    {
+        yield 'both enabled' => [true, true];
+        yield 'only Proxmox enabled' => [true, false];
+        yield 'only KVM enabled' => [false, true];
+        yield 'both disabled' => [false, false];
+    }
+
+    #[DataProvider('virtualizationModules')]
+    public function testVirtualizationLinksFollowTheirOwnModuleSettings(bool $proxmox, bool $kvm): void
+    {
+        $this->seedSite();
+        $client = static::createClient();
+        $this->loginAsRole($client, 'admin');
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $previous = [];
+        foreach (['proxmox' => $proxmox, 'kvm' => $kvm] as $key => $enabled) {
+            $setting = $em->find(ModuleSetting::class, $key);
+            $previous[$key] = $setting?->isEnabled();
+            $setting ??= new ModuleSetting($key, '1.0.0', $enabled);
+            $setting->setEnabled($enabled);
+            $em->persist($setting);
+        }
+        $em->flush();
+
+        try {
+            $page = $client->request('GET', '/admin/modules');
+            self::assertResponseIsSuccessful();
+            $systemMenu = '//aside//details[.//a[@href="/admin/monitoring"]]';
+            self::assertCount(1, $page->filterXPath($systemMenu));
+            self::assertCount((int) $proxmox, $page->filterXPath($systemMenu.'//a[@href="/admin/proxmox" and normalize-space(.)="Proxmox"]'));
+            self::assertCount((int) $kvm, $page->filterXPath($systemMenu.'//a[@href="/admin/kvm" and normalize-space(.)="KVM"]'));
+            self::assertCount((int) $proxmox + (int) $kvm, $page->filterXPath('//aside//a[@href="/admin/proxmox" or @href="/admin/kvm"]'));
+        } finally {
+            $em = self::getContainer()->get(EntityManagerInterface::class);
+            foreach ($previous as $key => $enabled) {
+                $setting = $em->getReference(ModuleSetting::class, $key);
+                if (null === $enabled) {
+                    $em->remove($setting);
+                } else {
+                    $setting->setEnabled($enabled);
+                }
+            }
+            $em->flush();
+        }
     }
 
     public function testExistingAdminFormsKeepTheirRoutesAndFields(): void

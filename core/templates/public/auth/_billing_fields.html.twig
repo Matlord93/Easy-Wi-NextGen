@@ -1,0 +1,19 @@
+<fieldset class="portal-billing-fields">
+    <legend>{{ t('registration_customer_intro', page_locale()) }}</legend>
+    {% for name, autocomplete in {'firstname': 'given-name', 'lastname': 'family-name', 'address': 'street-address', 'postal': 'postal-code', 'city': 'address-level2'} %}
+        <label>{{ t('registration_' ~ name, page_locale()) }}
+            <input class="form-input ng-input" name="{{ name }}" type="text" value="{{ billing[name] }}" autocomplete="{{ autocomplete }}" maxlength="{{ billing_lengths[name] }}" required>
+        </label>
+    {% endfor %}
+    <label>{{ t('registration_country', page_locale()) }}
+        <select class="form-input ng-input" name="country" autocomplete="country" required>
+            <option value="">{{ t('registration_select_country', page_locale()) }}</option>
+            {% for code, label in billing_countries %}<option value="{{ code }}"{% if billing.country == code %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </label>
+    {% for name, autocomplete in {'company': 'organization', 'vat_id': 'off', 'phone': 'tel'} %}
+        <label>{{ t('registration_' ~ name, page_locale()) }}
+            <input class="form-input ng-input" name="{{ name }}" type="{{ name == 'phone' ? 'tel' : 'text' }}" value="{{ billing[name] }}" autocomplete="{{ autocomplete }}" maxlength="{{ billing_lengths[name] }}">
+        </label>
+    {% endfor %}
+</fieldset>

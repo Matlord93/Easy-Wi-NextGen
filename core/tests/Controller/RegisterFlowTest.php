@@ -45,10 +45,13 @@ final class RegisterFlowTest extends WebTestCase
         self::getContainer()->get(AppSettingsService::class)->updateSettings([
             AppSettingsService::KEY_REGISTRATION_ENABLED => true,
             AppSettingsService::KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION => false,
+            AppSettingsService::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION => true,
             AppSettingsService::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS => 1,
         ]);
 
-        $client->request('GET', '/register');
+        $page = $client->request('GET', '/register');
+        $question = $page->filterXPath('//label[input[@name="captcha_answer"]]')->text();
+        self::assertSame(1, preg_match('/([1-9]) \+ ([1-9]) = \?/', $question, $parts));
         sleep(1);
 
         $csrf = self::getContainer()->get(CsrfTokenManagerInterface::class)->getToken('public_register')->getValue();
@@ -60,6 +63,8 @@ final class RegisterFlowTest extends WebTestCase
             'password' => 'P@ssw0rd!',
             'password_confirm' => 'P@ssw0rd!',
             'website' => '',
+            'captcha_answer' => (string) ((int) $parts[1] + (int) $parts[2]),
+            'consents' => '1',
         ]);
 
         self::assertResponseIsSuccessful();
@@ -68,6 +73,11 @@ final class RegisterFlowTest extends WebTestCase
         self::assertInstanceOf(User::class, $user);
         self::assertNull($user->getEmailVerifiedAt());
         self::assertFalse($user->isMemberAccessEnabled());
+        self::assertFalse($user->isCustomerAccessEnabled());
+        self::assertNotNull($user->getTermsAcceptedAt());
+        $client->request('POST', '/login?lang=en', ['email' => $email, 'password' => 'P@ssw0rd!']);
+        self::assertResponseStatusCodeSame(403);
+        self::assertStringContainsString('Confirm your email first', $client->getResponse()->getContent());
     }
 
     public function testVerifyEmailActivatesUser(): void

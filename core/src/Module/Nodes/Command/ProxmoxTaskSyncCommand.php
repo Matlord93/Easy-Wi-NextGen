@@ -4,11 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\Command;
 
-use App\Infrastructure\Doctrine\EntityIdentifier;
-use App\Module\Nodes\Application\Proxmox\ProxmoxManager;
-use App\Module\Nodes\Domain\Entity\ProxmoxTask;
-use Doctrine\ORM\EntityManagerInterface;
-use App\Repository\EntityQueryResult;
+use App\Module\Nodes\Application\Proxmox\ProxmoxTaskSynchronizer;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -18,7 +14,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'app:proxmox:sync-tasks', description: 'Refresh tracked Proxmox task states without an open browser.')]
 final class ProxmoxTaskSyncCommand extends Command
 {
-    public function __construct(private readonly EntityManagerInterface $em, private readonly ProxmoxManager $manager)
+    public function __construct(private readonly ProxmoxTaskSynchronizer $tasks)
     {
         parent::__construct();
     }
@@ -38,24 +34,9 @@ final class ProxmoxTaskSyncCommand extends Command
 
             return Command::INVALID;
         }
-        $tasks = EntityQueryResult::all($this->em->createQueryBuilder()->select('task')->from(ProxmoxTask::class, 'task')->join('task.cluster', 'cluster')->where('task.state IN (:states)')->andWhere('cluster.enabled = true')->setParameter('states', ['submitting', 'running'])->orderBy('task.id', 'ASC')->setMaxResults($limit)->getQuery(), ProxmoxTask::class);
-        $errors = 0;
-        $checked = 0;
-        foreach ($tasks as $task) {
-            if (!$task->getCluster()->isEnabled()) {
-                continue;
-            }
-            $taskId = EntityIdentifier::require($task->getId());
-            try {
-                $this->manager->refreshTask($task);
-                ++$checked;
-            } catch (\Throwable) {
-                ++$errors;
-                $output->writeln('<error>Task '.$taskId.': status currently unavailable.</error>');
-            }
-        }
-        $output->writeln(sprintf('Checked %d Proxmox task(s); %d unavailable.', $checked, $errors));
+        $result = $this->tasks->run($limit);
+        $output->writeln(sprintf('Checked %d Proxmox task(s); %d unavailable.', $result['checked'], $result['errors']));
 
-        return 0 === $errors ? Command::SUCCESS : Command::FAILURE;
+        return 0 === $result['errors'] ? Command::SUCCESS : Command::FAILURE;
     }
 }

@@ -8,6 +8,7 @@ use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\AppSettingsServiceInterface;
 use App\Module\Core\Application\AuditLoggerInterface;
+use App\Module\Core\Application\Contracts\CheckoutSelection;
 use App\Module\Cms\Application\CmsSiteResolver;
 use App\Module\Setup\Application\InstallerService;
 use App\Repository\UserRepositoryInterface;
@@ -20,6 +21,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
@@ -46,6 +48,7 @@ final class PublicLoginController
         private readonly RateLimiterFactory $loginIdentifierLimiter,
         private readonly Environment $twig,
         private readonly TranslatorInterface $translator,
+        private readonly CheckoutSelection $checkout,
     ) {
     }
 
@@ -67,6 +70,7 @@ final class PublicLoginController
         $errors = [];
         $status = Response::HTTP_OK;
         $retryAfter = null;
+        $target = PostLoginRedirectResolver::localTarget($request->request->all()['target'] ?? $request->query->all()['target'] ?? null);
 
         if ($request->isMethod('POST')) {
             $email = trim((string) $request->request->get('email', ''));
@@ -118,14 +122,16 @@ final class PublicLoginController
                         'reason' => 'invalid_credentials',
                         'context' => 'public_login',
                     ]);
+                } elseif ($user->isEmailVerificationPending()) {
+                    $status = Response::HTTP_FORBIDDEN;
+                    $errors[] = $this->translator->trans('registration_email_pending', [], 'portal');
                 } else {
                     $requiresTwoFactor = $this->twoFactorPolicy->isRequired($user);
                     if ($user->isTotpEnabled()) {
                         $session = $request->getSession();
                         $session->set('auth_pending_user_id', $user->getId());
                         $session->set('auth_pending_since', time());
-                        $requestedTarget = (string) ($request->request->get('target', $request->query->get('target', \App\Infrastructure\Config\ScalarValue::text($session->get(PostLoginRedirectResolver::SESSION_TARGET_KEY, '')))));
-                        $session->set('auth_pending_target_path', $requestedTarget);
+                        $session->set('auth_pending_target_path', $target ?? PostLoginRedirectResolver::localTarget($session->get(PostLoginRedirectResolver::SESSION_TARGET_KEY)));
                         $session->remove('auth_2fa_attempts');
                         $session->remove('auth_2fa_locked_until');
 
@@ -149,16 +155,21 @@ final class PublicLoginController
 
         $templateKey = $this->themeResolver->resolveThemeKey($site);
         $registrationAllowed = !$maintenance['active'] && $this->appSettings->isRegistrationEnabled();
+        $registrationTarget = $this->checkout->registrationTarget($request, $target);
+        $session = $request->getSession();
+        $feedback = $session instanceof FlashBagAwareSessionInterface ? $session->getFlashBag()->get('registration_feedback') : [];
 
         $response = new Response($this->twig->render($this->resolveLoginTemplate($templateKey), [
             'form' => $form,
             'errors' => $errors,
             'siteName' => $site->getName(),
             'registrationAllowed' => $registrationAllowed,
-            'loginTarget' => (string) ($request->query->get('target', $request->request->get('target', ''))),
+            'loginTarget' => $target ?? '',
+            'registrationTarget' => $registrationTarget,
+            'loginFeedback' => $feedback,
             'template_key' => $templateKey,
             'active_theme' => $templateKey,
-        ]), $status);
+        ]), $status, ['Cache-Control' => 'private, no-store']);
 
         if ($retryAfter !== null) {
             $seconds = max(1, $retryAfter->getTimestamp() - time());

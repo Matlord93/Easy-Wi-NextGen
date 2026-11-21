@@ -16,8 +16,8 @@ final class PostLoginRedirectResolver
     {
         $session = $request->getSession();
         $candidates = [
-            $request->request->get('target'),
-            $request->query->get('target'),
+            $request->request->all()['target'] ?? null,
+            $request->query->all()['target'] ?? null,
             $session->get(self::SESSION_TARGET_KEY),
             $session->get('auth_pending_target_path'),
         ];
@@ -46,25 +46,10 @@ final class PostLoginRedirectResolver
 
     public function isSafeTarget(User $user, string $target): bool
     {
-        if ($target === '' || !str_starts_with($target, '/')) {
+        if (null === self::localTarget($target)) {
             return false;
         }
-
-        if (str_starts_with($target, '//') || str_contains($target, "\r") || str_contains($target, "\n")) {
-            return false;
-        }
-
-        $path = parse_url($target, PHP_URL_PATH);
-        if (!is_string($path) || $path === '') {
-            return false;
-        }
-
-        $forbiddenPrefixes = ['/login', '/2fa', '/2fa_check', '/system/recovery'];
-        foreach ($forbiddenPrefixes as $prefix) {
-            if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
-                return false;
-            }
-        }
+        $path = rawurldecode(explode('#', explode('?', $target, 2)[0], 2)[0]);
 
         if (str_starts_with($path, '/admin') && !$user->isAdmin()) {
             return false;
@@ -87,5 +72,24 @@ final class PostLoginRedirectResolver
         }
 
         return true;
+    }
+
+    public static function localTarget(mixed $target): ?string
+    {
+        if (!is_string($target) || !str_starts_with($target, '/') || strlen($target) > 2048
+            || str_contains($target, '\\') || preg_match('/[\x00-\x20\x7f]/', $target)) {
+            return null;
+        }
+        $path = rawurldecode(explode('#', explode('?', $target, 2)[0], 2)[0]);
+        if (str_starts_with($path, '//') || str_contains($path, '\\') || preg_match('~[\x00-\x20\x7f]|/(?:\.|\.\.)(?:/|$)|%~', $path)) {
+            return null;
+        }
+        foreach (['/login', '/logout', '/register', '/session-expired', '/2fa', '/2fa_check', '/system/recovery', '/api', '/agent', '/install'] as $prefix) {
+            if ($path === $prefix || str_starts_with($path, $prefix.'/')) {
+                return null;
+            }
+        }
+
+        return $target;
     }
 }

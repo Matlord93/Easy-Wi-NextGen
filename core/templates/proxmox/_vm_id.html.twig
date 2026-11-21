@@ -1,0 +1,4 @@
+{% trans_default_domain 'proxmox' %}
+<label>{{ 'pve.vm_id'|trans }}
+    <input class="form-input" type="number" name="target_vm_id" min="{{ vmIdRange.first|default(100) }}" max="{{ vmIdRange.last|default(999999999) }}" placeholder="{{ 'pve.vm_id_auto'|trans }}">
+</label>

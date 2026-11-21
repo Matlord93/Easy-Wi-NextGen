@@ -8,6 +8,9 @@ import (
 // Reconfigure the existing NIC while preserving its stable MAC. Guest IP settings
 // are not changed; the guest remains stopped until the operator starts it.
 func (e *kvmEngine) updateGuestNetwork(g kvmGuest, p map[string]any) (map[string]any, error) {
+	if len(g.StaticAddresses) > 0 {
+		return nil, errors.New("cannot change the network of a VM with reserved static addresses")
+	}
 	if payloadValue(p, "confirm") != "1" || payloadValue(p, "expected_network") != g.Network || payloadValue(p, "expected_network_type") != g.NetworkType {
 		return nil, errors.New("confirm the current VM network; refresh inventory")
 	}

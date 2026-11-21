@@ -10,6 +10,7 @@ enum ShopProductKind: string
     case Teamspeak3 = 'teamspeak3';
     case Teamspeak6 = 'teamspeak6';
     case Kvm = 'kvm';
+    case Proxmox = 'proxmox';
     case Webspace = 'webspace';
     case Domain = 'domain';
 
@@ -17,7 +18,12 @@ enum ShopProductKind: string
     {
         return match ($this) {
             self::Gameserver => 'Gameserver', self::Teamspeak3 => 'TeamSpeak 3', self::Teamspeak6 => 'TeamSpeak 6',
-            self::Kvm => 'KVM-Server', self::Webspace => 'Webhosting', self::Domain => 'Domain',
+            self::Kvm => 'KVM-Server', self::Proxmox => 'Proxmox-Server', self::Webspace => 'Webhosting', self::Domain => 'Domain',
         };
+    }
+
+    public function isVirtualMachine(): bool
+    {
+        return in_array($this, [self::Kvm, self::Proxmox], true);
     }
 }

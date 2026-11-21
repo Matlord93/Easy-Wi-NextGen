@@ -75,6 +75,16 @@ final class ModuleRegistry
             'description' => 'Content management, pages and maintenance mode.',
             'default_enabled' => true,
         ],
+        ModuleKey::Kvm->value => [
+            'label' => 'KVM/libvirt',
+            'version' => '1.0.0',
+            'description' => 'Agent-managed virtualization hosts and virtual servers.',
+        ],
+        ModuleKey::Proxmox->value => [
+            'label' => 'Proxmox VE',
+            'version' => '1.0.0',
+            'description' => 'Proxmox connections, virtual machines and containers.',
+        ],
         ModuleKey::Shop->value => [
             'label' => 'Shop',
             'version' => '1.0.0',
@@ -124,6 +134,9 @@ final class ModuleRegistry
             throw new \InvalidArgumentException('Unknown module key.');
         }
 
+        if (!$enabled) {
+            $this->assertMayDisable($moduleKey);
+        }
         $definition = self::DEFINITIONS[$moduleKey];
         $setting = $this->moduleSettingRepository->find($moduleKey);
 
@@ -145,6 +158,25 @@ final class ModuleRegistry
         ]);
 
         return $setting;
+    }
+
+    private function assertMayDisable(string $moduleKey): void
+    {
+        if ('kvm' === $moduleKey) {
+            $customers = $this->entityManager->getRepository(\App\Module\Nodes\Domain\Entity\KvmGuestAssignment::class)->count();
+            $contracts = (int) $this->entityManager->getConnection()->fetchOne("SELECT COUNT(*) FROM shop_contracts WHERE kind = 'kvm' AND status <> 'ended'");
+            if ($customers > 0 || $contracts > 0) {
+                throw new \DomainException('KVM kann erst deaktiviert werden, wenn keine laufenden Verträge und Kundenzuordnungen mehr bestehen.');
+            }
+        }
+        if ('proxmox' === $moduleKey) {
+            $customers = $this->entityManager->getRepository(\App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment::class)->count();
+            $tasks = $this->entityManager->getRepository(\App\Module\Nodes\Domain\Entity\ProxmoxTask::class)->count(['state' => ['queued', 'submitting', 'running', 'uncertain']]);
+            $contracts = (int) $this->entityManager->getConnection()->fetchOne("SELECT COUNT(*) FROM shop_contracts WHERE kind = 'proxmox' AND purged_at IS NULL");
+            if ($customers > 0 || $tasks > 0 || $contracts > 0) {
+                throw new \DomainException('Proxmox kann erst deaktiviert werden, wenn keine Kundenzuordnungen, offenen Aufträge und reservierten Mietressourcen mehr bestehen.');
+            }
+        }
     }
 
     public function isEnabled(string $moduleKey): bool

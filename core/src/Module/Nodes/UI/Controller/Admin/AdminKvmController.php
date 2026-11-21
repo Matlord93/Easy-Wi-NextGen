@@ -26,6 +26,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
 
+#[\App\Module\Core\Attribute\RequiresModule('kvm')]
 #[Route('/admin/kvm')]
 final class AdminKvmController extends AbstractController
 {

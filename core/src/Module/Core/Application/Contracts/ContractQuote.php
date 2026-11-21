@@ -57,7 +57,7 @@ final readonly class ContractQuote
         $cpu = $variant?->getCpuLimit() ?? $product->getCpuLimit();
         $ram = $variant?->getRamLimit() ?? $product->getRamLimit();
         $disk = $variant?->getDiskLimit() ?? $product->getDiskLimit();
-        if ($cpu < 1 || $cpu > 21_474_836 || $ram < 1 || $ram > 2_097_151 || $disk < 1 || $disk > 2_097_151 || (ShopProductKind::Kvm === $product->getKind() && ($cpu > 256 || $ram > 1024 || $disk > 2048))) {
+        if ($cpu < 1 || $cpu > 21_474_836 || $ram < 1 || $ram > 2_097_151 || $disk < 1 || $disk > 2_097_151 || ($product->getKind()->isVirtualMachine() && ($cpu > 256 || $ram > 1024 || $disk > 2048))) {
             throw new \InvalidArgumentException('Ungültige Ressourcen.');
         }
         $hostname = strtolower(trim($input['hostname'] ?? ''));
@@ -73,8 +73,8 @@ final readonly class ContractQuote
             if (ShopProductKind::Webspace === $product->getKind() && null !== $this->sites->findOneByHost($hostname)) {
                 throw new \InvalidArgumentException('Dieser Hostname wird vom Panel oder CMS verwendet.');
             }
-        } elseif (($requireIdentity || '' !== $hostname) && ShopProductKind::Kvm === $product->getKind() && !preg_match('/^[a-z][a-z0-9-]{0,47}$/D', $hostname)) {
-            throw new \InvalidArgumentException('Ungültiger KVM-Hostname.');
+        } elseif (($requireIdentity || '' !== $hostname) && $product->getKind()->isVirtualMachine() && !preg_match('/^[a-z][a-z0-9-]{0,47}$/D', $hostname)) {
+            throw new \InvalidArgumentException('Ungültiger VM-Hostname.');
         }
         $action = $input['domain_action'] ?? 'register';
         $authinfo = trim($input['auth_code'] ?? '');
@@ -94,7 +94,7 @@ final readonly class ContractQuote
             }
         }
         $keys = trim($input['ssh_keys'] ?? '');
-        if (ShopProductKind::Kvm === $product->getKind() && ($requireIdentity || '' !== $keys)) {
+        if ($product->getKind()->isVirtualMachine() && ($requireIdentity || '' !== $keys)) {
             $lines = preg_split('/\R/', $keys) ?: [];
             if ('' === $keys || strlen($keys) > 32768 || count($lines) > 8) {
                 throw new \InvalidArgumentException('Mindestens ein SSH-Public-Key ist erforderlich.');
@@ -106,6 +106,9 @@ final readonly class ContractQuote
             }
         }
         $quote = $options;
+        if (ShopProductKind::Gameserver === $product->getKind()) {
+            $quote['game_slots'] = $variant?->getSlots() ?? $product->getGameserverSlots();
+        }
 
         return array_replace($quote, ['domain_action' => $action, 'authinfo_hash' => hash('sha256', $authinfo), 'product_id' => $product->getId() ?? 0, 'kind' => $product->getKind()->value, 'name' => $product->getName(), 'variant' => $variant?->getName() ?? '', 'variant_id' => $variantId, 'billing_mode' => $mode, 'base_monthly_cents' => $price, 'monthly_cents' => 0 === $term ? $period - $discount : $price, 'period_cents' => $period - $discount, 'discount_cents' => $discount, 'coupon' => $couponCode, 'currency' => $this->settings->publicSettings()['currency'], 'term_months' => $term, 'slots' => $variant?->getSlots() ?? (int) ($options['slots'] ?? 32), 'hostname' => $hostname, 'ssh_keys' => $keys, 'cpu' => $cpu, 'ram' => $ram, 'disk' => $disk, 'cpu_percent' => $cpu * 100, 'ram_mib' => $ram * 1024, 'runtime_ram_mib' => \App\Module\Gameserver\Application\GameserverMemoryBudget::runtimeMiB($ram * 1024, ShopProductKind::Gameserver === $product->getKind() ? (string) ($product->getGameTemplate()?->getInstallResolver()['type'] ?? '') : ''), 'disk_mib' => $disk * 1024, 'template_id' => $product->getGameTemplate()?->getId() ?? 0, 'node_id' => $product->getProvisioningNode()?->getId() ?? '', 'port_count' => count($product->getGameTemplate()?->getRequiredPorts() ?? [])]);
     }

@@ -69,17 +69,21 @@ final class AdminShopWorkspaceHttpTest extends AbstractWebTestCase
         $em->persist($category);
         $voice = 'teamspeak3' === $kind ? new Ts3Node('Voice fixture', $instance->getNode(), 'https://voice.example.test', 'encrypted', 'https://example.test/archive', '/srv/voice', 'voice', 'voice') : new Ts6Node('Voice fixture', $instance->getNode(), 'https://voice.example.test', 'encrypted', 'https://example.test/archive', '/srv/voice', 'voice', 'voice');
         $em->persist($voice);
+        $cluster = new \App\Module\Nodes\Domain\Entity\ProxmoxCluster('Shop PVE', new \App\Module\Nodes\Domain\Proxmox\ProxmoxConnection('https://pve.shop.test:8006', 'shop@pve!fixture', 'synthetic'), self::getContainer()->get(\App\Module\Core\Application\SecretsCrypto::class));
+        $em->persist($cluster);
         $em->flush();
         $jobsBefore = (int) $em->getConnection()->fetchOne('SELECT COUNT(*) FROM jobs');
         $url = '/admin/shop/rental-products/'.$kind.'/new';
         $view = $client->request('GET', $url);
         self::assertResponseIsSuccessful();
         self::assertCount(1, $view->filterXPath('//form[@data-shop-editor="'.$kind.'"]'));
-        foreach (['template_id' => ['gameserver'], 'kvm_template' => ['kvm'], 'php_version' => ['webspace'], 'registrar' => ['domain'], 'slots' => ['teamspeak3', 'teamspeak6'], 'cpu' => ['gameserver', 'kvm']] as $name => $kinds) {
+        foreach (['template_id' => ['gameserver'], 'kvm_template' => ['kvm'], 'proxmox_cluster_id' => ['proxmox'], 'address_mode' => ['kvm', 'proxmox'], 'php_version' => ['webspace'], 'registrar' => ['domain'], 'slots' => ['gameserver', 'teamspeak3', 'teamspeak6'], 'cpu' => ['gameserver', 'kvm', 'proxmox']] as $name => $kinds) {
             self::assertCount(in_array($kind, $kinds, true) ? 1 : 0, $view->filterXPath('//form[@data-shop-editor]//*[@name="'.$name.'"]'));
         }
         $values = ['name' => 'Shop '.$kind, 'description' => 'Own description', 'category_id' => $category->getId(), 'price' => '10.00', 'node_id' => $instance->getNode()->getId(), 'template_id' => $instance->getTemplate()->getId(), 'ts3_node_id' => $voice->getId(), 'ts6_node_id' => $voice->getId(), 'slots' => '64', 'kvm_template' => 'ubuntu--26.04-v1', 'network' => 'default', 'network_type' => 'network', 'php_version' => '8.5', 'registrar' => 'manual', 'tld' => 'de', 'term_months' => '12', 'active' => '1', 'public' => '1', 'customer' => '1', 'kind' => $kind, 'product_id' => '0'];
         $values['_token'] = $view->filterXPath('//form[@data-shop-editor]//input[@name="_token"]')->attr('value');
+        $values['address_mode'] = 'pool';
+        $values += ['proxmox_cluster_id' => $cluster->getId(), 'proxmox_node' => 'pve-a', 'proxmox_template_id' => '900'];
         $client->request('POST', $url, array_replace($values, ['price' => 'bad-price', 'name' => 'Keep this name', 'public' => '0']));
         self::assertResponseStatusCodeSame(422);
         $failed = $client->getCrawler();
@@ -95,10 +99,15 @@ final class AdminShopWorkspaceHttpTest extends AbstractWebTestCase
         self::assertSame(1000, $saved->getPriceMonthlyCents());
         self::assertSame('Own description', $saved->getDescription());
         self::assertNull($saved->getImageUrl());
-        if ('domain' !== $kind) {
+        if (!in_array($kind, ['domain', 'proxmox'], true)) {
             self::assertSame($instance->getNode()->getId(), $saved->getProvisioningNode()->getId());
         }
         self::assertSame('gameserver' === $kind ? $instance->getTemplate()->getId() : null, $saved->getGameTemplate()?->getId());
+        if ('gameserver' === $kind) {
+            self::assertSame(64, $saved->getGameserverSlots());
+        }
+        self::assertSame(in_array($kind, ['kvm', 'proxmox'], true) ? 'pool' : null, $saved->getProvisioningOptions()['address_mode'] ?? null);
+        self::assertSame('proxmox' === $kind ? 900 : null, $saved->getProvisioningOptions()['proxmox_template_id'] ?? null);
         self::assertSame($jobsBefore, (int) self::getContainer()->get(EntityManagerInterface::class)->getConnection()->fetchOne('SELECT COUNT(*) FROM jobs'));
     }
 
@@ -131,7 +140,8 @@ final class AdminShopWorkspaceHttpTest extends AbstractWebTestCase
         $client->request('POST', $url, $values);
         self::assertResponseRedirects($url.'?saved=1', 303);
         $client->request('GET', '/shop/products/'.$id);
-        self::assertCount(1, $client->getCrawler()->filterXPath('//button[contains(text(),"Verbindlich mieten")]'));
+        self::assertStringContainsString('Kapazität verfügbar', $client->getCrawler()->text());
+        self::assertStringContainsString('Für eine Bestellung ist ein Kundenkonto erforderlich', $client->getCrawler()->text());
         $client->request('GET', '/shop/products/'.$id.'?variant_id='.$variant->getId());
         self::assertStringContainsString('Derzeit ausverkauft', $client->getCrawler()->text());
         self::assertCount(0, $client->getCrawler()->filterXPath('//button[contains(text(),"Verbindlich mieten")]'));
@@ -285,7 +295,8 @@ final class AdminShopWorkspaceHttpTest extends AbstractWebTestCase
         }
         $client->request('GET', '/admin/shop/products');
         self::assertResponseIsSuccessful();
-        self::assertCount(6, $client->getCrawler()->filterXPath('//*[@data-shop-kind]'));
+        self::assertCount(count(ShopProductKind::cases()), $client->getCrawler()->filterXPath('//*[@data-shop-kind]'));
+        self::assertCount(1, $client->getCrawler()->filterXPath('//*[@data-shop-kind="proxmox"]'));
         self::assertStringNotContainsString('FOREIGN-SHOP-PRODUCT', $client->getCrawler()->text());
         $client->getCookieJar()->clear();
         $this->loginAsRole($client, 'customer');

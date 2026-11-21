@@ -19,7 +19,7 @@ use Symfony\Component\Lock\LockFactory;
 /** @psalm-import-type CollectorResult from InfrastructureMonitoringSettings */
 final readonly class InfrastructureCollector
 {
-    public function __construct(private EntityManagerInterface $em, private InfrastructureHistoryStore $history, private InfrastructureAlerts $alerts, private InfrastructureTargets $targets, private InfrastructureUsage $usage, private KvmPanelService $kvm, private ProxmoxManager $proxmox, private InfrastructureMonitoringSettings $settings, private LockFactory $locks)
+    public function __construct(private EntityManagerInterface $em, private InfrastructureHistoryStore $history, private InfrastructureAlerts $alerts, private InfrastructureTargets $targets, private InfrastructureUsage $usage, private KvmPanelService $kvm, private ProxmoxManager $proxmox, private InfrastructureMonitoringSettings $settings, private LockFactory $locks, private \App\Module\Core\Application\ModuleRegistry $modules)
     {
     }
 
@@ -39,7 +39,8 @@ final readonly class InfrastructureCollector
         }
         try {
             $started = microtime(true);
-            foreach ($this->em->getRepository(Agent::class)->findAll() as $node) {
+            $nodes = $this->modules->isEnabled('kvm') ? $this->em->getRepository(Agent::class)->findAll() : [];
+            foreach ($nodes as $node) {
                 if (true !== ($node->getMetadata()['kvm_managed']['supported'] ?? null) || Agent::STATUS_DECOMMISSIONED === $node->getStatus()) {
                     continue;
                 }
@@ -61,7 +62,7 @@ final readonly class InfrastructureCollector
                     $this->observe($target, $data, $available, $now, $result);
                 }
             }
-            $clusters = $this->em->getRepository(ProxmoxCluster::class)->findBy(['enabled' => true], ['id' => 'ASC']);
+            $clusters = $this->modules->isEnabled('proxmox') ? $this->em->getRepository(ProxmoxCluster::class)->findBy(['enabled' => true], ['id' => 'ASC']) : [];
             $count = count($clusters);
             $start = $count ? ($state['cluster_cursor'] ?? 0) % $count : 0;
             for ($step = 0; $step < $count && $step < 4 && microtime(true) - $started < 25; ++$step) {

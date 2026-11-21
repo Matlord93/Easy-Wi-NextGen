@@ -84,14 +84,16 @@ class Instance implements ResourceEventSource
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $serverName = null;
 
-    #[ORM\Column]
-    private int $slots = 16;
+    public const int DEFAULT_SLOTS = 16;
 
     #[ORM\Column]
-    private int $maxSlots = 16;
+    private int $slots = self::DEFAULT_SLOTS;
 
     #[ORM\Column]
-    private int $currentSlots = 16;
+    private int $maxSlots = self::DEFAULT_SLOTS;
+
+    #[ORM\Column]
+    private int $currentSlots = self::DEFAULT_SLOTS;
 
     #[ORM\Column]
     private bool $lockSlots = false;
@@ -188,6 +190,7 @@ class Instance implements ResourceEventSource
         ?string $portBlockId,
         InstanceStatus $status,
         InstanceUpdatePolicy $updatePolicy = InstanceUpdatePolicy::Manual,
+        int $initialSlots = self::DEFAULT_SLOTS,
     ) {
         $this->customer = $customer;
         $this->template = $template;
@@ -202,8 +205,7 @@ class Instance implements ResourceEventSource
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
         $this->schedules = new ArrayCollection();
-        $this->maxSlots = $this->slots;
-        $this->currentSlots = $this->slots;
+        $this->slots = $this->maxSlots = $this->currentSlots = $initialSlots;
     }
 
     public function getId(): ?int

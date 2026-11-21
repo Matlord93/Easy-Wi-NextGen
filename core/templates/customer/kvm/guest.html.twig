@@ -8,8 +8,36 @@
 {% for error in app.flashes('kvm_customer_error') %}<p class="infra-card" role="alert">{{ error|trans({}, error starts with 'vm_config.' ? 'vm_config' : 'kvm') }}</p>{% endfor %}
 <nav class="infra-breadcrumb"><a href="{{ path('customer_kvm') }}">KVM</a><span>/</span><span>{{ guest.label|default('console.vm'|trans({}, 'vm_console')) }}</span></nav>
 <header class="infra-hero"><div><span class="infra-eyebrow">KVM · {{ 'infra.server'|trans }}</span><h1>{{ guest.label|default('console.vm'|trans({}, 'vm_console')) }}</h1><p>{{ guest.state|default('console.unavailable'|trans({}, 'vm_console')) }}</p>{% if busy %}<p role="status">{{ 'kvm.customer_pending'|trans({}, 'kvm') }}</p>{% endif %}</div><div class="infra-actions"><a class="ui-button ui-button--ghost" href="{{ path('customer_infrastructure_history', {provider:'kvm',id:assignment.id}) }}">{{ 'monitor.open_history'|trans({}, 'monitoring') }}</a><button type="button" class="ui-button ui-button--ghost" data-kvm-refresh-ready hidden>{{ 'kvm.refresh'|trans({}, 'kvm') }}</button><a class="ui-button ui-button--primary" href="#kvm-console" data-infra-shortcut>{{ 'infra.console'|trans }}</a></div></header>
-<nav class="infra-tabs" data-infra-tablist aria-label="KVM">{% for pane in ['overview', 'console', 'settings', 'snapshots', 'backups', 'activity'] %}<a href="#kvm-{{ pane }}" data-infra-tab>{{ ('infra.' ~ pane)|trans }}</a>{% endfor %}</nav>
+<nav class="infra-tabs" data-infra-tablist aria-label="KVM">{% for pane in (['overview']|merge(guest ? ['access'] : [])|merge(['console', 'settings', 'snapshots', 'backups', 'activity'])) %}<a href="#kvm-{{ pane }}" data-infra-tab>{{ ('infra.' ~ pane)|trans }}</a>{% endfor %}</nav>
 <section class="infra-pane pm-vm-overview" id="kvm-overview" data-infra-pane><div><div data-infra-usage-url="{{ path('customer_kvm_usage', {id: assignment.id}) }}">{% include 'infrastructure/_server_usage.html.twig' with {serverUsage: infra_kvm_usage(assignment.node, assignment.vmUuid)} only %}</div><p data-usage-error hidden>{{ 'infra.refresh_failed'|trans }}</p></div><section class="infra-card"><div class="infra-card__head"><h2>{{ 'infra.capacity'|trans }}</h2></div>{% if guest %}<div class="infra-grid"><div class="infra-stat"><span>vCPU</span><strong>{{ guest.vcpus }}</strong></div><div class="infra-stat"><span>{{ 'infra.memory'|trans }}</span><strong>{{ guest.memory_mib }} MiB</strong></div><div class="infra-stat"><span>{{ 'infra.disk'|trans }}</span><strong>{{ guest.disk_gib }} GiB</strong></div></div>{% else %}<p>{{ 'console.unavailable'|trans({}, 'vm_console') }}</p>{% endif %}{% if guest %}<div class="infra-power"><h2>{{ 'kvm.customer_power'|trans({}, 'kvm') }}</h2><div class="infra-grid">{% for action in ['vm.start', 'vm.shutdown', 'vm.reboot', 'vm.stop'] %}{{ form.start(assignment, operationId, action) }}{% if action in ['vm.reboot', 'vm.stop'] %}<label class="infra-span"><span><input type="checkbox" name="confirm" value="1" required> {{ 'kvm.customer_power_confirm'|trans({}, 'kvm') }}</span></label>{% endif %}<button class="ui-button {{ action == 'vm.start' ? 'ui-button--primary' : 'ui-button--ghost' }}" {% if busy %}disabled{% endif %}>{{ ('kvm.action.' ~ action)|trans({}, 'kvm') }}</button></form>{% endfor %}</div></div>{% endif %}</section></section>
+
+{% if guest %}<div data-infra-pane id="kvm-access" class="infra-pane">
+{% include 'infrastructure/_customer_access.html.twig' with {
+    addresses: guest.static_addresses, networkPane: '#kvm-settings',
+    resetAvailable: guest.state == 'running' and guest.guest_agent_enabled and not busy and assignment.node.metadata.kvm_managed.root_password_version|default(0) == 1,
+    resetUrl: path('customer_kvm_root_password', {id: assignment.id}), resetToken: csrf_token('kvm-customer-' ~ assignment.id),
+    switchChoices: guest.state == 'shut off' and guest.cloud_init and not guest.network_boot_first and not busy and assignment.node.metadata.kvm_managed.address_switch_version|default(0) == 1 ? guest.static_addresses : [],
+    switchUrl: path('customer_kvm_action', {id: assignment.id}), switchFields: {action: 'vm.address_switch', operation_id: operationId}
+} only %}
+<section class="infra-card">
+    <div class="infra-card__head"><h2>{{ 'kvm.reinstall'|trans({}, 'kvm') }}</h2></div>
+    {% if guest.reinstall_templates is not empty %}
+        <p>{{ 'kvm.reinstall_hint'|trans({}, 'kvm') }}</p>
+        {{ form.start(assignment, operationId, 'vm.reinstall') }}
+        <label>{{ 'kvm.reinstall_template'|trans({}, 'kvm') }}
+            <select class="form-input" name="template" required>
+                <option value="">—</option>
+                {% for template in guest.reinstall_templates %}<option value="{{ template }}">{{ template|replace({'--': ' · '}) }}</option>{% endfor %}
+            </select>
+        </label>
+        <label><input type="checkbox" name="confirm" value="1" required> {{ 'kvm.reinstall_confirm'|trans({}, 'kvm') }}</label>
+        <button type="submit" class="ui-button ui-button--ghost" {% if busy %}disabled{% endif %}>{{ 'kvm.reinstall'|trans({}, 'kvm') }}</button>
+        </form>
+    {% else %}
+        <p>{{ 'kvm.customer_reinstall_unavailable'|trans({}, 'kvm') }}</p>
+    {% endif %}
+</section>
+</div>{% endif %}
 
 {% if guest %}<section class="infra-pane" id="kvm-settings" data-infra-pane>{% include 'kvm/_provisioning.html.twig' with {vm:guest, node:assignment.node, customer:true} %}</section>{% endif %}
 {% include 'customer/kvm/_management.html.twig' %}

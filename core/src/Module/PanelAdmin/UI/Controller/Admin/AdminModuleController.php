@@ -39,6 +39,7 @@ final class AdminModuleController
         return new Response($this->twig->render('admin/modules/index.html.twig', [
             'modules' => $this->moduleRegistry->listModules(),
             'activeNav' => 'modules',
+            'error' => null,
         ]));
     }
 
@@ -56,7 +57,15 @@ final class AdminModuleController
         }
 
         $enabled = filter_var($request->request->get('enabled', 'false'), FILTER_VALIDATE_BOOL);
-        $setting = $this->moduleRegistry->setEnabled($key, $enabled, $actor);
+        try {
+            $setting = $this->moduleRegistry->setEnabled($key, $enabled, $actor);
+        } catch (\DomainException $error) {
+            return new Response($this->twig->render('admin/modules/index.html.twig', [
+                'modules' => $this->moduleRegistry->listModules(),
+                'activeNav' => 'modules',
+                'error' => $error->getMessage(),
+            ]), Response::HTTP_CONFLICT);
+        }
         $this->entityManager->flush();
 
         return new RedirectResponse('/admin/modules', Response::HTTP_FOUND, ['X-Module-Enabled' => $setting->isEnabled() ? '1' : '0']);

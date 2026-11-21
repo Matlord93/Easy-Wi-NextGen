@@ -372,7 +372,7 @@ final class WebinterfaceUpdateServiceTest extends TestCase
     }
 
 
-    public function testTarCommandFallbackExtractsExtensionlessTarGz(): void
+    public function testExtractArchiveDetectsTarGzWithoutFilenameExtension(): void
     {
         if (!function_exists('shell_exec') || trim((string) shell_exec('command -v tar')) === '') {
             self::markTestSkipped('tar command is not available.');
@@ -396,25 +396,18 @@ final class WebinterfaceUpdateServiceTest extends TestCase
         $tarGzPath = $this->createTarGz(['core/VERSION' => '2.0.0']);
         $archivePath = tempnam(sys_get_temp_dir(), 'easywi-targz-package-');
         copy($tarGzPath, $archivePath);
-        $stagingDir = sys_get_temp_dir() . '/easywi-targz-staging-' . bin2hex(random_bytes(4));
-        mkdir($stagingDir, 0770, true);
+        $workDir = sys_get_temp_dir() . '/easywi-targz-work-' . bin2hex(random_bytes(4));
         $logPath = tempnam(sys_get_temp_dir(), 'easywi-log-');
 
-        $extract = new \ReflectionMethod($service, 'extractTarArchiveWithCommand');
+        $extract = new \ReflectionMethod($service, 'extractArchive');
+        $staging = $extract->invoke($service, $archivePath, $workDir, $logPath);
 
-        self::assertTrue($extract->invoke($service, $archivePath, $stagingDir, true, $logPath));
-        self::assertFileExists($stagingDir . '/core/VERSION');
+        self::assertIsString($staging);
+        self::assertFileExists($staging . '/core/VERSION');
     }
 
-    public function testTarGzExtractionSkipsRootDotEntryForPharData(): void
+    public function testTarGzExtractsLongVendorPathsWithAnEmptyPath(): void
     {
-        if (!class_exists(\PharData::class)) {
-            self::markTestSkipped('PharData is not available.');
-        }
-        if (!function_exists('shell_exec') || trim((string) shell_exec('command -v tar')) === '') {
-            self::markTestSkipped('tar command is not available to create fixtures.');
-        }
-
         $service = $this->newWebinterfaceUpdateService([
             'httpClient' => new MockHttpClient(),
             'settingsService' => new WebinterfaceUpdateSettingsService(sys_get_temp_dir()),
@@ -430,17 +423,23 @@ final class WebinterfaceUpdateServiceTest extends TestCase
             'excludes' => '',
         ]);
 
-        $tarGzPath = $this->createTarGz(['core/VERSION' => '2.0.0']);
-        $workDir = sys_get_temp_dir() . '/easywi-phar-targz-' . bin2hex(random_bytes(4));
-        mkdir($workDir, 0770, true);
+        $schema = 'vendor/horstoeko/zugferd/src/schema/FACTUR-X_EXTENDED_urn_un_unece_uncefact_data_standard_ReusableAggregateBusinessInformationEntity_100.xsd';
+        $tarGzPath = $this->createTarGz(['VERSION' => '2.0.0', $schema => '<schema/>']);
+        $workDir = sys_get_temp_dir() . '/easywi-targz-path-' . bin2hex(random_bytes(4));
         $logPath = tempnam(sys_get_temp_dir(), 'easywi-log-');
-
         $extract = new \ReflectionMethod($service, 'extractArchive');
-        $staging = $extract->invoke($service, $tarGzPath, $workDir, $logPath);
+        $originalPath = getenv('PATH');
+        putenv('PATH=');
+        try {
+            $staging = $extract->invoke($service, $tarGzPath, $workDir, $logPath);
+        } finally {
+            putenv($originalPath === false ? 'PATH' : 'PATH='.$originalPath);
+        }
 
         self::assertIsString($staging);
-        self::assertFileExists($staging . '/core/VERSION');
-        self::assertStringNotContainsString('PharData entpackt', (string) file_get_contents($logPath));
+        self::assertSame('2.0.0', file_get_contents($staging . '/VERSION'));
+        self::assertSame('<schema/>', file_get_contents($staging . '/' . $schema));
+        self::assertSame('', file_get_contents($logPath));
     }
 
     public function testDownloadFallsBackToContentDispositionFilename(): void

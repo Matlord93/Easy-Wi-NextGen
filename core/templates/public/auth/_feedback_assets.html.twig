@@ -1,0 +1,3 @@
+<link rel="stylesheet" href="{{ asset('assets/styles/portal-feedback.css') }}">
+<script src="{{ asset('js/portal-feedback.js') }}"
+    {% if current_user() %}data-session-expired="{{ t('portal_problem_session_expired_message', page_locale()) }}" data-session-sign-in="{{ t('portal_problem_session_expired_action', page_locale()) }}"{% endif %}></script>

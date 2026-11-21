@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}{{ page.title|default('Clan') }}{% endblock %}</title>
   {% block head %}{% endblock %}
+  {% include 'public/auth/_feedback_assets.html.twig' %}
   <link rel="stylesheet" href="{{ asset('themes/' ~ (active_theme|default('clan-nova')) ~ '/css/theme.css') }}">
     <link rel="stylesheet" href="{{ asset('workspace-public.css') }}">
 </head>

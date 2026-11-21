@@ -110,6 +110,9 @@ final class AuthController
             return new JsonResponse(['error' => $this->translator->trans('Invalid credentials.', [], 'security')], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
+        if ($user->isEmailVerificationPending()) {
+            return new JsonResponse(['error' => $this->translator->trans('registration_email_pending', [], 'portal'), 'code' => 'EMAIL_VERIFICATION_REQUIRED'], JsonResponse::HTTP_FORBIDDEN);
+        }
         $requiresTwoFactor = $this->twoFactorPolicy->isRequired($user);
         if ($requiresTwoFactor && !$user->isTotpEnabled()) {
             $this->auditLogger->log($user, 'auth.login.enrollment_required', [

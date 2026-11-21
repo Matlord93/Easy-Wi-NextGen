@@ -7,7 +7,7 @@ namespace App\Tests\Security;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Security\PortalAccessPolicy;
-use App\Security\SessionGuardSubscriber;
+use App\Security\PortalAccessResponse;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,16 +15,22 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class SessionGuardSubscriberCmsAccessTest extends TestCase
 {
-    public function testAnonymousResponseIsUnauthorizedForAdminCmsPath(): void
+    public function testAnonymousBrowserAndAjaxGetTheAppropriateSignInResponse(): void
     {
-        $subscriber = (new \ReflectionClass(SessionGuardSubscriber::class))->newInstanceWithoutConstructor();
-        $translatorProp = new \ReflectionProperty(SessionGuardSubscriber::class, 'translator');
-        $translatorProp->setValue($subscriber, $this->createStub(TranslatorInterface::class));
-        $method = new \ReflectionMethod(SessionGuardSubscriber::class, 'unauthorizedResponse');
-        $response = $method->invoke($subscriber, Request::create('/admin/cms/pages'));
-
-        self::assertInstanceOf(Response::class, $response);
+        $templates = new \Twig\Loader\ArrayLoader(['public/auth/access_problem.html.twig' => '{{ destination }}']);
+        $responses = new PortalAccessResponse($this->createStub(TranslatorInterface::class), new \Twig\Environment($templates));
+        $response = $responses->signIn(Request::create('/admin/cms/pages'));
         self::assertSame(Response::HTTP_UNAUTHORIZED, $response->getStatusCode());
+        self::assertSame('login_required', $response->headers->get('X-EasyWi-Problem'));
+        self::assertSame('/login?target=%2Fadmin%2Fcms%2Fpages', $response->getContent());
+
+        $request = Request::create('/admin/cms/pages/table', cookies: ['easywi_session' => 'expired'], server: [
+            'HTTP_HX_REQUEST' => 'true', 'HTTP_REFERER' => 'http://localhost/admin/cms/pages',
+        ]);
+        $response = $responses->signIn($request);
+        self::assertSame(Response::HTTP_UNAUTHORIZED, $response->getStatusCode());
+        self::assertSame('session_expired', $response->headers->get('X-EasyWi-Problem'));
+        self::assertSame('/login?target=%2Fadmin%2Fcms%2Fpages', json_decode($response->getContent(), true, flags: JSON_THROW_ON_ERROR)['action_url']);
     }
 
     public function testPolicyDeniesNonAdminForAdminCmsPath(): void

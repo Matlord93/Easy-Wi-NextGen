@@ -145,7 +145,7 @@ func (f *kvmFixture) run(ctx context.Context, binary string, args ...string) ([]
 		}
 		return data, nil
 	case "dominfo":
-		return []byte("Name: easywi-kvm-" + args[1] + "\nCPU(s): 2\nMax memory: 2097152 KiB\n"), nil
+		return []byte("Name: easywi-kvm-" + args[1] + "\nCPU(s): 2\nMax memory: 2097152 KiB\nManaged save: no\n"), nil
 	case "domstate":
 		state := f.states[args[1]]
 		if len(args) > 2 {
@@ -436,7 +436,7 @@ func TestKVMManagedNetworkCreationAndAttachmentGuard(t *testing.T) {
 	if err := xml.Unmarshal(f.networks["easywi-test"], &n); err != nil {
 		t.Fatal(err)
 	}
-	if n.IPs[0].DHCP.Range.Start != "10.220.240.2" || n.IPs[0].DHCP.Range.End != "10.220.240.254" {
+	if len(n.IPs[0].DHCP.Ranges) != 1 || n.IPs[0].DHCP.Ranges[0].Start != "10.220.240.2" || n.IPs[0].DHCP.Ranges[0].End != "10.220.240.254" {
 		t.Fatalf("invalid DHCP range: %#v", n)
 	}
 	// A domain assigned to the libvirt bridge must also prevent network teardown.

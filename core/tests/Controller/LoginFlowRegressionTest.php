@@ -35,6 +35,28 @@ final class LoginFlowRegressionTest extends WebTestCase
         self::assertResponseRedirects('/admin');
     }
 
+    public function testExpiredAdminSessionExplainsTheFailureAndReturnsToItsPage(): void
+    {
+        self::ensureKernelShutdown();
+        $client = static::createClient();
+        $this->seedSite();
+        $client->getCookieJar()->set(new \Symfony\Component\BrowserKit\Cookie('easywi_session', 'expired-test-session'));
+        $target = '/admin/cms/pages?search=test';
+        $client->request('GET', $target);
+        self::assertResponseRedirects('/session-expired?target='.rawurlencode($target), 303);
+        $client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('/login?target='.rawurlencode($target), $client->getResponse()->getContent());
+
+        $client->xmlHttpRequest('GET', '/admin/cms/pages/table?lang=en', [], [], ['HTTP_REFERER' => 'http://localhost'.$target]);
+        self::assertResponseStatusCodeSame(401);
+        self::assertResponseHeaderSame('X-EasyWi-Problem', 'session_expired');
+        $state = json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('SESSION_EXPIRED', $state['code']);
+        self::assertStringContainsString('signed out automatically', $state['error']);
+        self::assertSame('/login?target='.rawurlencode($target), $state['action_url']);
+    }
+
     public function testCustomerRedirectsToCustomerPanel(): void
     {
         self::ensureKernelShutdown();

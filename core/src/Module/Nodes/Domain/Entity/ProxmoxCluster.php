@@ -31,6 +31,9 @@ class ProxmoxCluster
     private bool $enabled = true;
     #[ORM\Column(options: ['default' => true])]
     private bool $verifyTls = true;
+    /** @var array<array-key, array{first: int, last: int}>|null */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $vmIdRanges = null;
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -112,5 +115,46 @@ class ProxmoxCluster
     public function setEnabled(bool $enabled): void
     {
         $this->enabled = $enabled;
+    }
+
+    /** @return array{first: int, last: int}|null */
+    public function vmIdRange(string $node): ?array
+    {
+        return $this->vmIdRanges[$node] ?? null;
+    }
+
+    public function setVmIdRange(string $node, ?int $first, ?int $last): void
+    {
+        if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$/D', $node)) {
+            throw new \InvalidArgumentException('pve.error.node_offline');
+        }
+        $ranges = $this->vmIdRanges ?? [];
+        if (null === $first && null === $last) {
+            unset($ranges[$node]);
+        } else {
+            if (null === $first || null === $last || $first < 100 || $last > 999999999 || $first > $last) {
+                throw new \InvalidArgumentException('pve.error.vm_id_range');
+            }
+            foreach ($ranges as $owner => $range) {
+                if ((string) $owner !== $node && $first <= $range['last'] && $last >= $range['first']) {
+                    throw new \InvalidArgumentException('pve.error.vm_id_overlap');
+                }
+            }
+            $ranges[$node] = ['first' => $first, 'last' => $last];
+        }
+        $this->vmIdRanges = [] === $ranges ? null : $ranges;
+    }
+
+    public function nextAllowedVmId(string $node, int $id): int
+    {
+        $ranges = $this->vmIdRanges ?? [];
+        uasort($ranges, static fn (array $a, array $b): int => $a['first'] <=> $b['first']);
+        foreach ($ranges as $owner => $range) {
+            if ($node !== (string) $owner && $id >= $range['first'] && $id <= $range['last']) {
+                $id = $range['last'] + 1;
+            }
+        }
+
+        return $id;
     }
 }

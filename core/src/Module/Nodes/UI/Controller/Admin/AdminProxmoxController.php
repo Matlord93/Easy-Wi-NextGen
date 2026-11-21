@@ -17,6 +17,8 @@ use App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment;
 use App\Module\Nodes\Domain\Entity\ProxmoxTask;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxApiException;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
+use App\Module\Nodes\Application\Proxmox\ProxmoxIpPools;
+use App\Module\Nodes\Domain\Proxmox\ProxmoxIpRange;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -25,10 +27,11 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
+#[\App\Module\Core\Attribute\RequiresModule('proxmox')]
 #[Route('/admin/proxmox')]
 final class AdminProxmoxController extends AbstractController
 {
-    public function __construct(private readonly EntityManagerInterface $em, private readonly SecretsCryptoInterface $crypto, private readonly ProxmoxManager $manager, private readonly AuditLoggerInterface $audit)
+    public function __construct(private readonly EntityManagerInterface $em, private readonly SecretsCryptoInterface $crypto, private readonly ProxmoxManager $manager, private readonly AuditLoggerInterface $audit, private readonly ProxmoxIpPools $ipPools)
     {
     }
 
@@ -78,12 +81,17 @@ final class AdminProxmoxController extends AbstractController
         $cluster = $this->findCluster($id);
         $this->csrf($request, 'proxmox-settings-'.$id);
         try {
+            if (!$request->request->getBoolean('enabled') && false !== $this->em->getConnection()->fetchOne('SELECT 1 FROM rental_capacity_leases WHERE released_at IS NULL AND pool_id LIKE ? LIMIT 1', ['proxmox:'.$id.':%'])) {
+                throw new \InvalidArgumentException('pve.error.rental_cluster_in_use');
+            }
             $cluster->configure((string) $request->request->get('name'), (string) $request->request->get('base_url'), (string) $request->request->get('token_id'), (string) $request->request->get('token_secret', ''), $this->crypto, $request->request->getBoolean('verify_tls', $cluster->isTlsVerificationEnabled()));
             $cluster->setEnabled($request->request->getBoolean('enabled'));
             $this->audit->log($actor, 'proxmox.cluster_updated', ['cluster_id' => $id, 'enabled' => $cluster->isEnabled(), 'verify_tls' => $cluster->isTlsVerificationEnabled()]);
             $this->em->flush();
-        } catch (\InvalidArgumentException) {
-            return $this->render('admin/proxmox/cluster.html.twig', ['cluster' => $cluster, 'overview' => ['nodes' => [], 'guests' => []], 'tasks' => $this->tasks($cluster), 'error' => 'pve.error.connection', 'activeNav' => 'proxmox'], new Response(status: 422));
+        } catch (\InvalidArgumentException $exception) {
+            $error = 'pve.error.rental_cluster_in_use' === $exception->getMessage() ? $exception->getMessage() : 'pve.error.connection';
+
+            return $this->render('admin/proxmox/cluster.html.twig', ['cluster' => $cluster, 'overview' => ['nodes' => [], 'guests' => []], 'tasks' => $this->tasks($cluster), 'error' => $error, 'activeNav' => 'proxmox'], new Response(status: 422));
         }
 
         return $this->redirectToRoute('admin_proxmox_cluster', ['id' => $id], 303);
@@ -114,7 +122,17 @@ final class AdminProxmoxController extends AbstractController
             $error = $this->error($exception);
         }
 
-        return $this->render('admin/proxmox/guest.html.twig', ['cluster' => $cluster, 'kind' => $kind, 'vmId' => $vmId, 'detail' => $detail, 'error' => $error, 'tasks' => $this->tasks($cluster, $vmId), 'requestKey' => bin2hex(random_bytes(16)), 'actionUrl' => $this->generateUrl('admin_proxmox_action', ['id' => $id, 'kind' => $kind, 'vmId' => $vmId]), 'csrfId' => 'proxmox-action-'.$id.'-'.$kind.'-'.$vmId, 'admin' => true, 'customers' => $this->em->getRepository(User::class)->findBy(['type' => UserType::Customer], ['email' => 'ASC']), 'assignment' => $this->em->getRepository(ProxmoxGuestAssignment::class)->findOneBy(['cluster' => $cluster, 'vmId' => $vmId]), 'activeNav' => 'proxmox']);
+        $pools = [];
+        if ('qemu' === $kind && !empty($detail['guest']['template'])) {
+            $node = \App\Infrastructure\Config\JsonMap::strings($detail['guest'])['node'] ?? '';
+            foreach ($this->ipPools->pools($cluster, $node) as $pool) {
+                if ($pool->isEnabled()) {
+                    $pools[] = $pool;
+                }
+            }
+        }
+
+        return $this->render('admin/proxmox/guest.html.twig', ['cluster' => $cluster, 'kind' => $kind, 'vmId' => $vmId, 'detail' => $detail, 'error' => $error, 'tasks' => $this->tasks($cluster, $vmId), 'requestKey' => bin2hex(random_bytes(16)), 'actionUrl' => $this->generateUrl('admin_proxmox_action', ['id' => $id, 'kind' => $kind, 'vmId' => $vmId]), 'csrfId' => 'proxmox-action-'.$id.'-'.$kind.'-'.$vmId, 'admin' => true, 'customers' => $this->em->getRepository(User::class)->findBy(['type' => UserType::Customer], ['email' => 'ASC']), 'installationRequestKey' => bin2hex(random_bytes(16)), 'installationPools' => $pools, 'assignment' => $this->em->getRepository(ProxmoxGuestAssignment::class)->findOneBy(['cluster' => $cluster, 'vmId' => $vmId]), 'activeNav' => 'proxmox']);
     }
 
     #[Route('/{id<\d+>}/guests/{kind<qemu|lxc>}/{vmId<\d+>}/guest-agent', name: 'admin_proxmox_guest_agent', methods: ['POST'])]
@@ -159,8 +177,11 @@ final class AdminProxmoxController extends AbstractController
         $actor = $this->actor($request);
         $cluster = $this->findCluster($id);
         $this->csrf($request, 'proxmox-action-'.$id.'-'.$kind.'-'.$vmId);
+        $action = $request->request->getString('action');
         try {
-            $task = $this->manager->perform($cluster, $kind, $vmId, (string) $request->request->get('action'), $request->request->all(), (string) $request->request->get('request_key'), $actor);
+            $task = 'qemu' === $kind && 'install-template' === $action
+                ? $this->manager->queueInstallation($cluster, $vmId, $request->request->all(), $request->request->getString('request_key'), $actor)
+                : $this->manager->perform($cluster, $kind, $vmId, $action, $request->request->all(), $request->request->getString('request_key'), $actor);
             if (in_array($task->getState(), ['failed', 'uncertain'], true)) {
                 throw new \InvalidArgumentException('permission_denied' === $task->getResult() ? 'pve.error.permissions' : 'pve.error.unavailable');
             }
@@ -168,7 +189,7 @@ final class AdminProxmoxController extends AbstractController
             $this->addFlash('proxmox_error', $this->error($exception));
         }
 
-        return $this->redirectToRoute('admin_proxmox_guest', ['id' => $id, 'kind' => $kind, 'vmId' => $vmId], 303);
+        return $this->redirectToRoute('admin_proxmox_guest', ['id' => $id, 'kind' => $kind, 'vmId' => $vmId] + ('install-template' === $action ? ['_fragment' => 'pve-activity'] : []), 303);
     }
 
     #[Route('/{id<\d+>}/guests/{kind<qemu|lxc>}/{vmId<\d+>}/assign', name: 'admin_proxmox_assign', methods: ['POST'])]
@@ -191,7 +212,13 @@ final class AdminProxmoxController extends AbstractController
             if ('' !== $storage && !in_array($storage, array_column(array_filter(\App\Infrastructure\Config\JsonArray::orEmpty($detail['storages'] ?? null), static fn (mixed $s): bool => is_array($s) && !empty($s['active']) && in_array('backup', explode(',', \App\Infrastructure\Config\JsonMap::strings($s)['content'] ?? ''), true)), 'storage'), true)) {
                 throw new \InvalidArgumentException('pve.error.storage');
             }
-            $this->em->wrapInTransaction(function () use ($cluster, $vmId, $kind, $customer, $storage, $actor): void {
+            $updated = $this->em->wrapInTransaction(function () use ($cluster, $vmId, $kind, $customer, $storage, $actor): bool {
+                $this->em->refresh($cluster, \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+                $tasks = $this->em->getRepository(ProxmoxTask::class);
+                if (null !== $tasks->findOneBy(['cluster' => $cluster, 'targetLock' => $vmId])
+                    || null !== $tasks->findOneBy(['cluster' => $cluster, 'guestLock' => $kind.':'.$vmId])) {
+                    return false;
+                }
                 $existing = $this->em->getRepository(ProxmoxGuestAssignment::class)->findOneBy(['cluster' => $cluster, 'vmId' => $vmId]);
                 $tag = $this->manager->ownershipTag($cluster, $kind, $vmId, $existing?->getIdentityTag(), null !== $customer);
                 if ($existing) {
@@ -203,12 +230,108 @@ final class AdminProxmoxController extends AbstractController
                     $this->em->persist(new ProxmoxGuestAssignment($cluster, $vmId, $kind, $customer, $tag, '' !== $storage ? $storage : null));
                 }
                 $this->audit->log($actor, 'proxmox.guest_assigned', ['cluster_id' => $cluster->getId(), 'vm_id' => $vmId, 'customer_id' => $customer?->getId()]);
+
+                return true;
             });
+            if (!$updated) {
+                throw new \InvalidArgumentException('pve.error.task_active');
+            }
         } catch (\Throwable $exception) {
             $this->addFlash('proxmox_error', $this->error($exception));
         }
 
         return $this->redirectToRoute('admin_proxmox_guest', ['id' => $id, 'kind' => $kind, 'vmId' => $vmId], 303);
+    }
+
+    #[Route('/{id<\d+>}/nodes/{node}/address-pools', name: 'admin_proxmox_address_pools', methods: ['GET', 'POST'])]
+    public function addressPools(Request $request, int $id, string $node): Response
+    {
+        $actor = $this->actor($request);
+        $cluster = $this->findCluster($id);
+        if ($request->isMethod('POST')) {
+            $family = $request->request->getInt('family');
+            $this->csrf($request, 'proxmox-address-pool-'.$id.'-'.$node.'-'.$family);
+            try {
+                $bridge = $request->request->getString('bridge');
+                $vlanText = $request->request->getString('vlan');
+                $vlan = '' === $vlanText ? null : filter_var($vlanText, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 4094]]);
+                $enabled = $request->request->getBoolean('enabled');
+                if (false === $vlan || ($enabled && !in_array($bridge, array_column($this->manager->addressPoolBridges($cluster, $node), 'iface'), true))) {
+                    throw new \InvalidArgumentException('pve.error.ip_pool_network');
+                }
+                $range = new ProxmoxIpRange($family, $request->request->getString('first'), $request->request->getString('last'), $request->request->getInt('prefix'), $request->request->getString('gateway'));
+                $this->ipPools->save($cluster, $node, $range, $bridge, $vlan, $enabled);
+                $this->audit->log($actor, 'proxmox.address_pool_updated', ['cluster_id' => $id, 'node' => $node, 'family' => $family, 'enabled' => $enabled]);
+                $this->em->flush();
+            } catch (\InvalidArgumentException|\RuntimeException $exception) {
+                $this->addFlash('proxmox_error', $this->error($exception));
+            }
+
+            return $this->redirectToRoute('admin_proxmox_address_pools', compact('id', 'node'), 303);
+        }
+        $error = null;
+        $bridges = [];
+        try {
+            $bridges = $this->manager->addressPoolBridges($cluster, $node);
+        } catch (\RuntimeException $exception) {
+            $error = $this->error($exception);
+        }
+        $pools = [];
+        foreach ($this->ipPools->pools($cluster, $node) as $pool) {
+            $pools[$pool->getFamily()] = $pool;
+        }
+        $after = max(0, $request->query->getInt('after'));
+        $leases = $this->ipPools->nodeLeases($cluster, $node, $after);
+
+        return $this->render('admin/proxmox/address-pools.html.twig', ['cluster' => $cluster, 'node' => $node, 'pools' => $pools, 'bridges' => $bridges, 'leases' => array_slice($leases, 0, 50), 'next' => count($leases) > 50 ? $leases[49]->getId() : null, 'error' => $error, 'activeNav' => 'proxmox']);
+    }
+
+    #[Route('/{id<\d+>}/tasks/{taskId<\d+>}/addresses/release', name: 'admin_proxmox_release_addresses', methods: ['POST'])]
+    public function releaseAddresses(Request $request, int $id, int $taskId): Response
+    {
+        $actor = $this->actor($request);
+        $this->csrf($request, 'proxmox-release-addresses-'.$id.'-'.$taskId);
+        $task = $this->em->find(ProxmoxTask::class, $taskId);
+        if (null === $task || $task->getCluster()->getId() !== $id) {
+            throw $this->createNotFoundException();
+        }
+        try {
+            if (!$request->request->getBoolean('confirm')) {
+                throw new \InvalidArgumentException('pve.error.confirm');
+            }
+            $this->manager->releaseAddresses($task, $actor);
+        } catch (\RuntimeException|\InvalidArgumentException $exception) {
+            $this->addFlash('proxmox_error', $this->error($exception));
+        }
+
+        return $this->redirectToRoute('admin_proxmox_address_pools', ['id' => $id, 'node' => $task->getNode()], 303);
+    }
+
+    #[Route('/{id<\d+>}/nodes/{node}/vm-id-range', name: 'admin_proxmox_vm_id_range', methods: ['POST'])]
+    public function vmIdRange(Request $request, int $id, string $node): Response
+    {
+        $actor = $this->actor($request);
+        $this->csrf($request, 'proxmox-vm-ids-'.$id.'-'.$node);
+        $cluster = $this->findCluster($id);
+        $first = $request->request->getString('first');
+        $last = $request->request->getString('last');
+        try {
+            foreach ([$first, $last] as $value) {
+                if ('' !== $value && !preg_match('/^[1-9][0-9]{2,8}$/D', $value)) {
+                    throw new \InvalidArgumentException('pve.error.vm_id_range');
+                }
+            }
+            $this->em->getConnection()->transactional(function () use ($cluster, $node, $first, $last, $actor): void {
+                $this->em->refresh($cluster, \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+                $cluster->setVmIdRange($node, '' === $first ? null : (int) $first, '' === $last ? null : (int) $last);
+                $this->audit->log($actor, 'proxmox.vm_id_range_updated', ['cluster_id' => $cluster->getId(), 'node' => $node, 'range' => $cluster->vmIdRange($node)]);
+                $this->em->flush();
+            });
+        } catch (\InvalidArgumentException $exception) {
+            $this->addFlash('proxmox_error', $this->error($exception));
+        }
+
+        return $this->redirectToRoute('admin_proxmox_new_vm', compact('id', 'node'), 303);
     }
 
     #[Route('/{id<\d+>}/nodes/{node}/new', name: 'admin_proxmox_new_vm', methods: ['GET', 'POST'])]

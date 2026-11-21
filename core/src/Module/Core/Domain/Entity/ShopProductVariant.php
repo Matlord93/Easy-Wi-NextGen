@@ -61,7 +61,7 @@ class ShopProductVariant
     public function setSlots(?int $slots): void
     {
         if (null !== $slots && ($slots < 1 || $slots > 1024)) {
-            throw new \InvalidArgumentException('Invalid voice slot count.');
+            throw new \InvalidArgumentException('Die Slotzahl muss zwischen 1 und 1024 liegen.');
         } $this->slots = $slots;
     }
 

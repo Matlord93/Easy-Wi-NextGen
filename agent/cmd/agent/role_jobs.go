@@ -73,6 +73,9 @@ func ensureBaseForRoleResult(role string, job jobs.Job) (jobs.Result, func() err
 }
 
 func ensureBaseForRole(role string) (string, error) {
+	if role == "kvm" {
+		return ensureKVMRole(ensureRoleFiles)
+	}
 	if runtime.GOOS == "windows" {
 		return ensureBaseForRoleWindows(role)
 	}

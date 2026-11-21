@@ -21,3 +21,22 @@ vm_config.invalid_hostname: 'Ein gültiger Hostname mit maximal 48 kleinen Buchs
 vm_config.invalid_keys: 'Bitte ein bis acht gültige öffentliche SSH-Schlüssel ohne Schlüsseloptionen eingeben (maximal 32 KiB).'
 vm_config.invalid_user: 'Ein gültiger Linux-Benutzername mit maximal 31 Zeichen wird benötigt.'
 vm_config.invalid_boot: 'Bitte ausschließlich vorhandene, eindeutige Boot-Geräte in gültiger Reihenfolge auswählen.'
+vm_config.access: "Zugang"
+vm_config.assigned_ip: "Zugewiesene IP-Adressen"
+vm_config.live_ip: "IP-Adressen im Gast prüfen"
+vm_config.root_password: "Root-Passwort"
+vm_config.root_password_hint: "Das Panel kann ein vergessenes Passwort durch ein neues ersetzen. Die SSH-Anmelderegeln des Systems gelten weiterhin."
+vm_config.root_password_confirm: "Das bisherige Root-Passwort ersetzen"
+vm_config.root_password_reset: "Neues Passwort erzeugen"
+vm_config.root_password_unavailable: "Der Passwortwechsel benötigt eine laufende VM mit aktiviertem QEMU Guest Agent und einen aktuellen Host-Agenten beziehungsweise die nötige Proxmox-Berechtigung."
+vm_config.root_password_copy: "Neues Passwort zur einmaligen Anzeige"
+vm_config.root_password_pending: "Speichere das angezeigte Passwort. Es gilt, sobald der Auftrag in der Aktivität als erfolgreich angezeigt wird."
+vm_config.root_password_ready: "Das Root-Passwort wurde geändert. Speichere das angezeigte Passwort jetzt."
+vm_config.root_password_back: "Zur VM"
+
+vm_config.address_switch: 'Reservierte IP wechseln'
+vm_config.address_switch_hint: 'Beim ersten Wechsel reserviert das Panel eine zweite Adresse aus demselben Pool. Beide bleiben dieser VM zugeordnet. Starte die VM anschließend, damit Cloud-Init die Einstellung übernehmen kann.'
+vm_config.address_switch_proxmox_ssh: 'Cloud-Init kann beim Neustart die SSH-Hostschlüssel neu erzeugen. Wenn dein SSH-Client einen geänderten Schlüssel meldet, prüfe den Fingerabdruck zuerst über die VM-Konsole.'
+vm_config.address_switch_current: 'Aktuell konfigurierte Adresse'
+vm_config.address_switch_confirm: 'Ich bestätige den Wechsel für diese Adresse.'
+vm_config.address_switch_unavailable: 'Der Wechsel ist bei ausgeschalteten VMs mit einer verwalteten Pooladresse und Cloud-Init möglich.'

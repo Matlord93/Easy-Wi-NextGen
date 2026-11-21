@@ -2,10 +2,60 @@
 {% if detail %}
 <div class="infra-page" data-infra-tabs>
 <header class="infra-hero"><div><span class="infra-eyebrow">Proxmox · {{ kind|upper }}</span><h1>{{ vmId }} · {{ detail.guest.name|default(kind) }}</h1><p>{{ detail.status.status|default(detail.guest.status|default('unknown')) }}{% if admin %} · {{ detail.guest.node }}{% endif %}</p></div><div class="infra-actions"><a class="ui-button ui-button--ghost" href="{{ admin ? path('admin_infrastructure_history', {provider:'proxmox',connection:cluster.id,kind:kind,reference:vmId}) : path('customer_infrastructure_history', {provider:'proxmox',id:assignment.id}) }}">{{ 'monitor.open_history'|trans({}, 'monitoring') }}</a>{% if not detail.guest.template|default(false) %}{% for action in ['start', 'shutdown'] %}<form action="{{ actionUrl }}" method="post" data-pve-mutation>{% include 'proxmox/_action_fields.html.twig' %}<button class="ui-button {{ action == 'start' ? 'ui-button--primary' : 'ui-button--ghost' }}">{{ ('pve.action.' ~ action)|trans }}</button></form>{% endfor %}{% endif %}</div></header>
-<nav class="infra-tabs" data-infra-tablist aria-label="{{ vmId }}">{% set panes = ['overview'] %}{% if not admin %}{% set panes = panes|merge(['console']) %}{% endif %}{% if admin or kind == 'qemu' %}{% set panes = panes|merge(['settings']) %}{% endif %}{% set panes = panes|merge(['snapshots','backups','activity']) %}{% for id in panes %}<a href="#pve-{{ id }}" data-infra-tab>{{ ('infra.' ~ id)|trans({}, 'infrastructure') }}</a>{% endfor %}</nav>
+<nav class="infra-tabs" data-infra-tablist aria-label="{{ vmId }}">{% set panes = ['overview'] %}{% if not admin %}{% set panes = panes|merge(kind == 'qemu' ? ['access', 'console'] : ['console']) %}{% endif %}{% if admin or kind == 'qemu' %}{% set panes = panes|merge(['settings']) %}{% endif %}{% set panes = panes|merge(['snapshots','backups','activity']) %}{% for id in panes %}<a href="#pve-{{ id }}" data-infra-tab>{{ ('infra.' ~ id)|trans({}, 'infrastructure') }}</a>{% endfor %}</nav>
 <section class="infra-pane pm-vm-overview" id="pve-overview" data-infra-pane><div><div data-infra-usage-url="{{ admin ? path('admin_proxmox_usage', {id: cluster.id, kind: kind, vmId: vmId}) : path('customer_proxmox_usage', {id: assignment.id}) }}">{% if admin %}{% include 'infrastructure/_usage_pair.html.twig' with {serverUsage: infra_pve_usage(detail.guest|merge(detail.status)), nodeUsage: infra_pve_usage(detail.nodeUsage|default({}))} %}{% else %}{% include 'infrastructure/_server_usage.html.twig' with {serverUsage: infra_pve_usage(detail.guest|merge(detail.status))} only %}{% endif %}</div><p data-usage-error hidden>{{ 'infra.refresh_failed'|trans({}, 'infrastructure') }}</p></div><section class="infra-card"><div class="infra-card__head"><h2>{{ 'infra.overview'|trans({}, 'infrastructure') }}</h2><span class="infra-tag">{{ kind|upper }}</span></div>
-{% if detail.guest.template|default(false) and admin %}<h3>{{ 'pve.clone_template'|trans }}</h3><form method="post" action="{{ actionUrl }}" class="infra-form" data-pve-mutation>{% include 'proxmox/_action_fields.html.twig' with {action: 'clone'} %}<label>{{ 'pve.name'|trans }}<input name="name" class="form-input" pattern="[A-Za-z0-9][A-Za-z0-9.-]{0,62}" maxlength="63" required></label><p>{{ 'pve.clone_hint'|trans }}</p><button class="ui-button ui-button--primary">{{ 'pve.clone_template'|trans }}</button></form>
+{% if detail.guest.template|default(false) and admin %}<h3>{{ 'pve.clone_template'|trans }}</h3><form method="post" action="{{ actionUrl }}" class="infra-form" data-pve-mutation>{% include 'proxmox/_action_fields.html.twig' with {action: 'clone'} %}<label>{{ 'pve.name'|trans }}<input name="name" class="form-input" pattern="[A-Za-z0-9][A-Za-z0-9.-]{0,62}" maxlength="63" required></label>{% include 'proxmox/_vm_id.html.twig' with {vmIdRange: cluster.vmIdRange(detail.guest.node)} %}<p>{{ 'pve.clone_hint'|trans }}</p><button class="ui-button ui-button--primary">{{ 'pve.clone_template'|trans }}</button></form>
+{% if kind == 'qemu' %}
+<h3>{{ 'pve.install_template'|trans }}</h3>
+<form method="post" action="{{ actionUrl }}" class="infra-form" data-pve-mutation>
+    {% include 'proxmox/_action_fields.html.twig' with {action: 'install-template', requestKey: installationRequestKey} %}
+    <label>Hostname<input name="name" class="form-input" pattern="[a-z0-9][a-z0-9-]{0,47}" maxlength="48" required></label>
+    {% include 'proxmox/_vm_id.html.twig' with {vmIdRange: cluster.vmIdRange(detail.guest.node)} %}
+    <label>{{ 'kvm.username'|trans({}, 'kvm') }}<input name="username" class="form-input" value="easywi" pattern="[a-z][a-z0-9_-]{0,30}" required></label>
+    <label>{{ 'kvm.ssh_keys'|trans({}, 'kvm') }}<textarea name="ssh_keys" class="form-input" rows="4" maxlength="32768" required></textarea></label>
+    <label>{{ 'pve.customer'|trans }}<select class="form-input" name="customer_id"><option value="">—</option>{% for customer in customers %}<option value="{{ customer.id }}">{{ customer.email }}</option>{% endfor %}</select></label>
+    <label>{{ 'pve.ip_address_mode'|trans }}
+        <select class="form-input" name="address_mode">
+            {% if installationPools|default([]) %}
+                <option value="pool">{{ 'pve.ip_pool_allocate'|trans }} ({% for pool in installationPools %}IPv{{ pool.family }}{{ not loop.last ? ' + ' : '' }}{% endfor %})</option>
+            {% endif %}
+            <option value="dhcp">DHCP</option>
+        </select>
+    </label>
+    <p>{{ 'pve.install_template_hint'|trans }}</p>
+    <button class="ui-button ui-button--primary">{{ 'pve.install_template'|trans }}</button>
+</form>
+{% endif %}
 {% else %}<div class="infra-grid"><div class="infra-stat"><span>vCPU</span><strong>{{ detail.status.cpus|default(detail.guest.maxcpu|default('—')) }}</strong></div><div class="infra-stat"><span>{{ 'pve.memory'|trans }}</span><strong>{{ detail.status.maxmem is defined ? (detail.status.maxmem / 1073741824)|number_format(1) ~ ' GiB' : '—' }}</strong></div><div class="infra-stat"><span>{{ 'pve.disk'|trans }}</span><strong>{{ detail.status.maxdisk is defined ? (detail.status.maxdisk / 1073741824)|number_format(1) ~ ' GiB' : '—' }}</strong></div></div><div class="infra-actions">{% for action in ['stop', 'reboot'] %}<form action="{{ actionUrl }}" method="post" data-pve-mutation>{% include 'proxmox/_action_fields.html.twig' %}<label><input type="checkbox" name="confirm" value="1" required> {{ 'pve.confirm_power'|trans }}</label><button class="ui-button ui-button--ghost">{{ ('pve.action.' ~ action)|trans }}</button></form>{% endfor %}</div>{% endif %}{% include 'proxmox/_disk_inventory.html.twig' %}</section></section>
+{% if not admin and kind == 'qemu' %}<section class="infra-pane" id="pve-access" data-infra-pane>
+{% include 'infrastructure/_customer_access.html.twig' with {
+    addresses: detail.staticAddresses, networkPane: '#pve-settings', resetAvailable: detail.status.status|default('') == 'running' and detail.guestAgentEnabled,
+    resetUrl: path('customer_proxmox_root_password', {id: assignment.id}), resetToken: csrf_token(csrfId),
+    switchChoices: tasks|filter(task => task.active) is empty ? detail.addressChoices : [],
+    switchUrl: actionUrl, switchFields: {action: 'address-switch', request_key: addressSwitchRequestKey}
+} only %}
+<section class="infra-card">
+    <div class="infra-card__head"><h2>{{ 'pve.action.reinstall'|trans }}</h2></div>
+    {% if reinstallation %}
+        <form action="{{ path('customer_proxmox_reinstall', {id: assignment.id}) }}" method="post" class="infra-form" data-pve-mutation>
+            <input type="hidden" name="_token" value="{{ csrf_token(csrfId) }}">
+            <input type="hidden" name="request_key" value="{{ reinstallationRequestKey }}">
+            <input type="hidden" name="expected_digest" value="{{ reinstallation.digest }}">
+            <p>{{ 'pve.reinstall.hint'|trans }}</p>
+            <label>{{ 'pve.reinstall.image'|trans }}
+                <select name="product_id" class="form-input" required>
+                    <option value="">{{ 'pve.reinstall.select'|trans }}</option>
+                    {% for id, name in reinstallation.images %}<option value="{{ id }}">{{ name }}</option>{% endfor %}
+                </select>
+            </label>
+            <label><input type="checkbox" name="confirm" value="1" required> {{ 'pve.reinstall.confirm'|trans }}</label>
+            <button class="ui-button ui-button--danger">{{ 'pve.action.reinstall'|trans }}</button>
+        </form>
+    {% else %}
+        <p>{{ (detail.status.status|default('') == 'running' ? 'pve.reinstall.stop_first' : 'pve.error.reinstall_unavailable')|trans }}</p>
+    {% endif %}
+</section>
+</section>{% endif %}
 <section class="infra-pane" id="pve-snapshots" data-infra-pane>{% if not detail.guest.template|default(false) %}{% include 'proxmox/_pane_snapshots.html.twig' %}{% endif %}</section>
 <section class="infra-pane" id="pve-backups" data-infra-pane>{% if not detail.guest.template|default(false) %}{% include 'proxmox/_pane_backups.html.twig' %}{% endif %}</section>
 <section class="infra-pane" id="pve-activity" data-infra-pane>{% include 'proxmox/_tasks.html.twig' %}</section>

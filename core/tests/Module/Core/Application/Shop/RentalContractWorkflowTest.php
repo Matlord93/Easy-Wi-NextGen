@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Module\Core\Application\Shop;
 
+use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
+use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\Contracts\ContractQuote;
 use App\Module\Core\Application\Contracts\RentalAccounts;
+use App\Module\Core\Application\Contracts\RentalCapacity;
 use App\Module\Core\Application\Contracts\RentalContracts;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Invoice;
@@ -27,6 +30,7 @@ use Doctrine\ORM\Tools\SchemaTool;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Uid\Uuid;
 
 final class RentalContractWorkflowTest extends KernelTestCase
 {
@@ -37,6 +41,7 @@ final class RentalContractWorkflowTest extends KernelTestCase
     private RentalContracts $service;
     private ContractQuote $quotes;
     private RentalAccounts $accounts;
+    private \App\Tests\Support\ProxmoxFixture $proxmoxFixture;
     private array $environment = [];
 
     protected function setUp(): void
@@ -47,6 +52,8 @@ final class RentalContractWorkflowTest extends KernelTestCase
             $_SERVER[$key] = $_ENV[$key] = $value;
         }
         self::bootKernel();
+        $this->proxmoxFixture = new \App\Tests\Support\ProxmoxFixture();
+        self::getContainer()->set(\App\Module\Nodes\Application\Proxmox\ProxmoxApiClient::class, $this->proxmoxFixture->client());
         $this->em = self::getContainer()->get(EntityManagerInterface::class);
         (new SchemaTool($this->em))->createSchema($this->em->getMetadataFactory()->getAllMetadata());
         $this->customer = new User('rental@example.test', UserType::Customer);
@@ -135,6 +142,45 @@ final class RentalContractWorkflowTest extends KernelTestCase
         $instance = $this->order()->getOrder()->getInstance();
         self::assertSame('/srv/other-games', $instance->getInstanceBaseDir());
         self::assertStringStartsWith('/srv/other-games/gs', $instance->getInstallPath());
+    }
+
+    public static function gameserverSlotTariffs(): iterable
+    {
+        yield 'legacy product' => [null, null, false, 16];
+        yield 'standard tariff' => [48, null, false, 48];
+        yield 'variant inherits standard tariff' => [48, null, true, 48];
+        yield 'variant overrides standard tariff' => [48, 64, true, 64];
+    }
+
+    #[DataProvider('gameserverSlotTariffs')]
+    public function testGameserverBookingSetsTheSlotLimitAndInitialInstallValues(?int $productSlots, ?int $variantSlots, bool $useVariant, int $expected): void
+    {
+        if (null !== $productSlots) {
+            $this->product->configureKind(ShopProductKind::Gameserver, ['game_slots' => $productSlots]);
+        }
+        $this->product->getTemplate()->setStartParams('./server +maxplayers {{MAXPLAYERS}}');
+        $input = ['slots' => '1024']; // The customer cannot override the tariff.
+        if ($useVariant) {
+            $variant = new \App\Module\Core\Domain\Entity\ShopProductVariant($this->product, 'GAME-SLOTS', 'Extended', 43200, 1, 2, 20, true);
+            $variant->setSlots($variantSlots);
+            $this->em->persist($variant);
+            $this->em->flush();
+            $input['variant_id'] = (string) $variant->getId();
+        }
+        $contract = $this->order(extra: $input);
+        $instance = $contract->getOrder()->getInstance();
+        self::assertSame($expected, $contract->getConfiguration()['game_slots']);
+        self::assertSame($expected, $instance->getMaxSlots());
+        self::assertSame($expected, $instance->getCurrentSlots());
+        self::assertFalse($instance->isLockSlots());
+
+        $this->product->configureKind(ShopProductKind::Gameserver, ['game_slots' => 96]);
+        $this->em->flush();
+        $this->service->run(new \DateTimeImmutable(), Request::create('/shop'));
+        $job = $this->em->find(Job::class, $contract->getJobId());
+        self::assertNotNull($job);
+        self::assertSame((string) $expected, array_column($job->getPayload()['env_vars'], 'value', 'key')['MAXPLAYERS']);
+        self::assertSame($expected, $instance->getMaxSlots());
     }
 
     public function testOrderAndProvisioningDoNotRequireMerchantCredentialsOrUpfrontInvoice(): void
@@ -334,25 +380,356 @@ final class RentalContractWorkflowTest extends KernelTestCase
         self::assertSame(2, $contract->getChargedMinutes());
     }
 
-    public function testKvmContractBindsTheNativeVmUuidAndRemovesCustomerAssignmentWhenCancelled(): void
+    public static function kvmAddressModes(): iterable
     {
-        $this->product->getNode()->setMetadata(['kvm_managed' => ['version' => 1, 'supported' => true]]);
-        $this->product->configureKind(ShopProductKind::Kvm, ['kvm_template' => 'ubuntu--26.04-v1', 'network' => 'default', 'network_type' => 'network']);
+        yield 'legacy DHCP' => [false];
+        yield 'static IP pool' => [true];
+    }
+
+    #[DataProvider('kvmAddressModes')]
+    public function testKvmContractBindsTheNativeVmUuidAndRemovesCustomerAssignmentWhenCancelled(bool $static): void
+    {
+        $this->configureKvmProduct($static);
+        $orderInput = ['hostname' => 'customer-vm', 'ssh_keys' => 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureKey'];
+        $contract = $this->order(extra: $orderInput + ['address_mode' => $static ? 'dhcp' : 'pool']);
+        $this->product->configureKind(ShopProductKind::Kvm, array_replace($this->product->getProvisioningOptions(), ['address_mode' => $static ? 'dhcp' : 'pool']));
         $this->em->flush();
-        $contract = $this->order(extra: ['hostname' => 'customer-vm', 'ssh_keys' => 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureKey']);
         $start = new \DateTimeImmutable('2026-12-01 12:00:00');
         $this->service->run($start, Request::create('/shop'));
-        $job = $this->em->find(\App\Module\AgentOrchestrator\Domain\Entity\AgentJob::class, $contract->getJobId());
+        $job = $this->em->find(AgentJob::class, $contract->getJobId());
         self::assertNotNull($job);
         self::assertSame($contract->getResourceId(), $job->getPayload()['operation_id']);
         self::assertSame(2048, $job->getPayload()['memory_mib']);
-        $job->markFinished(\App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus::Success, $start);
+        self::assertSame($static ? 'pool' : null, $job->getPayload()['address_mode'] ?? null);
+        $job->markFinished(AgentJobStatus::Success, $start);
         $this->em->flush();
         $this->service->run($start->modify('+1 minute'), Request::create('/shop'));
         self::assertSame('active', $contract->getStatus());
         $this->service->cancel($contract, $this->customer, Request::create('/shop'), $start->modify('+61 seconds'));
         self::assertSame(0, $this->em->getRepository(\App\Module\Nodes\Domain\Entity\KvmGuestAssignment::class)->count(['customer' => $this->customer]));
         self::assertNotNull($contract->getStopJobId());
+    }
+
+    public function testKvmShopRejectsCheckoutWithoutAnAddressPoolForTheSelectedNetwork(): void
+    {
+        $this->configureKvmProduct(true, 'other-network');
+        $availability = self::getContainer()->get(RentalCapacity::class)->inspect($this->product);
+        self::assertFalse($availability['orderable']);
+        self::assertSame('address_pool_missing', $availability['state']);
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('keinen IP-Pool gemeldet');
+        $this->order(extra: ['hostname' => 'customer-vm', 'ssh_keys' => 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureKey']);
+    }
+
+    public function testKvmPoolRejectionBeforeCreationReleasesReservedCapacityWithoutBillingOrDeletion(): void
+    {
+        $this->configureKvmProduct(true);
+        $contract = $this->order(extra: ['hostname' => 'customer-vm', 'ssh_keys' => 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureKey']);
+        $start = new \DateTimeImmutable('2026-12-01 12:00:00');
+        $this->service->run($start, Request::create('/shop'));
+        $job = $this->em->find(AgentJob::class, $contract->getJobId());
+        self::assertNotNull($job);
+        $job->setResultPayload(['address_pool_rejected' => true]);
+        $job->markFinished(AgentJobStatus::Failed, $start);
+        $this->em->flush();
+        $this->service->run($start->modify('+1 minute'), Request::create('/shop'));
+        self::assertSame('ended', $contract->getStatus());
+        self::assertSame(0, $contract->getChargedMinutes());
+        self::assertNull($contract->getStopJobId());
+        self::assertNotNull($contract->getPurgedAt());
+        self::assertNotNull($contract->getBackupsPurgedAt());
+        self::assertSame(0, $this->em->getRepository(\App\Module\Nodes\Domain\Entity\KvmGuestAssignment::class)->count(['customer' => $this->customer]));
+        self::assertSame(0, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM rental_capacity_leases WHERE released_at IS NULL'));
+    }
+
+    private function configureKvmProduct(bool $static, string $poolNetwork = 'default'): void
+    {
+        $node = $this->product->getNode();
+        $node->setMetadata(['kvm_managed' => ['version' => 1, 'supported' => true, 'address_pool_version' => 1]]);
+        $options = ['kvm_template' => 'ubuntu--26.04-v1', 'network' => 'default', 'network_type' => 'network'];
+        if ($static) {
+            $options['address_mode'] = 'pool';
+            $job = new AgentJob(Uuid::v4()->toRfc4122(), $node, 'kvm.managed', ['action' => 'inspect']);
+            $job->setResultPayload(['inventory' => ['address_pools' => [['network_type' => 'network', 'network' => $poolNetwork, 'family' => 4]]]]);
+            $job->markFinished(AgentJobStatus::Success);
+            $this->em->persist($job);
+        }
+        $this->product->configureKind(ShopProductKind::Kvm, $options);
+        $this->em->flush();
+    }
+
+    public static function proxmoxRentalOutcomes(): iterable
+    {
+        yield 'successful rental and retirement' => ['retire'];
+        yield 'cancel before dispatch' => ['cancel'];
+        yield 'mismatched template resources' => ['mismatch'];
+        yield 'VM identity changed before retirement' => ['foreign'];
+        yield 'provider loses deletion response' => ['lost-delete'];
+        yield 'larger plan with synchronous disk growth' => ['resize-sync'];
+        yield 'larger plan waits for asynchronous disk growth' => ['resize-async'];
+        yield 'larger plan recovers a lost resize response' => ['resize-lost'];
+        yield 'profile change must be confirmed before power-on' => ['unconfirmed-profile'];
+        yield 'old SSH key must not survive deployment' => ['unconfirmed-key'];
+        yield 'network settings must be confirmed before power-on' => ['unconfirmed-network'];
+        yield 'SSH configuration changed during first boot' => ['changed-key'];
+        yield 'smaller disk plan is rejected during checkout' => ['undersized'];
+        yield 'accepted clone with lost response' => ['clone-lost'];
+        yield 'VM ID taken by another guest during lost clone' => ['clone-foreign'];
+        yield 'cancel while recovering a lost clone response' => ['clone-cancel'];
+    }
+
+    #[DataProvider('proxmoxRentalOutcomes')]
+    public function testProxmoxContractUsesTheCommittedInstallationAndConfirmsRetirement(string $outcome): void
+    {
+        $container = self::getContainer();
+        $fixture = $this->proxmoxFixture;
+        $cluster = new \App\Module\Nodes\Domain\Entity\ProxmoxCluster('Rental PVE', new \App\Module\Nodes\Domain\Proxmox\ProxmoxConnection('https://pve.example.test:8006', 'panel@pve!test', 'synthetic'), $container->get(\App\Module\Core\Application\SecretsCrypto::class));
+        $this->em->persist($cluster);
+        $this->em->flush();
+        $pools = $container->get(\App\Module\Nodes\Application\Proxmox\ProxmoxIpPools::class);
+        $pools->save($cluster, 'pve-a', new \App\Module\Nodes\Domain\Proxmox\ProxmoxIpRange(4, '192.0.2.10', '192.0.2.11', 24, '192.0.2.1'), 'vmbr0', null, true);
+        $this->em->persist(new \App\Module\Core\Domain\Entity\RentalCapacityPool('proxmox:'.$cluster->getId().':pve-a', ['cpu' => 8, 'ram_mib' => 8192, 'disk_mib' => 40960, 'systems' => 2]));
+        $this->product->configureKind(ShopProductKind::Proxmox, ['proxmox_cluster_id' => $cluster->getId(), 'proxmox_node' => 'pve-a', 'proxmox_template_id' => 900, 'address_mode' => 'pool']);
+        $this->em->flush();
+
+        $fixture->configs[900] = ['template' => 1, 'cores' => 1, 'memory' => 2048, 'scsi0' => 'local-lvm:vm-900-disk-0,size=20G',
+            'ide2' => 'local-lvm:vm-900-cloudinit,media=cdrom', 'net0' => 'virtio=52:54:00:12:34:56,bridge=vmbr0'];
+        $key = \phpseclib3\Crypt\EC::createKey('Ed25519')->getPublicKey()->toString('OpenSSH');
+        $request = Request::create('/shop');
+        $now = new \DateTimeImmutable();
+        if ('undersized' === $outcome) {
+            $this->product->setDiskLimit(19);
+            $this->em->flush();
+            $this->expectException(\DomainException::class);
+            $this->expectExceptionMessage('Vorlage passt nicht zum Tarif');
+            $this->order(extra: ['hostname' => 'customer-pve', 'ssh_keys' => $key]);
+
+            return;
+        }
+        $variantId = 0;
+        $largerPlan = str_starts_with($outcome, 'resize-');
+        if ($largerPlan) {
+            $variant = new \App\Module\Core\Domain\Entity\ShopProductVariant($this->product, 'PVE-PLUS', 'Plus', 43200, 4, 4, 30, true);
+            $this->em->persist($variant);
+            $this->em->flush();
+            $variantId = $variant->getId();
+            $fixture->configs[900]['sockets'] = 2;
+            $fixture->configs[900]['vcpus'] = 1;
+            $fixture->configs[900]['cpulimit'] = 1;
+            $fixture->configs[900]['balloon'] = 1024;
+        }
+        $contract = $this->order(extra: ['hostname' => 'customer-pve', 'ssh_keys' => $key, 'proxmox_template_id' => '101', 'variant_id' => (string) $variantId]);
+        $this->service->run($now, $request);
+        $installation = $this->em->find(\App\Module\Nodes\Domain\Entity\ProxmoxTask::class, (int) $contract->getJobId());
+        self::assertSame('queued', $installation?->getState());
+        self::assertSame([], $fixture->writes());
+        self::assertCount(1, $pools->leases($installation));
+        self::assertSame(900, $installation->getVmId());
+        $vmId = $installation->getTargetVmId();
+        $sync = $container->get(\App\Module\Nodes\Application\Proxmox\ProxmoxTaskSynchronizer::class);
+        $this->em->getConnection()->transactional(static fn (): array => $sync->run(25));
+        self::assertSame([], $fixture->writes());
+        if ('cancel' === $outcome) {
+            $this->service->cancel($contract, $this->customer, $request, $now);
+            $sync->run(25);
+            self::assertSame([], $fixture->writes());
+            self::assertSame('ended', $contract->getStatus());
+            self::assertSame([], $pools->leases($installation));
+            self::assertSame(0, $contract->getChargedMinutes());
+
+            return;
+        }
+        if ('mismatch' === $outcome) {
+            $fixture->configs[900]['scsi0'] = 'local-lvm:vm-900-disk-0,size=21G';
+            $sync->run(25);
+            $this->service->run($now->modify('+1 minute'), $request);
+            self::assertSame([], $fixture->writes());
+            self::assertSame('ended', $contract->getStatus());
+            self::assertSame([], $pools->leases($installation));
+
+            return;
+        }
+        $lostClone = str_starts_with($outcome, 'clone-');
+        if ($lostClone) {
+            $fixture->lostWritePath = '/nodes/pve-a/qemu/900/clone';
+        }
+        $sync->run(25);
+        self::assertSame('/nodes/pve-a/qemu/900/clone', $fixture->writes()[0]['path']);
+        if ($lostClone) {
+            self::assertSame('submitting', $installation->getState());
+            self::assertNull($installation->getUpid());
+            $sync->run(25);
+            self::assertSame('submitting', $installation->getState());
+            self::assertCount(1, $fixture->writes());
+        }
+        $fixture->complete = true;
+        $fixture->guests[] = ['vmid' => $vmId, 'type' => 'qemu', 'node' => 'pve-a', 'status' => 'stopped'];
+        $fixture->configs[$vmId] = ['description' => $fixture->writes()[0]['body']['description'], 'template' => 0] + $fixture->configs[900];
+        if ($lostClone) {
+            $description = $fixture->configs[$vmId]['description'];
+            $fixture->configs[$vmId]['description'] = 'Another VM';
+            $fixture->configs[$vmId]['lock'] = 'clone';
+            $sync->run(25);
+            self::assertSame('submitting', $installation->getState());
+            self::assertCount(1, $fixture->writes());
+            unset($fixture->configs[$vmId]['lock']);
+            if ('clone-foreign' === $outcome) {
+                $sync->run(25);
+                $this->service->run($now->modify('+1 minute'), $request);
+                self::assertSame('identity_mismatch', $installation->getResult());
+                self::assertSame('uncertain', $installation->getState());
+                self::assertNull($contract->getStartedAt());
+                self::assertCount(1, $pools->leases($installation));
+                self::assertCount(1, $fixture->writes());
+
+                return;
+            }
+            $fixture->configs[$vmId]['description'] = $description;
+            $fixture->auditPermission = false;
+            $sync->run(25);
+            self::assertCount(1, $fixture->writes());
+            $fixture->auditPermission = true;
+            $fixture->activeJobs = [['id' => '900', 'type' => 'qmclone']];
+            if ('clone-cancel' === $outcome) {
+                $this->service->cancel($contract, $this->customer, $request, $now->modify('+1 minute'));
+            }
+            $sync->run(25);
+            self::assertSame('submitting', $installation->getState());
+            self::assertCount(1, $fixture->writes(), 'The source worker can remain active after the target unlocks.');
+            $fixture->activeJobs = [];
+            if ('clone-cancel' === $outcome) {
+                $sync->run(25);
+                self::assertSame('cancelled', $installation->getResult());
+                self::assertNull($contract->getStartedAt());
+                self::assertSame(0, $contract->getChargedMinutes());
+                self::assertCount(1, $pools->leases($installation));
+                self::assertCount(1, $fixture->writes());
+
+                return;
+            }
+        }
+        if (str_starts_with($outcome, 'unconfirmed-')) {
+            // The provider acknowledged the update, but its current config is still different.
+            [$field, $value] = match ($outcome) {
+                'unconfirmed-key' => ['sshkeys', rawurlencode(\phpseclib3\Crypt\EC::createKey('Ed25519')->getPublicKey()->toString('OpenSSH'))],
+                'unconfirmed-network' => ['ipconfig0', 'ip=dhcp'],
+                default => ['memory', 1024],
+            };
+            $fixture->configs[$vmId][$field] = $value;
+            $fixture->ignoredConfigFields = [$field];
+            $sync->run(25);
+            $this->service->run($now->modify('+1 minute'), $request);
+            self::assertCount(2, $fixture->writes());
+            self::assertSame('/nodes/pve-a/qemu/'.$vmId.'/config', $fixture->writes()[1]['path']);
+            self::assertSame('uncertain', $installation->getState());
+            self::assertSame('unconfirmed-profile' === $outcome ? 'rental_resources_unconfirmed' : 'rental_cloud_init_unconfirmed', $installation->getResult());
+            self::assertNull($contract->getStartedAt());
+            self::assertSame(0, $contract->getChargedMinutes());
+            $this->expectException(\InvalidArgumentException::class);
+            $this->expectExceptionMessage('pve.error.review_rental_installation');
+            $container->get(\App\Module\Nodes\Application\Proxmox\ProxmoxManager::class)->reviewTask($installation, $this->admin, true, 'VM und Auftragsliste geprüft.');
+
+            return;
+        }
+        $configWrite = 1;
+        if ($largerPlan) {
+            $fixture->asynchronousResize = 'resize-async' === $outcome;
+            if ('resize-lost' === $outcome) {
+                $fixture->lostWritePath = '/nodes/pve-a/qemu/'.$vmId.'/resize';
+            }
+            $sync->run(25);
+            self::assertCount(2, $fixture->writes());
+            self::assertSame('/nodes/pve-a/qemu/'.$vmId.'/resize', $fixture->writes()[1]['path']);
+            self::assertSame(['disk' => 'scsi0', 'size' => '30G', 'digest' => 'fixture-digest'], $fixture->writes()[1]['body']);
+            if ('resize-sync' !== $outcome) {
+                $sync->run(25);
+                self::assertCount(2, $fixture->writes(), 'Polling before the size is visible must not resize again or start the VM.');
+                $fixture->configs[$vmId]['scsi0'] = 'local-lvm:vm-'.$vmId.'-disk-0,size=30G';
+            }
+            if ('resize-lost' === $outcome) {
+                $fixture->activeJobs = [['id' => (string) $vmId, 'type' => 'qmresize']];
+                $sync->run(25);
+                self::assertCount(2, $fixture->writes(), 'A lost request may still have an active storage job.');
+                $fixture->activeJobs = [];
+            }
+            $configWrite = 2;
+        }
+        $sync->run(25);
+        self::assertSame('ip=192.0.2.10/24,gw=192.0.2.1', $fixture->writes()[$configWrite]['body']['ipconfig0']);
+        self::assertSame($largerPlan ? '4096' : '2048', $fixture->writes()[$configWrite]['body']['memory']);
+        self::assertSame($largerPlan ? '4' : '1', $fixture->writes()[$configWrite]['body']['cores']);
+        foreach (['sockets' => '1', 'balloon' => '0', 'cpulimit' => '0'] as $key => $expected) {
+            self::assertSame($expected, $fixture->writes()[$configWrite]['body'][$key]);
+        }
+        self::assertSame('/nodes/pve-a/qemu/'.$vmId.'/status/start', $fixture->writes()[$configWrite + 1]['path']);
+        $fixture->guests[3]['status'] = 'running';
+        $sync->run(25);
+        $this->service->run($now->modify('+1 minute'), $request);
+        self::assertSame('provisioning', $contract->getStatus());
+        self::assertNull($contract->getStartedAt());
+        $fixture->cloudInitFinished = true;
+        // The provider may return the same network properties in a different order.
+        $fixture->configs[$vmId]['ipconfig0'] = 'gw=192.0.2.1,ip=192.0.2.10/24';
+        if ('changed-key' === $outcome) {
+            $fixture->configs[$vmId]['sshkeys'] = '';
+        }
+        $sync->run(25);
+        $this->service->run($now->modify('+2 minutes'), $request);
+        if ('changed-key' === $outcome) {
+            self::assertSame('rental_cloud_init_unconfirmed', $installation->getResult());
+            self::assertSame('uncertain', $installation->getState());
+            self::assertNull($contract->getStartedAt());
+            self::assertSame(0, $contract->getChargedMinutes());
+
+            return;
+        }
+        self::assertSame('active', $contract->getStatus());
+        $assignments = $this->em->getRepository(\App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment::class);
+        self::assertSame(1, $assignments->count(['customer' => $this->customer]));
+
+        $this->service->cancel($contract, $this->customer, $request, $now->modify('+3 minutes'));
+        self::assertSame(0, $assignments->count(['customer' => $this->customer]));
+        $sync->run(25);
+        self::assertSame('/nodes/pve-a/qemu/'.$vmId.'/status/stop', array_slice($fixture->writes(), -1)[0]['path']);
+        $fixture->guests[3]['status'] = 'stopped';
+        $sync->run(25);
+        $this->service->run($now->modify('+4 minutes'), $request);
+        self::assertSame('ended', $contract->getStatus());
+        self::assertCount(1, $pools->leases($installation));
+
+        $container->get(\App\Module\Core\Application\Contracts\RentalSettings::class)->save(['cleanup_enabled' => true]);
+        $cleanup = $container->get(\App\Module\Core\Application\Contracts\RentalCleanup::class);
+        $cleanup->run($now->modify('+100 days'));
+        self::assertSame([], $contract->getCleanupJobs());
+        $cleanup->run($now->modify('+108 days'));
+        self::assertCount(1, $contract->getCleanupJobs());
+        if ('foreign' === $outcome) {
+            $fixture->configs[$vmId]['description'] = 'Different VM';
+        }
+        if ('lost-delete' === $outcome) {
+            $fixture->lostWritePath = '/nodes/pve-a/qemu/'.$vmId;
+        }
+        $writes = count($fixture->writes());
+        $sync->run(25);
+        if ('foreign' === $outcome) {
+            self::assertCount($writes, $fixture->writes());
+            self::assertCount(1, $pools->leases($installation));
+
+            return;
+        }
+        self::assertSame('DELETE', array_slice($fixture->writes(), -1)[0]['method']);
+        self::assertCount(1, $pools->leases($installation));
+        unset($fixture->guests[3]);
+        $fixture->auditPermission = false;
+        $sync->run(25);
+        self::assertCount(1, $pools->leases($installation));
+        $fixture->auditPermission = true;
+        $sync->run(25);
+        self::assertCount($writes + 1, $fixture->writes());
+        $cleanup->run($now->modify('+109 days'));
+        self::assertNotNull($contract->getPurgedAt());
+        self::assertSame([], $pools->leases($installation));
+        self::assertSame(0, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM rental_capacity_leases WHERE released_at IS NULL'));
     }
 
     public function testHostingWaitsForBothPoolAndVhostBeforeBillingAndRetainsFilesOnCancellation(): void

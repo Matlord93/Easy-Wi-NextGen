@@ -11,9 +11,11 @@
   {% if task.upid %}<p>UPID: <code>{{ task.upid }}</code></p>{% endif %}
   {% if task.state == 'uncertain' %}
    <p class="ng-alert ng-alert--warning">{{ 'pve.review.hint'|trans }}</p>
+   {% if task.installation.rental_id is defined %}<p>{{ 'pve.error.review_rental_installation'|trans }}</p>{% endif %}
+   {% if task.action == 'reinstall' %}<p>{{ 'pve.error.review_reinstallation'|trans }}</p>{% endif %}
    <form method="post" style="display:grid;gap:14px;" data-pve-mutation>
     <input type="hidden" name="_token" value="{{ csrf_token('proxmox-task-review-' ~ task.id) }}">
-    <label class="form-label">{{ 'pve.review.outcome'|trans }}<select name="outcome" required class="form-input"><option value="">—</option><option value="success">{{ 'pve.review.success'|trans }}</option><option value="failure">{{ 'pve.review.failure'|trans }}</option></select></label>
+    <label class="form-label">{{ 'pve.review.outcome'|trans }}<select name="outcome" required class="form-input"><option value="">—</option>{% if task.action != 'reinstall' and task.installation.rental_id is not defined and task.originTaskId is null %}<option value="success">{{ 'pve.review.success'|trans }}</option>{% endif %}<option value="failure">{{ 'pve.review.failure'|trans }}</option></select></label>
     <label class="form-label">{{ 'pve.review.note'|trans }}<textarea name="note" minlength="10" maxlength="1000" required rows="4" class="form-input"></textarea></label>
     <label><input type="checkbox" name="confirm" value="1" required> {{ 'pve.review.confirm'|trans }}</label>
     <button class="ui-button ui-button--primary" type="submit">{{ 'pve.review.submit'|trans }}</button>

@@ -64,7 +64,7 @@ final class SessionAuthenticator
             }
         }
 
-        if ($session === null) {
+        if ($session === null || $session->getUser()->isEmailVerificationPending()) {
             return null;
         }
 

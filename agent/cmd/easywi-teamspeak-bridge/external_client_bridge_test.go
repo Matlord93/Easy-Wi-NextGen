@@ -582,14 +582,13 @@ func envToMap(env []string) map[string]string {
 	return m
 }
 
-// newFakeRunscriptDir creates a temp dir with a fake ts3client_runscript.sh that
-// sleeps indefinitely, plus a fake ts3client_linux_amd64 binary. Returns the dir
-// and the runscript path.
+// newFakeRunscriptDir creates a fake TS3 runscript. The sleep replaces the shell
+// so killing the test process closes its output pipes immediately.
 func newFakeRunscriptDir(t *testing.T) (dir, runscript string) {
 	t.Helper()
 	dir = t.TempDir()
 	runscript = filepath.Join(dir, "ts3client_runscript.sh")
-	if err := os.WriteFile(runscript, []byte("#!/bin/sh\nsleep 60\n"), 0o755); err != nil {
+	if err := os.WriteFile(runscript, []byte("#!/bin/sh\nexec sleep 60\n"), 0o755); err != nil {
 		t.Fatalf("write fake runscript: %v", err)
 	}
 	return dir, runscript

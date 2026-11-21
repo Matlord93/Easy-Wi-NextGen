@@ -4,14 +4,15 @@
 <section class="cms-container cms-auth auth-box">
   <h1>{{ t('login',page_locale()) }}</h1>
   {% for error in errors %}<p class="error">{{ error }}</p>{% endfor %}
-  <form method="post" action="/login">
+  {% include 'public/auth/_login_feedback.html.twig' %}
+    <form method="post" action="/login">
     <input type="hidden" name="target" value="{{ loginTarget|default('') }}">
     <input aria-label="{{ t('email_address',page_locale()) }}" name="email" type="email" value="{{ form.email }}" placeholder="E-Mail" required>
     <input aria-label="{{ t('password',page_locale()) }}" name="password" type="password" placeholder="{{ t('theme_login_password_placeholder', page_locale()) }}" required>
     <button type="submit">{{ t('theme_login_submit_btn', page_locale()) }}</button>
   </form>
   {% if registrationAllowed %}
-    <a href="/register" class="theme-btn" style="margin-top:.75rem;">{{ t('theme_login_register_link', page_locale()) }}</a>
+    <a href="{{ path('public_register', registrationTarget|default(null) ? {target: registrationTarget} : {}) }}" class="theme-btn" style="margin-top:.75rem;">{{ t('theme_login_register_link', page_locale()) }}</a>
   {% else %}
     <p class="text-sm" style="margin-top:.75rem;color:#94a3b8;">{{ t('theme_login_registration_disabled', page_locale()) }}</p>
   {% endif %}

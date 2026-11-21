@@ -9,6 +9,7 @@ use App\Infrastructure\Config\JsonMap;
 use App\Module\Voice\Application\ViewerSnapshotNormalizer;
 use App\Module\Musicbot\Application\MusicbotPayloadLogSummarizer;
 use App\Module\AgentOrchestrator\Application\AgentJobResultApplier;
+use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\EncryptionServiceInterface;
@@ -62,6 +63,13 @@ final class AgentJobController
 
         $effectiveLimit = min(max(1, $limit), $availableSlots);
         $jobs = $this->jobRepository->findQueuedForNode($agent->getId(), $effectiveLimit);
+        if (!$agent->hasKvmRole()) {
+            $allowed = array_values(array_filter($jobs, fn (AgentJob $job): bool => !$this->rejectKvmSetup($job)));
+            if (count($allowed) < count($jobs)) {
+                $this->entityManager->flush();
+            }
+            $jobs = $allowed;
+        }
 
         return new JsonResponse([
             'jobs' => array_map([$this, 'normalizeJob'], $jobs),
@@ -72,7 +80,7 @@ final class AgentJobController
     #[Route(path: '/{nodeId}/jobs/{jobId}/start', name: 'agent_jobs_start', methods: ['POST'])]
     public function startJob(Request $request, string $nodeId, string $jobId): JsonResponse
     {
-        $this->requireAgent($request, $nodeId);
+        $agent = $this->requireAgent($request, $nodeId);
         $job = $this->jobRepository->find($jobId);
         if ($job === null || $job->getNode()->getId() !== $nodeId) {
             return new JsonResponse(['error' => 'Job not found.'], JsonResponse::HTTP_NOT_FOUND);
@@ -81,11 +89,27 @@ final class AgentJobController
         if ($job->getStatus() !== AgentJobStatus::Queued) {
             return new JsonResponse(['error' => 'Job not queued.'], JsonResponse::HTTP_CONFLICT);
         }
+        if (!$agent->hasKvmRole() && $this->rejectKvmSetup($job)) {
+            $this->entityManager->flush();
+
+            return new JsonResponse(['error' => 'kvm_role_required'], JsonResponse::HTTP_FORBIDDEN);
+        }
 
         $job->markRunning();
         $this->entityManager->flush();
 
         return new JsonResponse(['status' => 'ok']);
+    }
+
+    private function rejectKvmSetup(AgentJob $job): bool
+    {
+        if ('kvm.managed' !== $job->getType() || 'host.setup' !== ($job->getPayload()['action'] ?? null)) {
+            return false;
+        }
+        $job->setErrorText('KVM host setup requires the assigned KVM role.');
+        $job->markFinished(AgentJobStatus::Failed);
+
+        return true;
     }
 
     #[Route(path: '/{nodeId}/jobs/{jobId}/finish', name: 'agent_jobs_finish', methods: ['POST'])]

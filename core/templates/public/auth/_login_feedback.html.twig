@@ -1,0 +1,8 @@
+{% for message in loginFeedback|default([]) %}
+    <p role="status" class="ng-alert ng-alert--success">{{ t(message, page_locale()) }}</p>
+{% endfor %}
+{% if registrationTarget|default(null) %}
+    <p>{{ t('checkout_account_intro', page_locale()) }}</p>
+{% elseif loginTarget|default(null) %}
+    <p>{{ t('portal_problem_login_required_message', page_locale()) }}</p>
+{% endif %}

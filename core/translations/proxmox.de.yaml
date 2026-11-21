@@ -71,13 +71,22 @@ pve.create_hint: "Die VM wird ausgeschaltet angelegt. Danach starten und das Bet
 pve.my_guests: "Meine virtuellen Server"
 pve.no_assigned_guests: "Dir sind noch keine virtuellen Server zugeordnet."
 pve.guest_unavailable: "Derzeit nicht verfügbar"
+pve.state.queued: "Wartet auf den Scheduler"
 pve.state.submitting: "Wird übermittelt"
+pve.error.rental_template_resources: "Der Tarif benötigt eine Vorlage mit einer beschreibbaren Systemdisk in passender Größe, ohne Autostart oder individuelle NUMA-Topologie."
+pve.error.rental_resources_unconfirmed: "Proxmox hat die gebuchten Ressourcen noch nicht bestätigt."
+pve.error.rental_cluster_in_use: "Für diesen Cluster sind noch Mietressourcen reserviert."
 pve.state.running: "Läuft"
 pve.state.succeeded: "Abgeschlossen"
 pve.state.failed: "Prüfung erforderlich"
 pve.result.dispatch_failed: "Übermittlung nicht bestätigt. Den Auftrag in Proxmox prüfen, bevor du ihn erneut ausführst."
 pve.result.dispatch_unknown: "Übermittlung unterbrochen. Den Zustand in Proxmox prüfen."
 pve.result.upstream_failed: "Proxmox hat einen Fehler gemeldet."
+pve.result.identity_mismatch: "Der gefundene Gast konnte dem Auftrag nicht eindeutig zugeordnet werden."
+pve.result.rental_resources_unconfirmed: "Die gebuchten CPU-, RAM- oder Speicherwerte konnten nicht bestätigt werden."
+pve.result.rental_cloud_init_unconfirmed: "Die erwartete Cloud-Init-Konfiguration konnte nicht bestätigt werden. Prüfe Hostname, Benutzer, SSH-Schlüssel und IP-Einstellungen."
+pve.result.ip_pool_network: "Bridge oder VLAN des Gasts passen nicht zum reservierten IP-Pool."
+pve.error.review_rental_installation: "Miet-VMs werden erst nach der automatischen Prüfung von Ressourcen, Netzwerk und Cloud-Init aktiviert."
 pve.error.connection: "Verbindungsdaten prüfen: HTTPS-Adresse ohne Pfad, gültige Token-ID und Secret. Bei geänderter Adresse oder Token-ID das Secret erneut eingeben."
 pve.error.unavailable: "Proxmox ist derzeit nicht erreichbar. Verbindung, Zertifikat und den Auftragsstatus in Proxmox prüfen. Bereits geladene Daten bleiben sichtbar."
 pve.error.permissions: "Der API-Token wurde abgelehnt oder besitzt nicht die nötigen Proxmox-Rechte."
@@ -92,6 +101,12 @@ pve.error.storage: "Der gewählte Storage ist nicht verfügbar, nicht freigegebe
 pve.error.backup_mode: "Einen gültigen Backup-Modus wählen."
 pve.error.backup: "Dieses Backup gehört nicht zum ausgewählten Gast oder ist nicht mehr verfügbar."
 pve.error.restore_running: "Den Gast vor der Wiederherstellung stoppen."
+pve.error.restore_snapshots: "Entferne zuerst die vorhandenen Snapshots, bevor du ein Backup wiederherstellst."
+pve.error.restore_ownership: "Dieses Backup lässt sich der aktuellen Kundenzuordnung des Servers nicht zuordnen. Bitte wende dich an den Betreiber."
+pve.error.restore_configuration: "Die Serverkonfiguration im Backup passt nicht mehr zur aktuellen Konfiguration. Bitte wende dich für die Wiederherstellung an den Betreiber."
+pve.error.restore_protected: "Für den Server ist ein Schutz vor Überschreiben aktiv. Bitte wende dich an den Betreiber."
+pve.error.restore_verification: "Proxmox konnte die Backup-Konfiguration gerade nicht bereitstellen. Prüfe das Backup oder versuche es später erneut."
+pve.restore_customer_hint: "Bei der Wiederherstellung werden die aktuellen Daten des gestoppten Servers durch das ausgewählte Backup ersetzt. Das Panel prüft vorab, ob das Backup zur aktuellen Zuordnung und Serverkonfiguration passt."
 pve.error.action: "Diese Aktion wird nicht unterstützt."
 pve.error.node_offline: "Der ausgewählte Node ist nicht online."
 pve.error.iso: "Ein verfügbares ISO-Abbild aus dem Node-Storage wählen."
@@ -167,3 +182,60 @@ pve.error.mountpoint: "Einen noch nicht zugewiesenen Mountpunkt unter /mnt/<Name
 pve.extra_disk.attached: "Angeschlossene Datenträger"
 
 pve.extra_disk.capacity_hint: "Die Werte zeigen konfigurierte Größen. Die Dateisystembelegung eines QEMU-Gasts lässt sich aus dem Proxmox-Statusfeld „disk“ nicht ablesen und bleibt dort unbekannt."
+pve.vm_id: 'VM-ID'
+pve.vm_id_auto: 'Automatisch vergeben'
+pve.vm_id_range: 'VM-ID-Bereich dieses Nodes'
+pve.vm_id_first: 'Erste ID'
+pve.vm_id_last: 'Letzte ID'
+pve.vm_id_range_hint: 'Beim Anlegen und Klonen sind VM-IDs im gesamten Cluster eindeutig. Leere Felder entfernen den Bereich.'
+pve.vm_id_save: 'VM-ID-Bereich speichern'
+pve.error.vm_id_range: 'Die VM-ID muss im zulässigen Bereich dieses Nodes liegen. Die Grenzen müssen zwischen 100 und 999999999 liegen.'
+pve.error.vm_id_overlap: 'Dieser VM-ID-Bereich überschneidet sich mit dem Bereich eines anderen Nodes.'
+pve.error.vm_id_taken: 'Diese VM-ID ist bereits belegt oder für einen offenen Auftrag reserviert.'
+pve.error.vm_id_exhausted: 'In diesem Bereich ist keine VM-ID mehr frei.'
+pve.install_template: 'VM aus Vorlage installieren und starten'
+pve.install_template_hint: 'Die Vorlage braucht ein Cloud-Init-Laufwerk und einen laufenden QEMU Guest Agent im Gast. Das Panel wartet auf Netzwerk und Cloud-Init.'
+pve.action.install-template: 'VM aus Cloud-Init-Vorlage installieren'
+pve.action.rental-stop: 'Vertrags-VM stoppen'
+pve.action.rental-delete: 'Vertrags-VM nach Aufbewahrung löschen'
+pve.error.install_template: 'Für die automatische Installation wird eine QEMU-Vorlage mit Cloud-Init, einem Netzwerkadapter und ohne voreingestelltes Gastpasswort benötigt.'
+pve.result.installation_timeout: 'Die Bereitschaft konnte innerhalb von 30 Minuten nicht bestätigt werden.'
+pve.ip_pools: 'IP-Adresspools'
+pve.ip_pool_exclusive_hint: 'Verwende ausschließlich für Easy-WI reservierte Bereiche außerhalb des DHCP-Pools.'
+pve.ip_pool_first: 'Erste Adresse'
+pve.ip_pool_last: 'Letzte Adresse'
+pve.ip_pool_prefix: 'Präfixlänge'
+pve.ip_pool_gateway: 'Gateway'
+pve.ip_pool_vlan: 'VLAN-ID (optional)'
+pve.ip_pool_enabled: 'Für neue Installationen freigeben'
+pve.ip_pool_save: 'IP-Pool speichern'
+pve.ip_leases: 'Reservierte Adressen'
+pve.ip_address: 'IP-Adresse'
+pve.ip_address_mode: 'Adressvergabe'
+pve.ip_pool_allocate: 'Feste Adressen aus dem Pool'
+pve.ip_leases_empty: 'Für diesen Node sind keine Adressen reserviert.'
+pve.ip_leases_next: 'Weitere Adressen'
+pve.ip_lease_confirm: 'Ich bestätige, dass der Gast entfernt wurde.'
+pve.ip_lease_release: 'VM-Adressen freigeben'
+pve.error.ip_pool_range: 'Der Bereich und das Gateway müssen zum gewählten Präfix passen. Das Gateway muss außerhalb des Vergabebereichs liegen.'
+pve.error.ip_pool_network: 'Die Pools und der Netzwerkadapter der Vorlage müssen dieselbe Bridge und VLAN-Einstellung verwenden.'
+pve.error.ip_pool_overlap: 'Dieser Bereich überschneidet sich mit einem anderen aktiven IP-Pool.'
+pve.error.ip_pool_missing: 'Für diesen Node wurde kein fester IP-Pool freigegeben.'
+pve.error.ip_pool_exhausted: 'Mindestens ein benötigter IP-Pool hat keine freie Adresse mehr.'
+pve.error.ip_lease_release: 'Die Adressen bleiben reserviert. Die VM-ID muss frei sein und alle Cluster-Nodes müssen den Aufgabenstatus bestätigen können.'
+
+pve.action.root-password: "Root-Passwort ändern"
+
+pve.action.reinstall: 'Betriebssystem neu installieren'
+pve.reinstall.hint: 'Die Installation behält VM-ID, Netzwerkkonfiguration und hinterlegte SSH-Schlüssel bei. Die VM startet nach dem Austausch automatisch.'
+pve.reinstall.image: 'Betriebssystem-Vorlage'
+pve.reinstall.select: 'Vorlage auswählen'
+pve.reinstall.confirm: 'Ich bestätige, dass die bisherige Systemdisk mit allen Daten nach erfolgreichem Start der Neuinstallation gelöscht wird.'
+pve.reinstall.stop_first: 'Fahre die VM herunter, um ein Betriebssystem auszuwählen.'
+pve.error.reinstall_unavailable: 'Für diese VM steht derzeit keine passende Neuinstallation zur Verfügung. Sie benötigt eine freigegebene Linux-Vorlage auf demselben Host, Cloud-Init, SSH-Schlüssel und einen Gastagenten.'
+pve.error.reinstall_changed: 'Die VM-Konfiguration hat sich geändert. Lade die Seite neu und prüfe die Auswahl erneut.'
+pve.error.review_reinstallation: 'Nur der automatisch geprüfte Abschluss kann eine Neuinstallation als erfolgreich markieren.'
+pve.result.reinstall_configuration_changed: 'Die VM-Konfiguration hat sich während der Neuinstallation geändert. Bitte den Zustand in Proxmox prüfen.'
+pve.result.preflight_failed: 'Die Voraussetzungen konnten nicht bestätigt werden. Der Auftrag wurde vor der Ausführung beendet.'
+pve.result.reinstall_timeout: 'Die Neuinstallation konnte innerhalb von 60 Minuten nicht bestätigt werden. Bitte den Zustand in Proxmox prüfen.'
+pve.action.address-switch: 'Reservierte IP wechseln'

@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -55,6 +57,35 @@ func (e *kvmEngine) readGuestAgent(id, command string) (any, error) {
 	default:
 		return nil, errors.New("unsupported guest agent read")
 	}
+	return e.guestAgentRequest(id, map[string]any{"execute": command})
+}
+
+var kvmRootPasswordHash = regexp.MustCompile(`^\$6\$[a-f0-9]{16}\$[A-Za-z0-9./]{86}$`)
+
+func (e *kvmEngine) resetRootPassword(g kvmGuest, p map[string]any) (map[string]any, error) {
+	hash := payloadValue(p, "password_hash")
+	if payloadValue(p, "confirm") != "1" || !g.GuestAgentEnabled || !kvmRootPasswordHash.MatchString(hash) {
+		return nil, errors.New("root password reset requires a guest agent and explicit confirmation")
+	}
+	status, err := e.virsh("domstate", g.ID)
+	if err != nil || strings.TrimSpace(string(status)) != "running" {
+		return nil, errors.New("root password reset requires a running VM")
+	}
+	_, err = e.guestAgentRequest(g.ID, map[string]any{
+		"execute": "guest-set-user-password",
+		"arguments": map[string]any{
+			"username": "root",
+			"password": base64.StdEncoding.EncodeToString([]byte(hash)),
+			"crypted":  true,
+		},
+	})
+	if err != nil {
+		return nil, errors.New("the guest agent did not confirm the root password change")
+	}
+	return map[string]any{"vm_id": g.ID, "root_password_reset": true}, nil
+}
+
+func (e *kvmEngine) guestAgentRequest(id string, input map[string]any) (any, error) {
 	uri := os.Getenv("EASYWI_KVM_URI")
 	if uri == "" {
 		uri = "qemu:///system"
@@ -64,7 +95,10 @@ func (e *kvmEngine) readGuestAgent(id, command string) (any, error) {
 	}
 	ctx, cancel := context.WithTimeout(e.ctx, 3*time.Second)
 	defer cancel()
-	request, _ := json.Marshal(map[string]string{"execute": command})
+	request, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
 	output, err := kvmGuestAgentRun(ctx, "--connect", uri, "qemu-agent-command", id, "--timeout", "2", string(request))
 	if err != nil {
 		return nil, err

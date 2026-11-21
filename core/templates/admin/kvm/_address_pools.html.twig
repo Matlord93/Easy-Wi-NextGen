@@ -1,0 +1,38 @@
+{% trans_default_domain 'kvm' %}
+{% import 'admin/kvm/_form.html.twig' as form %}
+<section class="ng-data-card kvm-card kvm-stack" data-kvm-address-pools>
+    <h2>{{ 'kvm.address_pools'|trans }}</h2>
+    <p>{{ 'kvm.address_pool_hint'|trans }}</p>
+    {% if inventory.address_pools|default([]) %}
+    <div class="overflow-x-auto">
+        <table class="kvm-table">
+            <thead><tr><th>{{ 'kvm.network'|trans }}</th><th>{{ 'kvm.address_range'|trans }}</th><th>Gateway</th><th>DNS</th><th>{{ 'kvm.action'|trans }}</th></tr></thead>
+            <tbody>
+            {% for pool in inventory.address_pools %}
+                <tr>
+                    <td>{{ pool.network }} · IPv{{ pool.family }}</td>
+                    <td>{{ pool.first }} – {{ pool.last }} / {{ pool.prefix }}</td>
+                    <td>{{ pool.gateway }}</td><td>{{ pool.dns }}</td>
+                    <td>{{ form.start(node, operationId, 'host.address_pool') }}
+                        <input type="hidden" name="network_choice" value="{{ pool.network_type }}:{{ pool.network }}">
+                        <input type="hidden" name="family" value="{{ pool.family }}">
+                        <input type="hidden" name="remove" value="1">
+                        <button class="ui-button ui-button--ghost" data-kvm-confirm="{{ 'kvm.address_pool_remove_confirm'|trans }}" {% if availability %}disabled{% endif %}>{{ 'kvm.address_pool_remove'|trans }}</button>
+                    </form></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {{ form.start(node, operationId, 'host.address_pool') }}
+        <label>{{ 'kvm.network'|trans }}<select class="form-input" name="network_choice" required><option value="">{{ 'kvm.choose'|trans }}</option>{{ form.networkOptions(inventory) }}</select></label>
+        <label>{{ 'kvm.address_family'|trans }}<select class="form-input" name="family"><option value="4">IPv4</option><option value="6">IPv6</option></select></label>
+        <label>{{ 'kvm.address_first'|trans }}<input class="form-input" name="first" maxlength="45" required></label>
+        <label>{{ 'kvm.address_last'|trans }}<input class="form-input" name="last" maxlength="45" required></label>
+        <label>{{ 'kvm.address_prefix'|trans }}<input class="form-input" name="prefix" type="number" min="1" max="127" required></label>
+        <label>Gateway<input class="form-input" name="gateway" maxlength="45" required></label>
+        <label>{{ 'kvm.address_dns'|trans }}<input class="form-input" name="dns" maxlength="45" required></label>
+        <button class="ui-button ui-button--primary" {% if availability %}disabled{% endif %}>{{ 'kvm.address_pool_save'|trans }}</button>
+    </form>
+</section>

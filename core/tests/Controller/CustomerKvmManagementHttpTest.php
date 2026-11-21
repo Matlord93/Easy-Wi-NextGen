@@ -53,6 +53,7 @@ final class CustomerKvmManagementHttpTest extends AbstractWebTestCase
     public function testCustomerPageAndPollingOnlyContainTheAssignedVmMetrics(): void
     {
         $client = $this->client();
+        $this->updateInventory(['static_addresses' => [['address' => '192.0.2.20/24', 'dns' => '192.0.2.53'], ['address' => '2001:db8::20/64', 'gateway' => 'fe80::1']]]);
         $assignment = $this->em()->find(KvmGuestAssignment::class, $this->ownId);
         $node = $assignment->getNode();
         $filesystem = ['state' => 'available', 'used_bytes' => 250, 'total_bytes' => 1000, 'filesystems' => 1, 'partial' => false, 'observed_at' => date(DATE_ATOM)];
@@ -65,6 +66,11 @@ final class CustomerKvmManagementHttpTest extends AbstractWebTestCase
         self::assertResponseIsSuccessful();
         self::assertCount(0, $crawler->filterXPath('//*[@data-series-role="node"]'));
         self::assertCount(1, $crawler->filterXPath('//*[@data-series-role="server"]'));
+        $page = (string) $client->getResponse()->getContent();
+        self::assertStringContainsString('<code>192.0.2.20</code>', $page);
+        self::assertStringContainsString('<code>2001:db8::20</code>', $page);
+        self::assertStringNotContainsString('192.0.2.53', $page);
+        self::assertStringNotContainsString('fe80::1', $page);
         $sample = json_decode($crawler->filterXPath('//*[@data-history-sample]')->text(), true);
         self::assertSame(12.3, $sample['cpu_percent']);
         self::assertSame(25, $sample['disk_percent']);
@@ -77,6 +83,105 @@ final class CustomerKvmManagementHttpTest extends AbstractWebTestCase
         }
         $client->request('GET', '/customer/kvm/'.$this->foreignId.'/usage');
         self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testRootPasswordResetQueuesOnlyAHashForTheOwnedVm(): void
+    {
+        $client = $this->client();
+        $this->updateInventory(['state' => 'running', 'guest_agent_enabled' => true]);
+        $node = $this->em()->find(KvmGuestAssignment::class, $this->ownId)->getNode();
+        $metadata = $node->getMetadata();
+        $metadata['kvm_managed']['root_password_version'] = 1;
+        $node->setMetadata($metadata);
+        $this->em()->flush();
+        $url = $this->url().'/root-password';
+        $page = $client->request('GET', $this->url());
+        self::assertResponseIsSuccessful();
+        $token = $page->filterXPath('//form[@action="'.$url.'"]//input[@name="_token"]')->attr('value');
+        $client->request('POST', '/customer/kvm/'.$this->foreignId.'/root-password', ['_token' => $token, 'confirm' => '1']);
+        self::assertResponseStatusCodeSame(404);
+        $client->request('POST', $url, ['_token' => $token]);
+        self::assertResponseStatusCodeSame(403);
+        self::assertSame([], $this->mutations());
+
+        $result = $client->request('POST', $url, ['_token' => $token, 'confirm' => '1', 'vm_id' => self::OTHER]);
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('no-store', $client->getResponse()->headers->get('Cache-Control'));
+        $password = $result->filterXPath('//input[@type="text" and @readonly]')->attr('value');
+        self::assertMatchesRegularExpression('/^[a-f0-9]{48}$/D', $password);
+        $jobs = $this->mutations();
+        self::assertCount(1, $jobs);
+        $payload = $jobs[0]->getPayload();
+        self::assertSame('vm.root_password', $payload['action']);
+        self::assertSame(self::VM, $payload['vm_id']);
+        self::assertSame($payload['password_hash'], crypt($password, $payload['password_hash']));
+        $client->request('GET', $this->url().'/jobs/'.$jobs[0]->getId());
+        self::assertResponseIsSuccessful();
+        self::assertStringNotContainsString($password, (string) $client->getResponse()->getContent());
+        self::assertStringNotContainsString($payload['password_hash'], (string) $client->getResponse()->getContent());
+    }
+
+    public function testReinstallRequiresConfirmationAndAnApprovedOperatingSystem(): void
+    {
+        $client = $this->client();
+        $reference = 'ubuntu--24.04-v1';
+        $this->updateInventory(['template' => $reference, 'snapshots' => [], 'cloud_init' => ['hostname' => 'customer-vm', 'username' => 'easywi']]);
+        $inspection = $this->em()->find(AgentJob::class, $this->inspectionId);
+        $payload = $inspection->getResultPayload();
+        $payload['inventory']['templates'] = [
+            ['id' => 'ubuntu', 'version' => '24.04-v1', 'virtual_size' => 1073741824],
+            ['id' => 'private', 'version' => '1', 'virtual_size' => 1073741824],
+        ];
+        $inspection->setResultPayload($payload);
+        $node = $inspection->getNode();
+        $metadata = $node->getMetadata();
+        $metadata['kvm_managed']['reinstall_version'] = 1;
+        $node->setMetadata($metadata);
+        $this->em()->flush();
+        $page = $client->request('GET', $this->url());
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $page->filterXPath('//option[@value="'.$reference.'"]'));
+        self::assertCount(0, $page->filterXPath('//option[@value="private--1"]'));
+        $body = $this->body('vm.reinstall');
+        foreach ([['template' => $reference], ['template' => 'private--1', 'confirm' => '1']] as $invalid) {
+            $client->xmlHttpRequest('POST', $this->url().'/action', $body + $invalid);
+            self::assertResponseStatusCodeSame(422);
+        }
+        self::assertSame([], $this->mutations());
+        $client->xmlHttpRequest('POST', $this->url().'/action', $body + ['template' => $reference, 'confirm' => '1', 'vm_id' => self::OTHER]);
+        self::assertResponseStatusCodeSame(202);
+        $jobs = $this->mutations();
+        self::assertCount(1, $jobs);
+        self::assertSame(self::VM, $jobs[0]->getPayload()['vm_id']);
+        self::assertSame($reference, $jobs[0]->getPayload()['template']);
+    }
+
+    public function testAddressSwitchAcceptsOnlyAConfirmedCurrentAddressForTheAssignedVm(): void
+    {
+        $client = $this->client();
+        $this->updateInventory(['static_addresses' => [['address' => '192.0.2.20/24']], 'cloud_init' => ['hostname' => 'customer-vm', 'username' => 'easywi']]);
+        $node = $this->em()->find(KvmGuestAssignment::class, $this->ownId)->getNode();
+        $metadata = $node->getMetadata();
+        $metadata['kvm_managed']['address_switch_version'] = 1;
+        $node->setMetadata($metadata);
+        $this->em()->flush();
+
+        $page = $client->request('GET', $this->url());
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $page->filterXPath('//form[input[@name="action" and @value="vm.address_switch"]]//option[@value="192.0.2.20"]'));
+        $body = $this->body('vm.address_switch');
+        foreach ([['expected_address' => '192.0.2.20'], ['expected_address' => '192.0.2.250', 'confirm' => '1']] as $invalid) {
+            $client->xmlHttpRequest('POST', $this->url().'/action', $body + $invalid);
+            self::assertResponseStatusCodeSame(422);
+        }
+        self::assertSame([], $this->mutations());
+        $client->xmlHttpRequest('POST', $this->url().'/action', $body + ['expected_address' => '192.0.2.20', 'confirm' => '1', 'vm_id' => self::OTHER, 'address' => '192.0.2.250']);
+        self::assertResponseStatusCodeSame(202);
+        $jobs = $this->mutations();
+        self::assertCount(1, $jobs);
+        self::assertSame(self::VM, $jobs[0]->getPayload()['vm_id']);
+        self::assertSame('192.0.2.20', $jobs[0]->getPayload()['expected_address']);
+        self::assertArrayNotHasKey('address', $jobs[0]->getPayload());
     }
 
     #[DataProvider('allowedActions')]
@@ -116,7 +221,7 @@ final class CustomerKvmManagementHttpTest extends AbstractWebTestCase
         self::assertResponseStatusCodeSame(404);
         $client->request('POST', $this->url().'/action', array_replace($body, ['_token' => 'invalid']));
         self::assertResponseStatusCodeSame(403);
-        foreach (['vm.disk_grow', 'vm.network', 'vm.create', 'vm.limits', 'vm.console.configure', 'vm.guest_agent', 'network.create', 'template.import', 'inspect'] as $action) {
+        foreach (['vm.disk_grow', 'vm.network', 'vm.create', 'vm.limits', 'vm.console.configure', 'vm.guest_agent', 'host.address_pool', 'network.create', 'template.import', 'inspect'] as $action) {
             $client->request('POST', $this->url().'/action', array_replace($body, ['action' => $action]));
             self::assertResponseStatusCodeSame(303);
         }
@@ -166,6 +271,32 @@ final class CustomerKvmManagementHttpTest extends AbstractWebTestCase
         foreach (['/private/host', '/private/backups', 'private host secret', '/srv/infrastructure'] as $private) {
             self::assertStringNotContainsString($private, $html);
         }
+    }
+
+    public function testRestoreFormExplainsSnapshotsAndQueuesTheSelectedBackupWhenEligible(): void
+    {
+        $client = $this->client();
+        $selector = '//form[input[@name="action" and @value="backup.restore"]]';
+        $this->updateInventory(['snapshots' => ['External_Snapshot']]);
+        $page = $client->request('GET', $this->url());
+        self::assertCount(1, $page->filterXPath($selector.'//button[@disabled]'));
+        self::assertStringContainsString('vorhandenen VM-Snapshots', $page->filterXPath('//*[@id="kvm-backups"]')->text());
+        $client->request('POST', $this->url().'/action', $this->body('backup.restore') + ['backup_id' => self::BACKUP, 'confirm' => '1']);
+        self::assertSame([], $this->mutations());
+
+        $this->updateInventory(['snapshots' => []]);
+        $page = $client->request('GET', $this->url());
+        self::assertCount(1, $page->filterXPath($selector.'//button[not(@disabled)]'));
+        $client->submit($page->filterXPath($selector)->form(['confirm' => '1']));
+        self::assertResponseRedirects($this->url().'#kvm-activity', 303);
+        $job = $this->mutations()[0];
+        self::assertSame(self::VM, $job->getPayload()['vm_id']);
+        self::assertSame(self::BACKUP, $job->getPayload()['backup_id']);
+        $job->setErrorText('backup checksum mismatch; original VM disk retained');
+        $job->markFinished(AgentJobStatus::Failed);
+        $this->em()->flush();
+        $page = $client->request('GET', $this->url());
+        self::assertStringContainsString('Die Prüfsumme des Backups stimmt nicht.', $page->filterXPath('//*[@id="kvm-activity"]')->text());
     }
 
     private function client(): KernelBrowser

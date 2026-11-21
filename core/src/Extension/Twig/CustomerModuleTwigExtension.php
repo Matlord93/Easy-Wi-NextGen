@@ -27,6 +27,7 @@ final class CustomerModuleTwigExtension extends AbstractExtension
 {
     public function __construct(
         private readonly RequestStack $requestStack,
+        private readonly \App\Module\Core\Application\ModuleRegistry $modules,
         private readonly InstanceRepositoryInterface $instanceRepository,
         private readonly Ts3VirtualServerRepository $ts3VirtualServerRepository,
         private readonly Ts6VirtualServerRepository $ts6VirtualServerRepository,
@@ -66,8 +67,8 @@ final class CustomerModuleTwigExtension extends AbstractExtension
         }
 
         return match (strtolower($moduleKey)) {
-            'kvm' => $this->em->getRepository(\App\Module\Nodes\Domain\Entity\KvmGuestAssignment::class)->count(['customer' => $actor]) > 0,
-            'proxmox' => $this->em->getRepository(\App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment::class)->count(['customer' => $actor]) > 0,
+            'kvm' => $this->modules->isEnabled('kvm') && $this->em->getRepository(\App\Module\Nodes\Domain\Entity\KvmGuestAssignment::class)->count(['customer' => $actor]) > 0,
+            'proxmox' => $this->modules->isEnabled('proxmox') && $this->em->getRepository(\App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment::class)->count(['customer' => $actor]) > 0,
             'game' => $this->instanceRepository->count(['customer' => $actor]) > 0,
             'voice' => $this->voiceInstanceRepository->count(['customer' => $actor]) > 0
                 || $this->ts3VirtualServerRepository->count(['customerId' => $customerId, 'archivedAt' => null]) > 0

@@ -70,3 +70,5 @@ infra.disk_measured_scope: "Usage of measured filesystems (partial reading)"
 infra.disk_loading: "Loading guest filesystem usage …"
 infra.disk_unavailable_short: "Guest measurement unavailable"
 infra.disk_agent_required: "Guest disk usage unavailable. Requires a running VM with QEMU Guest Agent installed and enabled. Allocated capacity is shown under Overview."
+
+infra.access: "Access"

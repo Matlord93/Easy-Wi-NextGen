@@ -6,6 +6,7 @@
 <!DOCTYPE html>
 <html lang="{{ page_locale() }}" class="dark">
 <head>
+{% include 'public/auth/_feedback_assets.html.twig' %}
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ page.title|default(brandName) }} · {{ app_setting('site_title',brandName) }}{% endblock %}</title>
 <script src="{{ asset('js/panel-theme.js') }}"></script>

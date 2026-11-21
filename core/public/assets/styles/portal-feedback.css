@@ -1,0 +1,70 @@
+.portal-problem-page {
+    display: grid;
+    min-height: 100vh;
+    place-items: center;
+    padding: 1rem;
+    background: var(--ui-bg, #0f172a);
+    color: var(--ui-text, #e2e8f0);
+}
+
+.portal-feedback-card {
+    padding: 1rem;
+    border: 1px solid #d97706;
+    border-radius: .75rem;
+    background: #172235;
+    color: #f1f5f9;
+}
+
+.portal-problem-page .portal-feedback-card {
+    width: min(100%, 34rem);
+    padding: 1.5rem;
+}
+
+.portal-problem-page p {
+    margin: .75rem 0 1.25rem;
+}
+
+.portal-feedback-notice {
+    position: sticky;
+    top: 0;
+    z-index: 1050;
+    margin: .5rem;
+}
+
+.portal-feedback-notice a {
+    display: inline-block;
+    margin-inline-start: .75rem;
+    color: #fde68a;
+    text-decoration: underline;
+}
+
+.portal-registration-form,
+.portal-registration-form label:not(.portal-consent),
+.portal-billing-fields {
+    display: grid;
+    gap: .55rem;
+}
+
+.portal-billing-fields {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    margin-block: .75rem;
+    padding: .75rem;
+    border: 1px solid currentColor;
+    border-radius: .5rem;
+}
+
+.portal-billing-fields legend {
+    padding-inline: .35rem;
+}
+
+.portal-registration-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-block: .75rem;
+}
+
+.portal-registration-options [aria-current="page"] {
+    font-weight: 700;
+    text-decoration: underline;
+}

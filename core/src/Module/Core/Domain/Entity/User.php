@@ -244,6 +244,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->emailVerifiedAt;
     }
 
+    public function isEmailVerificationPending(): bool
+    {
+        return null === $this->emailVerifiedAt && null !== $this->emailVerificationTokenHash;
+    }
+
     public function setEmailVerifiedAt(?\DateTimeImmutable $emailVerifiedAt): void
     {
         $this->emailVerifiedAt = $emailVerifiedAt;

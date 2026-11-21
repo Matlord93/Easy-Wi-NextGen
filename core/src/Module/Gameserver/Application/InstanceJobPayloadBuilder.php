@@ -430,11 +430,7 @@ final class InstanceJobPayloadBuilder
             $vars['MAX_PLAYERS'] = (string) ($instance->getCurrentSlots());
         }
 
-        foreach (['MAX_PLAYERS','MAXPLAYERS','SLOTS','SV_MAXPLAYERS'] as $slotKey) {
-            if (isset($vars[$slotKey]) || str_contains($instance->getTemplate()->getStartParams(), '{{'.$slotKey.'}}')) {
-                $vars[$slotKey] = (string) $instance->getCurrentSlots();
-            }
-        }
+        $vars = InstanceSlotService::applyStartupVariables($instance, $vars);
 
         $normalized = [];
         foreach ($vars as $key => $value) {

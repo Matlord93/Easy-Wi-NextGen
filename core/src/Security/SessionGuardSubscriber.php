@@ -6,13 +6,9 @@ namespace App\Security;
 
 use App\Module\Setup\Application\InstallerService;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
-use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\RedirectResponse;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
-use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class SessionGuardSubscriber implements EventSubscriberInterface
 {
@@ -21,7 +17,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
         private readonly PortalAccessPolicy $portalAccessPolicy,
         private readonly InstallerService $installerService,
         private readonly TwoFactorPolicy $twoFactorPolicy,
-        private readonly TranslatorInterface $translator,
+        private readonly PortalAccessResponse $responses,
     ) {
     }
 
@@ -59,14 +55,14 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
 
         $user = $this->sessionAuthenticator->authenticate($request);
         if ($user === null) {
-            $event->setResponse($this->unauthorizedResponse($request));
+            $event->setResponse($this->responses->signIn($request));
             return;
         }
 
         $request->attributes->set('current_user', $user);
 
         if (!$this->portalAccessPolicy->isAllowed($user, $path)) {
-            $event->setResponse($this->forbiddenResponse($request));
+            $event->setResponse($this->responses->problem($request, Response::HTTP_FORBIDDEN, 'forbidden', '/login'));
             return;
         }
 
@@ -75,7 +71,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
                 return;
             }
 
-            $event->setResponse($this->twoFactorRequiredResponse($request));
+            $event->setResponse($this->responses->problem($request, Response::HTTP_FORBIDDEN, 'two_factor_required', $user->isAdmin() ? '/admin/profile' : '/account/security'));
             return;
         }
     }
@@ -145,64 +141,6 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
     private function isUiRoute(string $path): bool
     {
         return !str_starts_with($path, '/api/');
-    }
-
-    private function unauthorizedResponse(Request $request): Response
-    {
-        if (str_starts_with($request->getPathInfo(), '/api/') || $request->attributes->get('_route') === 'customer_files_health') {
-            return new JsonResponse(['error' => $this->translator->trans('error_security_unauthorized')], Response::HTTP_UNAUTHORIZED);
-        }
-
-        $path = $this->normalizePath($request->getPathInfo());
-
-        if (str_starts_with($path, '/admin/')) {
-            return new Response($this->translator->trans('error_security_unauthorized'), Response::HTTP_UNAUTHORIZED);
-        }
-
-        if ($path === '/marketplace' || str_starts_with($path, '/marketplace/')) {
-            $target = $request->getRequestUri();
-            $request->getSession()->set(PostLoginRedirectResolver::SESSION_TARGET_KEY, $target);
-            return new RedirectResponse('/login?target='.rawurlencode($target));
-        }
-
-        if ($this->isLoginRedirectPath($path)) {
-            $request->getSession()->set(PostLoginRedirectResolver::SESSION_TARGET_KEY, $path);
-
-            return new RedirectResponse('/login?target=' . rawurlencode($path));
-        }
-
-        $hadSessionCookie = $request->cookies->has(SessionAuthenticator::ADMIN_SESSION_COOKIE)
-            || $request->cookies->has(SessionAuthenticator::CUSTOMER_SESSION_COOKIE);
-
-        if ($hadSessionCookie) {
-            return new RedirectResponse('/session-expired');
-        }
-
-        return new RedirectResponse('/login');
-    }
-
-
-    private function isLoginRedirectPath(string $path): bool
-    {
-        return $path === '/profile' || $path === '/profile/edit' || $path === '/account/security' || str_starts_with($path, '/account/security/');
-    }
-
-    private function forbiddenResponse(Request $request): Response
-    {
-        if (str_starts_with($request->getPathInfo(), '/api/')) {
-            return new JsonResponse(['error' => $this->translator->trans('error_forbidden')], Response::HTTP_FORBIDDEN);
-        }
-
-        return new Response($this->translator->trans('error_forbidden'), Response::HTTP_FORBIDDEN);
-    }
-
-    private function twoFactorRequiredResponse(Request $request): Response
-    {
-        if (str_starts_with($request->getPathInfo(), '/api/')) {
-            return new JsonResponse(['error' => $this->translator->trans('error_2fa_required')], Response::HTTP_FORBIDDEN);
-        }
-
-        return new Response($this->translator->trans('error_2fa_required'), Response::HTTP_FORBIDDEN);
     }
 
     private function isTwoFactorEnrollmentPath(string $path): bool

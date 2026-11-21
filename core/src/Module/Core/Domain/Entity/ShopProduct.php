@@ -61,6 +61,11 @@ class ShopProduct
         return $this->template;
     }
 
+    public function getGameserverSlots(): int
+    {
+        return (int) ($this->getProvisioningOptions()['game_slots'] ?? Instance::DEFAULT_SLOTS);
+    }
+
     public function getProvisioningNode(): ?Agent
     {
         return $this->node;

@@ -5,6 +5,7 @@
 {% set activeNav = 'modules' %}
 
 {% block content %}
+{% if error|default(null) %}<p class="rounded-lg border border-rose-400/40 p-3" role="alert">{{ error }}</p>{% endif %}
 {% set totalCount = modules|length %}
 {% set enabledCount = modules|filter(m => m.enabled)|length %}
 {% set disabledCount = totalCount - enabledCount %}

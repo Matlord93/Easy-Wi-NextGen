@@ -8,6 +8,8 @@ use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Domain\Entity\CustomerProfile;
+use App\Module\Core\Application\CustomerBillingDetails;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -23,27 +25,6 @@ use Twig\Environment;
 #[Route(path: '/customer/profile')]
 final class CustomerProfileController
 {
-    private const COUNTRY_OPTIONS = [
-        'AT' => 'Austria',
-        'AU' => 'Australia',
-        'BE' => 'Belgium',
-        'CA' => 'Canada',
-        'CH' => 'Switzerland',
-        'CZ' => 'Czech Republic',
-        'DE' => 'Germany',
-        'DK' => 'Denmark',
-        'ES' => 'Spain',
-        'FR' => 'France',
-        'GB' => 'United Kingdom',
-        'IT' => 'Italy',
-        'NL' => 'Netherlands',
-        'NO' => 'Norway',
-        'PL' => 'Poland',
-        'PT' => 'Portugal',
-        'SE' => 'Sweden',
-        'US' => 'United States',
-    ];
-
     private const LOCALE_OPTIONS = [
         'de_DE' => 'Deutsch (DE)',
         'en_GB' => 'English (UK)',
@@ -90,37 +71,14 @@ final class CustomerProfileController
         $profile = $this->profileRepository->findOneByCustomer($customer);
         $preferences = $this->invoicePreferencesRepository->findOneByCustomer($customer);
 
-        $formData = $this->parseProfilePayload($request);
-        if ($formData['errors'] !== []) {
-            return $this->renderPage($customer, $profile, $preferences, $formData, [], Response::HTTP_BAD_REQUEST);
+        $fields = CustomerBillingDetails::fields(JsonMap::strings($request->request->all()));
+        $errors = CustomerBillingDetails::errors($fields);
+        if ([] !== $errors) {
+            return $this->renderPage($customer, $profile, $preferences, $fields + ['errors' => $errors], [], Response::HTTP_BAD_REQUEST);
         }
 
-        if ($profile === null) {
-            $profile = new CustomerProfile(
-                $customer,
-                $formData['firstname'],
-                $formData['lastname'],
-                $formData['address'],
-                $formData['postal'],
-                $formData['city'],
-                $formData['country'],
-            );
-            $this->entityManager->persist($profile);
-        } else {
-            $profile->setFirstName($formData['firstname']);
-            $profile->setLastName($formData['lastname']);
-            $profile->setAddress($formData['address']);
-            $profile->setPostal($formData['postal']);
-            $profile->setCity($formData['city']);
-            $profile->setCountry($formData['country']);
-        }
-
-        $profile->setPhone($formData['phone']);
-        $profile->setCompany($formData['company']);
-        $profile->setVatId($formData['vat_id']);
-        $fullName = trim($formData['firstname'] . ' ' . $formData['lastname']);
-        $customer->setName($fullName !== '' ? $fullName : null);
-
+        $profile = CustomerBillingDetails::apply($customer, $profile, $fields);
+        $this->entityManager->persist($profile);
         $this->auditLogger->log($customer, 'customer.profile.updated', [
             'customer_id' => $customer->getId(),
             'country' => $profile->getCountry(),
@@ -129,9 +87,7 @@ final class CustomerProfileController
         ]);
         $this->entityManager->flush();
 
-        $formData['success'] = true;
-
-        return $this->renderPage($customer, $profile, $preferences, $formData);
+        return $this->renderPage($customer, $profile, $preferences, $fields + ['success' => true]);
     }
 
     #[Route(path: '/invoice', name: 'customer_invoice_preferences_update', methods: ['POST'])]
@@ -197,7 +153,7 @@ final class CustomerProfileController
         return new Response($this->twig->render('customer/profile/index.html.twig', [
             'profile' => $this->buildProfileFormContext($profile, $profileOverrides),
             'preferences' => $this->buildPreferencesFormContext($preferences, $preferencesOverrides),
-            'countries' => self::COUNTRY_OPTIONS,
+            'countries' => CustomerBillingDetails::COUNTRIES,
             'locales' => self::LOCALE_OPTIONS,
             'portalLanguages' => self::PORTAL_LANGUAGE_OPTIONS,
             'paymentMethods' => $this->getPaymentMethods(),
@@ -243,68 +199,6 @@ final class CustomerProfileController
         ];
 
         return array_merge($defaults, $overrides ?? []);
-    }
-
-    /**
-     * @return array{errors: list<string>, firstname: string, lastname: string, address: string, postal:
-     * string, city: string, country: string, phone: null|string, company: null|string, vat_id: null|string}
-     */
-    private function parseProfilePayload(Request $request): array
-    {
-        $errors = [];
-        $firstname = trim((string) $request->request->get('firstname', ''));
-        $lastname = trim((string) $request->request->get('lastname', ''));
-        $address = trim((string) $request->request->get('address', ''));
-        $postal = trim((string) $request->request->get('postal', ''));
-        $city = trim((string) $request->request->get('city', ''));
-        $country = strtoupper(trim((string) $request->request->get('country', '')));
-        $phone = trim((string) $request->request->get('phone', ''));
-        $company = trim((string) $request->request->get('company', ''));
-        $vatId = strtoupper(str_replace(' ', '', trim((string) $request->request->get('vat_id', ''))));
-
-        if ($firstname === '') {
-            $errors[] = 'error_profile_first_name_required';
-        }
-        if ($lastname === '') {
-            $errors[] = 'error_profile_last_name_required';
-        }
-        if ($address === '') {
-            $errors[] = 'error_profile_address_required';
-        }
-        if ($postal === '') {
-            $errors[] = 'error_profile_postal_required';
-        }
-        if ($city === '') {
-            $errors[] = 'error_profile_city_required';
-        }
-        if ($country === '' || !array_key_exists($country, self::COUNTRY_OPTIONS)) {
-            $errors[] = 'error_profile_country_required';
-        }
-
-        if ($vatId !== '') {
-            if (!preg_match('/^[A-Z]{2}[A-Z0-9]{2,16}$/', $vatId)) {
-                $errors[] = 'error_profile_vat_invalid';
-            } elseif ($country !== '' && !str_starts_with($vatId, $country)) {
-                $errors[] = 'error_profile_vat_country_prefix';
-            }
-
-            if ($company === '') {
-                $errors[] = 'error_profile_company_required_with_vat';
-            }
-        }
-
-        return [
-            'errors' => $errors,
-            'firstname' => $firstname,
-            'lastname' => $lastname,
-            'address' => $address,
-            'postal' => $postal,
-            'city' => $city,
-            'country' => $country !== '' ? $country : 'DE',
-            'phone' => $phone !== '' ? $phone : null,
-            'company' => $company !== '' ? $company : null,
-            'vat_id' => $vatId !== '' ? $vatId : null,
-        ];
     }
 
     /**
@@ -404,7 +298,7 @@ final class CustomerProfileController
     {
         $actor = RequestActor::user($request);
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'error_security_unauthorized');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session');
         }
 
         return $actor;

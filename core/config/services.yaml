@@ -309,6 +309,9 @@ services:
   App\Module\Core\Application\Contracts\KvmContractProvider:
     tags: ['app.contract_resource']
 
+  App\Module\Core\Application\Contracts\ProxmoxContractProvider:
+    tags: ['app.contract_resource']
+
   App\Module\Core\Application\Contracts\WebspaceContractProvider:
     tags: ['app.contract_resource']
 

@@ -16,12 +16,14 @@ use App\Module\Core\Update\UpdateStatus;
 use App\Repository\AgentJobRepository;
 use App\Repository\AgentRepositoryInterface;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterface
 {
     private const RUNTIME_MAINTENANCE_FILE = 'var/update-maintenance.flag';
+    private const ARCHIVE_SYSTEM_DIRECTORIES = ['/usr/bin', '/bin'];
 
     private const DEFAULT_EXCLUDES = [
         '.env',
@@ -1091,8 +1093,12 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function extractTarArchive(string $archivePath, string $stagingDir, bool $gzipCompressed, string $logPath): bool
     {
-        if ($this->commandExists('tar')) {
-            return $this->extractTarArchiveWithCommand($archivePath, $stagingDir, $gzipCompressed, $logPath);
+        // PHP-FPM can provide a PATH that omits the system directories.
+        if (function_exists('proc_open')) {
+            $tar = (new ExecutableFinder())->find('tar', null, self::ARCHIVE_SYSTEM_DIRECTORIES);
+            if ($tar !== null) {
+                return $this->extractTarArchiveWithCommand($tar, $archivePath, $stagingDir, $gzipCompressed, $logPath);
+            }
         }
 
         try {
@@ -1111,7 +1117,7 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             $this->log($logPath, 'TAR-Archiv konnte nicht mit PharData entpackt werden: ' . $exception->getMessage());
         }
 
-        return $this->extractTarArchiveWithCommand($archivePath, $stagingDir, $gzipCompressed, $logPath);
+        return false;
     }
 
     private function openTarArchive(string $archivePath, bool $gzipCompressed): \PharData
@@ -1140,11 +1146,11 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         return new \PharData($tarPath);
     }
 
-    private function extractTarArchiveWithCommand(string $archivePath, string $stagingDir, bool $gzipCompressed, string $logPath): bool
+    private function extractTarArchiveWithCommand(string $tar, string $archivePath, string $stagingDir, bool $gzipCompressed, string $logPath): bool
     {
         $listCommand = $gzipCompressed
-            ? ['tar', '-tzf', $archivePath]
-            : ['tar', '-tf', $archivePath];
+            ? [$tar, '-tzf', $archivePath]
+            : [$tar, '-tf', $archivePath];
         $listResult = $this->executeArchiveCommand($listCommand);
         if ($listResult['exitCode'] !== 0) {
             $this->log($logPath, 'TAR-Archiv konnte nicht mit tar geprüft werden: ' . $listResult['output']);
@@ -1162,8 +1168,8 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
         }
 
         $extractCommand = $gzipCompressed
-            ? ['tar', '-xzf', $archivePath, '-C', $stagingDir]
-            : ['tar', '-xf', $archivePath, '-C', $stagingDir];
+            ? [$tar, '-xzf', $archivePath, '-C', $stagingDir]
+            : [$tar, '-xf', $archivePath, '-C', $stagingDir];
         $extractResult = $this->executeArchiveCommand($extractCommand);
         if ($extractResult['exitCode'] !== 0) {
             $this->log($logPath, 'TAR-Archiv konnte nicht mit tar extrahiert werden: ' . $extractResult['output']);
@@ -1267,10 +1273,18 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
      */
     private function executeArchiveCommand(array $command): array
     {
+        if (!function_exists('proc_open')) {
+            return ['exitCode' => 127, 'output' => 'proc_open ist nicht verfügbar.'];
+        }
+
+        $environment = $this->currentProcessEnvironment();
+        $directories = array_filter(explode(PATH_SEPARATOR, $environment['PATH'] ?? ''), static fn (string $directory): bool => $directory !== '');
+        // GNU tar starts gzip as a separate process for compressed archives.
+        $environment['PATH'] = implode(PATH_SEPARATOR, [...$directories, ...self::ARCHIVE_SYSTEM_DIRECTORIES]);
         $process = @proc_open($command, [
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
-        ], $pipes);
+        ], $pipes, null, $environment);
         if (!is_resource($process)) {
             return [
                 'exitCode' => 127,

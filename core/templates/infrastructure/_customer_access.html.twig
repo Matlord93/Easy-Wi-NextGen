@@ -1,0 +1,42 @@
+{% trans_default_domain 'vm_config' %}
+<section class="infra-card">
+    <div class="infra-card__head"><h2>{{ 'vm_config.access'|trans }}</h2></div>
+    {% if addresses is not empty %}
+        <h3>{{ 'vm_config.assigned_ip'|trans }}</h3>
+        <ul>{% for address in addresses %}<li><code>{{ address }}</code></li>{% endfor %}</ul>
+    {% endif %}
+    <a class="ui-button ui-button--ghost" href="{{ networkPane }}" data-infra-shortcut>{{ 'vm_config.live_ip'|trans }}</a>
+    {% if addresses is not empty %}
+        <h3>{{ 'vm_config.address_switch'|trans }}</h3>
+        {% if switchChoices|default([]) is not empty %}
+            <p>{{ 'vm_config.address_switch_hint'|trans }}</p>
+            {% if switchFields.action == 'address-switch' %}
+                <p>{{ 'vm_config.address_switch_proxmox_ssh'|trans }}</p>
+            {% endif %}
+            <form method="post" action="{{ switchUrl }}" class="infra-form" {% if switchFields.action == 'address-switch' %}data-pve-mutation{% endif %}>
+                <input type="hidden" name="_token" value="{{ resetToken }}">
+                {% for field, value in switchFields %}<input type="hidden" name="{{ field }}" value="{{ value }}">{% endfor %}
+                <label>{{ 'vm_config.address_switch_current'|trans }}
+                    <select class="form-input" name="expected_address" required>
+                        {% for address in switchChoices %}<option value="{{ address }}">{{ address }}</option>{% endfor %}
+                    </select>
+                </label>
+                <label><input type="checkbox" name="confirm" value="1" required> {{ 'vm_config.address_switch_confirm'|trans }}</label>
+                <button type="submit" class="ui-button ui-button--ghost">{{ 'vm_config.address_switch'|trans }}</button>
+            </form>
+        {% else %}
+            <p>{{ 'vm_config.address_switch_unavailable'|trans }}</p>
+        {% endif %}
+    {% endif %}
+    <h3>{{ 'vm_config.root_password'|trans }}</h3>
+    <p>{{ 'vm_config.root_password_hint'|trans }}</p>
+    {% if resetAvailable %}
+        <form method="post" action="{{ resetUrl }}" class="infra-form">
+            <input type="hidden" name="_token" value="{{ resetToken }}">
+            <label><input type="checkbox" name="confirm" value="1" required> {{ 'vm_config.root_password_confirm'|trans }}</label>
+            <button type="submit" class="ui-button ui-button--ghost">{{ 'vm_config.root_password_reset'|trans }}</button>
+        </form>
+    {% else %}
+        <p>{{ 'vm_config.root_password_unavailable'|trans }}</p>
+    {% endif %}
+</section>

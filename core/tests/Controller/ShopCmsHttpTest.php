@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Message\SendTemplateMailMessage;
+use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Domain\Entity\CustomerProfile;
+use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\ModuleSetting;
 use App\Module\Core\Domain\Entity\ShopCategory;
@@ -11,6 +15,7 @@ use App\Module\Core\Domain\Entity\ShopOrder;
 use App\Module\Core\Domain\Entity\ShopProduct;
 use App\Module\Core\Domain\Entity\Site;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Messenger\Transport\InMemory\InMemoryTransport;
 
 final class ShopCmsHttpTest extends AbstractWebTestCase
 {
@@ -51,7 +56,7 @@ final class ShopCmsHttpTest extends AbstractWebTestCase
             $index = $client->request('GET', '/admin/shop/'.$kind);
             self::assertResponseIsSuccessful();
             if ('products' === $kind) {
-                self::assertCount(6, $index->filterXPath('//*[@data-shop-kind]'));
+                self::assertCount(count(\App\Module\Core\Domain\Enum\ShopProductKind::cases()), $index->filterXPath('//*[@data-shop-kind]'));
                 self::assertCount(0, $index->filterXPath('//form'));
             } else {
                 self::assertCount(1, $index->filterXPath('//*[@id="shop-'.$kind.'-table"]'));
@@ -227,8 +232,21 @@ final class ShopCmsHttpTest extends AbstractWebTestCase
         self::assertStringContainsString('HTTP game package', $client->getResponse()->getContent());
         $client->request('GET', '/marketplace');
         self::assertResponseIsSuccessful();
+        $crawler = $client->request('GET', '/marketplace/checkout?product_id='.$id);
+        $preview = $crawler->filterXPath('//form[input[@name="stage" and @value="preview"]]')->form(['billing_mode' => 'wallet']);
+        $crawler = $client->submit($preview);
+        self::assertResponseIsSuccessful();
+        self::assertSame('wallet', $crawler->filterXPath('//form[input[@name="stage" and @value="profile"]]//input[@name="billing_mode"]')->attr('value'));
         $crawler = $client->request('GET', '/shop/products/'.$id);
         self::assertResponseIsSuccessful();
+        $form = $crawler->filterXPath('//form[input[@name="stage" and @value="profile"]]')->form([
+            'firstname' => 'Ada', 'lastname' => 'Lovelace', 'address' => 'Musterstraße 1', 'postal' => '10115',
+            'city' => 'Berlin', 'country' => 'DE',
+        ]);
+        $client->submit($form);
+        self::assertResponseStatusCodeSame(303);
+        self::assertSame(0, self::getContainer()->get(EntityManagerInterface::class)->getRepository(ShopOrder::class)->count([]));
+        $crawler = $client->followRedirect();
         $form = $crawler->filterXPath('//form[input[@name="stage" and @value="order"]]')->form(['rental_terms' => '1']);
         $values = $form->getPhpValues();
         $client->submit($form);
@@ -275,7 +293,7 @@ final class ShopCmsHttpTest extends AbstractWebTestCase
         $productId = $product->getId();
         $crawler = $client->request('GET', '/shop/products/'.$productId.'?billing_mode=wallet');
         self::assertResponseIsSuccessful();
-        $form = $crawler->filterXPath('//form[input[@name="stage" and @value="order"]]')->form(['rental_terms' => '1']);
+        $form = $crawler->filterXPath('//form[input[@name="stage" and @value="account"]]')->form();
         $client->submit($form);
         self::assertResponseStatusCodeSame(303);
         $location = $client->getResponse()->headers->get('Location');
@@ -286,7 +304,7 @@ final class ShopCmsHttpTest extends AbstractWebTestCase
         $this->loginAsRole($client, 'customer');
         $crawler = $client->request('GET', $target);
         self::assertResponseIsSuccessful();
-        self::assertSame('wallet', $crawler->filterXPath('//form[input[@name="stage" and @value="order"]]//input[@name="billing_mode"]')->attr('value'));
+        self::assertSame('wallet', $crawler->filterXPath('//form[input[@name="stage" and @value="profile"]]//input[@name="billing_mode"]')->attr('value'));
         self::assertSame(0, self::getContainer()->get(EntityManagerInterface::class)->getRepository(ShopOrder::class)->count([]));
     }
 
@@ -298,6 +316,74 @@ final class ShopCmsHttpTest extends AbstractWebTestCase
         self::assertResponseRedirects('/login?target='.rawurlencode($target));
     }
 
+    public function testShopRegistrationStoresBillingDataAndReturnsToTheSelectedPlanAfterVerification(): void
+    {
+        $client = self::createClient();
+        $client->disableReboot();
+        $transport = new InMemoryTransport();
+        self::getContainer()->set('messenger.transport.async', $transport);
+        self::getContainer()->get(AppSettingsService::class)->updateSettings([
+            AppSettingsService::KEY_REGISTRATION_ENABLED => true,
+            AppSettingsService::KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION => false,
+            AppSettingsService::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION => false,
+            AppSettingsService::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS => 1,
+        ]);
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $instance = $this->seedInstance();
+        $site = $em->getRepository(Site::class)->findOneBy(['host' => 'localhost']);
+        $em->persist(new \App\Module\Core\Domain\Entity\RentalCapacityPool('agent:'.$instance->getNode()->getId(), ['cpu' => 1000, 'ram_mib' => 10000000, 'disk_mib' => 10000000, 'ports' => 10000, 'ipv4' => 1000, 'slots' => 10000, 'systems' => 1000]));
+        $category = new ShopCategory($site->getId(), 'Games', 'registration-games');
+        $product = new ShopProduct($site->getId(), $category, 'Registration product', '', 500, $instance->getTemplate(), $instance->getNode(), 1, 2, 20);
+        $em->persist($category);
+        $em->persist($product);
+        $em->flush();
+
+        $page = $client->request('GET', '/shop/products/'.$product->getId().'?billing_mode=wallet');
+        $client->submit($page->filterXPath('//form[input[@name="stage" and @value="account"]]//button[@name="register"]')->form());
+        self::assertResponseStatusCodeSame(303);
+        $register = $client->followRedirect();
+        self::assertResponseIsSuccessful();
+        $target = $register->filterXPath('//input[@name="target"]')->attr('value');
+        self::assertStringStartsWith('/shop/products/'.$product->getId().'?intent=', $target);
+        self::assertCount(0, $register->filterXPath('//a[contains(@href,"account=member")]'));
+        sleep(1);
+        $client->submit($register->filterXPath('//form[@method="post"]')->form([
+            'email' => 'shop-onboarding@example.test', 'password' => 'P@ssw0rd!', 'password_confirm' => 'P@ssw0rd!',
+            'firstname' => 'Ada', 'lastname' => 'Lovelace', 'address' => 'Musterstraße 1', 'postal' => '10115',
+            'city' => 'Berlin', 'country' => 'DE', 'company' => 'Analytical Engine', 'vat_id' => 'DE123456789',
+            'phone' => '+49 30 123456', 'consents' => '1',
+        ]));
+        self::assertResponseIsSuccessful();
+        $envelopes = $transport->getSent();
+        self::assertCount(1, $envelopes);
+        $mail = $envelopes[0]->getMessage();
+        self::assertInstanceOf(SendTemplateMailMessage::class, $mail);
+        $verification = $mail->getContext()['verification_url'];
+        $user = $em->getRepository(\App\Module\Core\Domain\Entity\User::class)->findOneBy(['email' => 'shop-onboarding@example.test']);
+        self::assertTrue($user->isEmailVerificationPending());
+        self::assertFalse($user->isCustomerAccessEnabled());
+        self::assertSame('Ada Lovelace', $user->getName());
+        $profile = $em->getRepository(CustomerProfile::class)->findOneBy(['customer' => $user]);
+        self::assertSame('Musterstraße 1', $profile->getAddress());
+        self::assertSame('DE123456789', $profile->getVatId());
+        self::assertSame('de_DE', $em->getRepository(InvoicePreferences::class)->findOneBy(['customer' => $user])->getLocale());
+        self::assertSame(0, $em->getRepository(ShopOrder::class)->count([]));
+
+        $client->getCookieJar()->clear();
+        $client->request('GET', $verification);
+        self::assertResponseRedirects('/login?target='.rawurlencode($target));
+        $client->followRedirect();
+        self::assertStringContainsString('Deine E-Mail-Adresse ist bestätigt', $client->getResponse()->getContent());
+        $client->request('POST', '/login', ['email' => $user->getEmail(), 'password' => 'P@ssw0rd!', 'target' => $target]);
+        self::assertResponseRedirects($target);
+        $final = $client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertSame('wallet', $final->filterXPath('//form[input[@name="stage" and @value="order"]]//input[@name="billing_mode"]')->attr('value'));
+        $verifiedUser = $em->getRepository(\App\Module\Core\Domain\Entity\User::class)->findOneBy(['email' => 'shop-onboarding@example.test']);
+        self::assertTrue($verifiedUser->isCustomerAccessEnabled());
+        self::assertSame(0, $em->getRepository(ShopOrder::class)->count([]));
+    }
+
     public function testWalletFundingIsOwnerScopedAndBankCreditRequiresAnAdminConfirmedAmount(): void
     {
         $client = self::createClient();
@@ -306,6 +392,7 @@ final class ShopCmsHttpTest extends AbstractWebTestCase
         self::assertResponseIsSuccessful();
         $client->request('POST', '/marketplace/wallet', ['amount' => '5.00']);
         self::assertResponseStatusCodeSame(403);
+        self::assertResponseHeaderSame('X-EasyWi-Problem', 'form_expired');
         $crawler = $client->request('GET', '/marketplace/wallet');
         $form = $crawler->filterXPath('//form[input[@name="nonce"]]')->form(['amount' => '5.00']);
         $client->submit($form);

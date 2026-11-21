@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
@@ -18,6 +19,49 @@ func kvmAgentFixture(t *testing.T, fn func(context.Context, ...string) ([]byte, 
 	old := kvmGuestAgentRun
 	kvmGuestAgentRun = fn
 	t.Cleanup(func() { kvmGuestAgentRun = old })
+}
+
+func TestKVMRootPasswordRequiresRunningManagedGuestAndSendsOnlyTheRootHash(t *testing.T) {
+	f := kvmNewFixture(t)
+	kvmAssertSuccess(t, f.create())
+	hash := "$6$0123456789abcdef$" + strings.Repeat("a", 86)
+	calls := 0
+	kvmAgentFixture(t, func(_ context.Context, args ...string) ([]byte, error) {
+		calls++
+		if args[3] != kvmTestVM {
+			t.Fatalf("unexpected VM %q", args[3])
+		}
+		var command struct {
+			Execute   string `json:"execute"`
+			Arguments struct {
+				Username string `json:"username"`
+				Password string `json:"password"`
+				Crypted  bool   `json:"crypted"`
+			} `json:"arguments"`
+		}
+		if err := json.Unmarshal([]byte(args[6]), &command); err != nil {
+			t.Fatal(err)
+		}
+		if command.Execute != "guest-set-user-password" || command.Arguments.Username != "root" ||
+			command.Arguments.Password != base64.StdEncoding.EncodeToString([]byte(hash)) || !command.Arguments.Crypted {
+			t.Fatal("unexpected guest agent request")
+		}
+		return []byte(`{"return":{}}`), nil
+	})
+	input := map[string]any{"vm_id": kvmTestVM, "username": "untrusted", "password_hash": hash, "confirm": "1"}
+	if _, err := f.e.perform("vm.root_password", input); err == nil {
+		t.Fatal("paused or stopped VM accepted a root password reset")
+	}
+	f.states[kvmTestVM] = "running"
+	input["confirm"] = "0"
+	if _, err := f.e.perform("vm.root_password", input); err == nil || calls != 0 {
+		t.Fatal("root password reset succeeded without confirmation")
+	}
+	input["confirm"] = "1"
+	result, err := f.e.perform("vm.root_password", input)
+	if err != nil || result["root_password_reset"] != true || calls != 1 {
+		t.Fatalf("password reset was not confirmed: %v %v", result, err)
+	}
 }
 func TestKVMGuestAgentReadsOnlySelectedGuestAndPreservesFiles(t *testing.T) {
 	f := kvmNewFixture(t)

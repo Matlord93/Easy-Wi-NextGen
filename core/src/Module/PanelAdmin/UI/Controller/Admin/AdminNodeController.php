@@ -56,7 +56,7 @@ use Twig\Environment;
 #[Route(path: '/admin/nodes')]
 final class AdminNodeController
 {
-    private const ROLE_OPTIONS = ['Core', 'Web', 'Mail', 'DNS', 'Game', 'DB', 'TS3', 'TS6', 'Sinusbot'];
+    private const ROLE_OPTIONS = ['Core', 'Web', 'Mail', 'DNS', 'Game', 'DB', 'TS3', 'TS6', 'Sinusbot', 'KVM'];
     private const ENCRYPTION_CONFIG_ERROR = 'Encryption key configuration is invalid: %s Ensure /etc/easywi/secret.key is readable and contains a base64 key (JSON with active_key_id/keys or "v1:<base64>").';
 
     public function __construct(
@@ -280,6 +280,9 @@ final class AdminNodeController
         if ($node === null) {
             return new Response('Node not found.', Response::HTTP_NOT_FOUND);
         }
+        if (!$this->csrf->isTokenValid(new CsrfToken('node-roles-'.$id, $request->request->getString('_token')))) {
+            return new Response('Invalid CSRF token.', Response::HTTP_FORBIDDEN);
+        }
 
         $submittedRoles = $request->request->all('roles');
         $normalizedRoles = $this->normalizeRoleSelection(JsonArray::orEmpty($submittedRoles));
@@ -300,7 +303,7 @@ final class AdminNodeController
             }
         }
 
-        if ($normalizedRoles === [] && $unknownRoles === []) {
+        if ($normalizedRoles === [] && $unknownRoles === [] && !in_array('KVM', $existingRoles, true)) {
             $error = 'Select at least one role to assign.';
         }
 
@@ -328,6 +331,9 @@ final class AdminNodeController
             }
 
             foreach ($rolesToStore as $role) {
+                if ('KVM' === $role && in_array('KVM', $existingRoles, true)) {
+                    continue;
+                }
                 $job = new Job('role.ensure_base', [
                     'agent_id' => $node->getId(),
                     'role' => $role,

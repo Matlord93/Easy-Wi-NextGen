@@ -40,19 +40,23 @@ type kvmTemplate struct {
 	CreatedAt   string `json:"created_at"`
 }
 type kvmGuest struct {
-	ID                string `json:"id"`
-	Label             string `json:"label"`
-	Template          string `json:"template"`
-	VCPUs             int    `json:"vcpus"`
-	MemoryMiB         int    `json:"memory_mib"`
-	DiskGiB           int    `json:"disk_gib"`
-	Network           string `json:"network"`
-	NetworkType       string `json:"network_type"`
-	Hostname          string `json:"hostname"`
-	Username          string `json:"username"`
-	CreatedAt         string `json:"created_at"`
-	GuestAgentEnabled bool   `json:"guest_agent_enabled,omitempty"`
-	NetworkBootFirst  bool   `json:"network_boot_first,omitempty"`
+	ID                 string             `json:"id"`
+	Number             int                `json:"vm_number,omitempty"`
+	Label              string             `json:"label"`
+	Template           string             `json:"template"`
+	VCPUs              int                `json:"vcpus"`
+	MemoryMiB          int                `json:"memory_mib"`
+	DiskGiB            int                `json:"disk_gib"`
+	Network            string             `json:"network"`
+	NetworkType        string             `json:"network_type"`
+	Hostname           string             `json:"hostname"`
+	Username           string             `json:"username"`
+	CreatedAt          string             `json:"created_at"`
+	GuestAgentEnabled  bool               `json:"guest_agent_enabled,omitempty"`
+	NetworkBootFirst   bool               `json:"network_boot_first,omitempty"`
+	StaticAddresses    []kvmStaticAddress `json:"static_addresses,omitempty"`
+	AlternateAddresses []kvmStaticAddress `json:"alternate_addresses,omitempty"`
+	CloudInitID        string             `json:"cloud_init_id,omitempty"`
 }
 type kvmBackup struct {
 	ID        string `json:"id"`
@@ -78,7 +82,7 @@ func kvmCapabilities() map[string]any {
 			missing = append(missing, b)
 		}
 	}
-	return map[string]any{"version": 1, "console_version": 1, "config_version": 1, "guest_agent_status_version": 1, "guest_network_info_version": 1, "guest_filesystem_usage_version": 1, "disk_grow_version": 1, "network_config_version": 1, "retirement_version": 1, "supported": runtime.GOOS == "linux" && runtime.GOARCH == "amd64", "missing_tools": missing, "acceleration": kvmAccelerationAvailable()}
+	return map[string]any{"version": 1, "host_setup_version": 1, "vm_number_version": 1, "address_pool_version": 1, "address_switch_version": 1, "console_version": 1, "config_version": 1, "guest_agent_status_version": 1, "guest_network_info_version": 1, "guest_filesystem_usage_version": 1, "disk_grow_version": 1, "network_config_version": 1, "retirement_version": 1, "root_password_version": 1, "reinstall_version": 1, "supported": runtime.GOOS == "linux" && runtime.GOARCH == "amd64", "missing_tools": missing, "acceleration": kvmAccelerationAvailable()}
 }
 
 func newKVMEngine(ctx context.Context) (*kvmEngine, error) {
@@ -211,6 +215,15 @@ func handleKVMManaged(job jobs.Job) orchestratorResult {
 
 func (e *kvmEngine) perform(action string, p map[string]any) (map[string]any, error) {
 	switch action {
+	case "host.setup":
+		if payloadValue(p, "confirm") != "1" || !strings.EqualFold(payloadValue(p, "role"), "KVM") {
+			return nil, errors.New("KVM host setup requires the assigned KVM role and explicit confirmation")
+		}
+		return e.setupHost()
+	case "host.vm_number_range":
+		return e.configureNumbers(p)
+	case "host.address_pool":
+		return e.configureAddressPool(p)
 	case "template.import":
 		return e.importTemplate(p)
 	case "vm.create":
@@ -248,6 +261,9 @@ func (e *kvmEngine) perform(action string, p map[string]any) (map[string]any, er
 	if err := e.verifyGuest(g); err != nil {
 		return nil, err
 	}
+	if action == "vm.root_password" {
+		return e.resetRootPassword(g, p)
+	}
 	if strings.HasPrefix(action, "vm.") {
 		verb := strings.TrimPrefix(action, "vm.")
 		verbs := map[string]string{"start": "start", "shutdown": "shutdown", "stop": "destroy", "reboot": "reboot", "suspend": "suspend", "resume": "resume", "autostart": "autostart", "autostart-disable": "autostart"}
@@ -281,8 +297,12 @@ func (e *kvmEngine) perform(action string, p map[string]any) (map[string]any, er
 		return map[string]any{"vm_id": id, "deleted": true}, os.RemoveAll(dir)
 	case "vm.network":
 		return e.updateGuestNetwork(g, p)
+	case "vm.address_switch":
+		return e.switchAddress(g, p)
 	case "vm.disk_grow":
 		return e.growDisk(g, p)
+	case "vm.reinstall":
+		return e.reinstallGuest(g, p)
 	case "vm.cloud_init":
 		return e.updateCloudInit(g, p)
 	case "vm.guest_agent", "vm.boot_order":

@@ -21,3 +21,22 @@ vm_config.invalid_hostname: 'Enter a valid hostname using up to 48 lowercase let
 vm_config.invalid_keys: 'Enter one to eight valid public SSH keys without key options (up to 32 KiB total).'
 vm_config.invalid_user: 'Enter a valid Linux username of up to 31 characters.'
 vm_config.invalid_boot: 'Select only existing, unique boot devices in a valid order.'
+vm_config.access: "Access"
+vm_config.assigned_ip: "Assigned IP addresses"
+vm_config.live_ip: "Check guest IP addresses"
+vm_config.root_password: "Root password"
+vm_config.root_password_hint: "The panel can replace a forgotten password. The guest's SSH login rules still apply."
+vm_config.root_password_confirm: "Replace the existing root password"
+vm_config.root_password_reset: "Generate a new password"
+vm_config.root_password_unavailable: "Changing the password requires a running VM with QEMU Guest Agent enabled and an updated host agent or the required Proxmox permission."
+vm_config.root_password_copy: "New password shown once"
+vm_config.root_password_pending: "Save this password. It takes effect once the task is marked successful in Activity."
+vm_config.root_password_ready: "The root password has changed. Save the new password now."
+vm_config.root_password_back: "Back to VM"
+
+vm_config.address_switch: 'Switch reserved IP'
+vm_config.address_switch_hint: 'The first switch reserves a second address from the same pool. Both addresses stay reserved for this VM. Start the VM afterwards so Cloud-Init can apply the configuration.'
+vm_config.address_switch_proxmox_ssh: 'Cloud-Init can regenerate the SSH host keys on boot. If your SSH client reports a changed key, verify its fingerprint in the VM console first.'
+vm_config.address_switch_current: 'Currently configured address'
+vm_config.address_switch_confirm: 'I confirm switching this address.'
+vm_config.address_switch_unavailable: 'Switching requires a stopped VM with a managed pool address and Cloud-Init.'

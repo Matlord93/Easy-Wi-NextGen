@@ -1,4 +1,15 @@
 {% extends 'customer/base.html.twig' %}
 {% set activeNav = 'proxmox' %}
 {% trans_default_domain 'proxmox' %}
-{% block content %}<div class="infra-page"><nav class="infra-breadcrumb"><a href="{{ path('customer_proxmox') }}">{{ 'pve.my_guests'|trans }}</a><span>/</span><span>{{ vmId }}</span></nav>{% include 'proxmox/_alerts.html.twig' %}{% include 'proxmox/_guest.html.twig' %}{% include 'proxmox/_script.html.twig' %}</div>{% endblock %}
+{% block content %}
+<div class="infra-page">
+    <nav class="infra-breadcrumb"><a href="{{ path('customer_proxmox') }}">{{ 'pve.my_guests'|trans }}</a><span>/</span><span>{{ vmId }}</span></nav>
+    {% include 'proxmox/_alerts.html.twig' %}
+    {% if detail %}
+        {% include 'proxmox/_guest.html.twig' %}
+    {% elseif tasks %}
+        <div id="pve-activity">{% include 'proxmox/_tasks.html.twig' %}</div>
+    {% endif %}
+    {% include 'proxmox/_script.html.twig' %}
+</div>
+{% endblock %}

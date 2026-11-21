@@ -29,7 +29,7 @@ use Symfony\Component\Routing\Attribute\Route;
 /** @psalm-import-type HistoryPoint from \App\Module\Nodes\Application\Monitoring\InfrastructureHistorySeries */
 final class InfrastructureMonitoringController extends AbstractController
 {
-    public function __construct(private readonly EntityManagerInterface $em, private readonly InfrastructureTargets $targets, private readonly InfrastructureHistoryStore $history, private readonly InfrastructureAlerts $alerts, private readonly InfrastructureMonitoringSettings $settings, private readonly InfrastructureCollector $collector, private readonly AuditLoggerInterface $audit)
+    public function __construct(private readonly EntityManagerInterface $em, private readonly InfrastructureTargets $targets, private readonly InfrastructureHistoryStore $history, private readonly InfrastructureAlerts $alerts, private readonly InfrastructureMonitoringSettings $settings, private readonly InfrastructureCollector $collector, private readonly AuditLoggerInterface $audit, private readonly \App\Module\Core\Application\ModuleRegistry $modules)
     {
     }
 
@@ -62,6 +62,9 @@ final class InfrastructureMonitoringController extends AbstractController
     public function admin(Request $request, string $provider, string $connection, string $kind, string $reference): Response
     {
         $actor = $this->actor($request, true);
+        if (!$this->modules->isEnabled($provider)) {
+            throw $this->createNotFoundException();
+        }
         try {
             if ('kvm' === $provider) {
                 $node = $this->em->find(Agent::class, $connection) ?? throw $this->createNotFoundException();
@@ -101,6 +104,9 @@ final class InfrastructureMonitoringController extends AbstractController
     public function customer(Request $request, string $provider, int $id): Response
     {
         $actor = $this->actor($request, false);
+        if (!$this->modules->isEnabled($provider)) {
+            throw $this->createNotFoundException();
+        }
         if ('kvm' === $provider) {
             $assignment = $this->em->find(KvmGuestAssignment::class, $id);
             if (!$assignment || $assignment->getCustomer()->getId() !== $actor->getId()) {

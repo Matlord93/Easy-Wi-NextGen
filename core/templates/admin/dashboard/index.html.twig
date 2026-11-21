@@ -46,7 +46,7 @@
 ] %}
 
 <div class="pm-workspace infra-page infra-dashboard" data-panel-tabs="admin-dashboard">
-<header class="pm-page-head"><div><h1>{{ t('admin_dashboard_title', locale) }}</h1><p>{{ t('admin_dashboard_subtitle', locale) }}</p></div><div class="infra-actions"><a class="ui-button ui-button--primary" href="{{ path('admin_proxmox') }}">Proxmox</a><a class="ui-button ui-button--ghost" href="{{ path('admin_kvm') }}">KVM</a><a class="ui-button ui-button--ghost" href="/admin/jobs/new">{{ t('admin_dashboard_action_job', locale) }}</a></div></header>
+<header class="pm-page-head"><div><h1>{{ t('admin_dashboard_title', locale) }}</h1><p>{{ t('admin_dashboard_subtitle', locale) }}</p></div><div class="infra-actions">{% if module_enabled('proxmox') %}<a class="ui-button ui-button--primary" href="{{ path('admin_proxmox') }}">Proxmox</a>{% endif %}{% if module_enabled('kvm') %}<a class="ui-button ui-button--ghost" href="{{ path('admin_kvm') }}">KVM</a>{% endif %}<a class="ui-button ui-button--ghost" href="/admin/jobs/new">{{ t('admin_dashboard_action_job', locale) }}</a></div></header>
 {% include 'components/panel/_tabs.html.twig' with {panelKey:'admin-dashboard',panelTabs:{overview:'overview',services:'workspace_services',activity:'workspace_activity'}} %}
 {# ─── KPI Row ─── #}
 <div class="pm-stats pm-stats--five">

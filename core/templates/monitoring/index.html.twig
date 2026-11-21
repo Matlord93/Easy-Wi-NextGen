@@ -15,6 +15,6 @@
 {% if collector.last_result|default(null) %}<dl>{% for field in ['samples','unavailable','pruned'] %}<dt>{{ ('monitor.' ~ field)|trans }}</dt><dd>{{ collector.last_result[field]|default(0) }}</dd>{% endfor %}</dl>{% endif %}
 <p>{{ 'monitor.collection_budget'|trans }}</p>
 <form method="post"><input type="hidden" name="_token" value="{{ csrf_token('infrastructure-monitoring-settings') }}"><input type="hidden" name="action" value="collect"><button class="ui-button ui-button--ghost">{{ 'monitor.collect_now'|trans }}</button></form>
-<p><a href="{{ path('admin_proxmox') }}">Proxmox</a> · <a href="{{ path('admin_kvm') }}">KVM</a></p></section>
+<p>{% if module_enabled('proxmox') %}<a href="{{ path('admin_proxmox') }}">Proxmox</a>{% endif %} {% if module_enabled('kvm') %}<a href="{{ path('admin_kvm') }}">KVM</a>{% endif %}</p></section>
 </div></div>
 {% endblock %}

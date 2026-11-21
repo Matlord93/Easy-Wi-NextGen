@@ -67,7 +67,7 @@ final readonly class ShopCheckoutService
         }
 
         return ['name' => $product->getName(), 'variant' => $variant?->getName() ?? '', 'variant_id' => $variantId, 'months' => $months, 'monthly_cents' => $price, 'subtotal_cents' => $subtotal, 'discount_cents' => $discount, 'total_cents' => $subtotal - $discount, 'coupon' => $code, 'currency' => $this->payments->publicSettings()['currency'], 'subscription' => $subscription,
-            'cpu' => $cpu, 'ram' => $ram, 'disk' => $disk, 'cpu_percent' => $cpu * 100, 'ram_mib' => $ram * 1024, 'disk_mib' => $disk * 1024, 'template_id' => $product->getTemplate()->getId() ?? 0, 'node_id' => $product->getNode()->getId()];
+            'cpu' => $cpu, 'ram' => $ram, 'disk' => $disk, 'cpu_percent' => $cpu * 100, 'ram_mib' => $ram * 1024, 'disk_mib' => $disk * 1024, 'game_slots' => $variant?->getSlots() ?? $product->getGameserverSlots(), 'template_id' => $product->getTemplate()->getId() ?? 0, 'node_id' => $product->getNode()->getId()];
     }
 
     /** @param array<string, int|string|bool> $quote */

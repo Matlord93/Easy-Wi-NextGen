@@ -236,7 +236,8 @@ final class VmConsoleHttpTest extends AbstractWebTestCase
             $session->revoke();
         }$this->em()->flush();
         $client->jsonRequest('POST', '/customer/vm-console/validate', ['session_id' => $id], ['HTTP_X_EASYWI_CONSOLE_GATEWAY' => self::SECRET, 'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest']);
-        self::assertResponseRedirects('/session-expired');
+        self::assertResponseStatusCodeSame(401);
+        self::assertResponseHeaderSame('X-EasyWi-Problem', 'session_expired');
     }
 
     public function testConsoleAbsoluteExpiryIsEnforced(): void

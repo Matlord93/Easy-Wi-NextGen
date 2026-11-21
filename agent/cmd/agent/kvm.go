@@ -17,6 +17,9 @@ var kvmIdentifierPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127
 var kvmRunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANG=C")
+	if name == "apt-get" {
+		cmd.Env = append(cmd.Env, "DEBIAN_FRONTEND=noninteractive")
+	}
 	return cmd.CombinedOutput()
 }
 

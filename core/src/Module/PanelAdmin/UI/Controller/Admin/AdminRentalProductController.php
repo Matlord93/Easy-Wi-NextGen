@@ -18,6 +18,7 @@ use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Entity\Ts3Node;
 use App\Module\Core\Domain\Entity\Ts6Node;
 use App\Module\Core\Domain\Enum\ShopProductKind;
+use App\Module\Nodes\Domain\Entity\ProxmoxCluster;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -30,7 +31,7 @@ use Twig\Environment;
 
 final readonly class AdminRentalProductController
 {
-    private const KINDS = 'gameserver|kvm|teamspeak3|teamspeak6|webspace|domain';
+    private const KINDS = 'gameserver|kvm|proxmox|teamspeak3|teamspeak6|webspace|domain';
 
     public function __construct(private EntityManagerInterface $em, private SiteResolver $sites, private AuditLoggerInterface $audit, private CsrfTokenManagerInterface $csrf, private Environment $twig, private RentalCapacity $capacity, private \App\Module\Core\Application\Billing\PaymentSettings $payments, private \App\Module\Gameserver\Application\GameserverInstallDirectory $directories)
     {
@@ -133,7 +134,7 @@ final readonly class AdminRentalProductController
                 $cpu = $request->request->getInt('cpu', 1);
                 $ram = $request->request->getInt('ram', 1);
                 $disk = $request->request->getInt('disk', 10);
-                if ($cpu < 1 || $cpu > 21_474_836 || $ram < 1 || $ram > 2_097_151 || $disk < 1 || $disk > 2_097_151 || (ShopProductKind::Kvm === $kind && ($cpu > 256 || $ram > 1024 || $disk > 2048))) {
+                if ($cpu < 1 || $cpu > 21_474_836 || $ram < 1 || $ram > 2_097_151 || $disk < 1 || $disk > 2_097_151 || ($kind->isVirtualMachine() && ($cpu > 256 || $ram > 1024 || $disk > 2048))) {
                     throw new \InvalidArgumentException('Ressourcen außerhalb der unterstützten Grenzen.');
                 }
                 $imageUrl = trim($request->request->getString('image_url'));
@@ -142,6 +143,11 @@ final readonly class AdminRentalProductController
                 }
                 $options = [];
                 if (ShopProductKind::Gameserver === $kind) {
+                    $slots = $request->request->getInt('slots', $product?->getGameserverSlots() ?? \App\Module\Core\Domain\Entity\Instance::DEFAULT_SLOTS);
+                    if ($slots < 1 || $slots > 1024) {
+                        throw new \InvalidArgumentException('Die Slotzahl muss zwischen 1 und 1024 liegen.');
+                    }
+                    $options['game_slots'] = $slots;
                     $root = trim($request->request->getString('instance_base_dir'));
                     if ('' !== $root) {
                         $root = $this->directories->resolve($node, $root);
@@ -160,10 +166,25 @@ final readonly class AdminRentalProductController
                     $image = trim($request->request->getString('kvm_template'));
                     $network = trim($request->request->getString('network', 'default'));
                     $networkType = $request->request->getString('network_type', 'network');
+                    $addressMode = $request->request->getString('address_mode', 'dhcp');
                     if (!preg_match('/^[a-z][a-z0-9-]{0,47}--[a-z0-9][a-z0-9.-]{0,47}$/D', $image) || !preg_match('/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/D', $network) || !in_array($networkType, ['network', 'bridge'], true)) {
                         throw new \InvalidArgumentException('KVM-Katalog-Template und Netzwerk prüfen.');
                     }
-                    $options = ['kvm_template' => $image, 'network' => $network, 'network_type' => $networkType];
+                    if (!in_array($addressMode, ['dhcp', 'pool'], true)) {
+                        throw new \InvalidArgumentException('Ungültige KVM-Adressvergabe.');
+                    }
+                    $options = ['kvm_template' => $image, 'network' => $network, 'network_type' => $networkType, 'address_mode' => $addressMode];
+                } elseif (ShopProductKind::Proxmox === $kind) {
+                    $clusterId = $request->request->getInt('proxmox_cluster_id');
+                    $host = trim($request->request->getString('proxmox_node'));
+                    $vmId = $request->request->getInt('proxmox_template_id');
+                    $addressMode = $request->request->getString('address_mode', 'dhcp');
+                    if (null === $this->em->find(ProxmoxCluster::class, $clusterId) || $vmId < 100 || $vmId > 999999999
+                        || !preg_match('/^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$/D', $host) || !in_array($addressMode, ['dhcp', 'pool'], true)) {
+                        throw new \InvalidArgumentException('Proxmox-Cluster, Node, Vorlagen-ID und Adressvergabe prüfen.');
+                    }
+                    $node = null;
+                    $options = ['proxmox_cluster_id' => $clusterId, 'proxmox_node' => $host, 'proxmox_template_id' => $vmId, 'address_mode' => $addressMode];
                 } elseif (ShopProductKind::Webspace === $kind) {
                     $php = $request->request->getString('php_version', '8.4');
                     if (!preg_match('/^8\.[0-9]$/D', $php)) {
@@ -225,6 +246,7 @@ final readonly class AdminRentalProductController
         return new Response($this->twig->render('admin/shop/product-editor.html.twig', ['activeNav' => 'shop-products', 'selected' => $kind, 'product' => $product, 'install_directory' => $installDirectory, 'directory_error' => $directoryError, 'input' => $request->isMethod('POST') ? JsonMap::strings($request->request->all()) : null,
             'categories' => $this->em->getRepository(ShopCategory::class)->findBy(['siteId' => $site->getId()], ['sortOrder' => 'ASC']),
             'nodes' => $agentKind ? $this->em->getRepository(Agent::class)->findAll() : [],
+            'proxmox_clusters' => ShopProductKind::Proxmox === $kind ? $this->em->getRepository(ProxmoxCluster::class)->findBy([], ['name' => 'ASC']) : [],
             'templates' => ShopProductKind::Gameserver === $kind ? $this->em->getRepository(Template::class)->findAll() : [],
             'voice_nodes' => in_array($kind, [ShopProductKind::Teamspeak3, ShopProductKind::Teamspeak6], true) ? $this->em->getRepository(ShopProductKind::Teamspeak3 === $kind ? Ts3Node::class : Ts6Node::class)->findAll() : [], 'error' => $error]), null !== $error ? 422 : 200);
     }

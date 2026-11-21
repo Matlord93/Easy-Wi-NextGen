@@ -71,13 +71,22 @@ pve.create_hint: "The VM is created powered off. Start it afterwards and install
 pve.my_guests: "My virtual servers"
 pve.no_assigned_guests: "No virtual servers have been assigned to you."
 pve.guest_unavailable: "Currently unavailable"
+pve.state.queued: "Waiting for the scheduler"
 pve.state.submitting: "Submitting"
+pve.error.rental_template_resources: "The plan requires a template with one writable system disk that fits the plan, with autostart and custom NUMA topology disabled."
+pve.error.rental_resources_unconfirmed: "Proxmox has yet to confirm the booked resources."
+pve.error.rental_cluster_in_use: "This cluster still has rental resources reserved."
 pve.state.running: "Running"
 pve.state.succeeded: "Completed"
 pve.state.failed: "Needs review"
 pve.result.dispatch_failed: "Dispatch was not confirmed. Check the task in Proxmox before retrying."
 pve.result.dispatch_unknown: "Dispatch was interrupted. Check the state in Proxmox."
 pve.result.upstream_failed: "Proxmox reported a failure."
+pve.result.identity_mismatch: "The guest found could not be matched to this task."
+pve.result.rental_resources_unconfirmed: "The booked CPU, RAM or disk size could not be confirmed."
+pve.result.rental_cloud_init_unconfirmed: "The expected cloud-init configuration could not be confirmed. Check the hostname, user, SSH keys and IP settings."
+pve.result.ip_pool_network: "The guest bridge or VLAN does not match the reserved IP pool."
+pve.error.review_rental_installation: "Rental VMs are activated only after automatic checks of resources, networking and Cloud-Init."
 pve.error.connection: "Check the connection: HTTPS origin without a path, valid token ID and secret. Re-enter the secret if the address or token ID changed."
 pve.error.unavailable: "Proxmox is currently unavailable. Check connectivity, certificate trust and the task state in Proxmox. Previously loaded data remains visible."
 pve.error.permissions: "The API token was rejected or lacks the required Proxmox privileges."
@@ -92,6 +101,12 @@ pve.error.storage: "The selected storage is unavailable, not allowed, or does no
 pve.error.backup_mode: "Choose a valid backup mode."
 pve.error.backup: "This backup does not belong to the selected guest or is no longer available."
 pve.error.restore_running: "Stop the guest before restoring."
+pve.error.restore_snapshots: "Remove the existing snapshots before restoring a backup."
+pve.error.restore_ownership: "This backup cannot be verified against the server’s current customer assignment. Contact your provider."
+pve.error.restore_configuration: "The server configuration in this backup differs from the current configuration. Contact your provider to restore it."
+pve.error.restore_protected: "Overwrite protection is enabled for this server. Contact your provider."
+pve.error.restore_verification: "Proxmox could not provide the backup configuration. Check the backup or try again later."
+pve.restore_customer_hint: "Restoring replaces the stopped server’s current data with the selected backup. The panel first checks that the backup matches the current assignment and server configuration."
 pve.error.action: "This action is not supported."
 pve.error.node_offline: "The selected node is not online."
 pve.error.iso: "Choose an available ISO image from the node storage."
@@ -167,3 +182,60 @@ pve.error.mountpoint: "Choose an unassigned mountpoint at /mnt/<name> or /srv/<n
 pve.extra_disk.attached: "Attached disks"
 
 pve.extra_disk.capacity_hint: "These values show configured sizes. QEMU guest filesystem usage cannot be read from the Proxmox status “disk” field and remains unknown there."
+pve.vm_id: 'VM ID'
+pve.vm_id_auto: 'Assign automatically'
+pve.vm_id_range: 'VM ID range for this node'
+pve.vm_id_first: 'First ID'
+pve.vm_id_last: 'Last ID'
+pve.vm_id_range_hint: 'VM IDs for creation and cloning are unique across the cluster. Leave both fields empty to clear the range.'
+pve.vm_id_save: 'Save VM ID range'
+pve.error.vm_id_range: 'The VM ID must be in the allowed range for this node. Bounds must be between 100 and 999999999.'
+pve.error.vm_id_overlap: 'This VM ID range overlaps the range assigned to another node.'
+pve.error.vm_id_taken: 'This VM ID is in use or reserved for an open task.'
+pve.error.vm_id_exhausted: 'There are no VM IDs left in this range.'
+pve.install_template: 'Install and start VM from template'
+pve.install_template_hint: 'The template needs a Cloud-Init drive and a running QEMU guest agent in the guest. The panel waits for networking and Cloud-Init.'
+pve.action.install-template: 'Install VM from Cloud-Init template'
+pve.action.rental-stop: 'Stop rental VM'
+pve.action.rental-delete: 'Retire rental VM after retention'
+pve.error.install_template: 'Automatic installation requires a QEMU template with Cloud-Init, one network adapter and no preconfigured guest password.'
+pve.result.installation_timeout: 'Readiness could not be confirmed within 30 minutes.'
+pve.ip_pools: 'IP address pools'
+pve.ip_pool_exclusive_hint: 'Use ranges reserved exclusively for Easy-WI, outside the DHCP pool.'
+pve.ip_pool_first: 'First address'
+pve.ip_pool_last: 'Last address'
+pve.ip_pool_prefix: 'Prefix length'
+pve.ip_pool_gateway: 'Gateway'
+pve.ip_pool_vlan: 'VLAN ID (optional)'
+pve.ip_pool_enabled: 'Enable for new installations'
+pve.ip_pool_save: 'Save address pool'
+pve.ip_leases: 'Reserved addresses'
+pve.ip_address: 'IP address'
+pve.ip_address_mode: 'Address assignment'
+pve.ip_pool_allocate: 'Static addresses from pool'
+pve.ip_leases_empty: 'No addresses are reserved for this node.'
+pve.ip_leases_next: 'More addresses'
+pve.ip_lease_confirm: 'I confirm that the guest has been removed.'
+pve.ip_lease_release: 'Release VM addresses'
+pve.error.ip_pool_range: 'The range and gateway must match the chosen prefix. The gateway must be outside the allocation range.'
+pve.error.ip_pool_network: 'The pools and the template adapter must use the same bridge and VLAN settings.'
+pve.error.ip_pool_overlap: 'This range overlaps another enabled IP pool.'
+pve.error.ip_pool_missing: 'This node has no enabled static address pool.'
+pve.error.ip_pool_exhausted: 'At least one required IP pool has no free address.'
+pve.error.ip_lease_release: 'The addresses remain reserved. The VM ID must be free and all cluster nodes must be able to confirm task status.'
+
+pve.action.root-password: "Change root password"
+
+pve.action.reinstall: 'Reinstall operating system'
+pve.reinstall.hint: 'The installation keeps the VM ID, network configuration, and configured SSH keys. The VM starts automatically after the disk is replaced.'
+pve.reinstall.image: 'Operating system template'
+pve.reinstall.select: 'Select a template'
+pve.reinstall.confirm: 'I confirm that the existing system disk and all its data will be deleted after the reinstalled VM starts successfully.'
+pve.reinstall.stop_first: 'Shut down the VM to select an operating system.'
+pve.error.reinstall_unavailable: 'Reinstallation is currently unavailable for this VM. It requires an approved Linux template on the same host, Cloud-Init, SSH keys, and a guest agent.'
+pve.error.reinstall_changed: 'The VM configuration has changed. Reload the page and review your selection.'
+pve.error.review_reinstallation: 'A reinstallation can only be marked successful after the automatic checks complete.'
+pve.result.reinstall_configuration_changed: 'The VM configuration changed during reinstallation. Check its state in Proxmox.'
+pve.result.preflight_failed: 'Preflight checks could not be confirmed. The operation stopped before execution.'
+pve.result.reinstall_timeout: 'Reinstallation could not be confirmed within 60 minutes. Check its state in Proxmox.'
+pve.action.address-switch: 'Switch reserved IP'

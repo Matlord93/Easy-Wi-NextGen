@@ -5,3 +5,10 @@
 <input type="hidden" name="action" value="{{ action }}">
 {% if vmId %}<input type="hidden" name="vm_id" value="{{ vmId }}">{% endif %}
 {% endmacro %}
+
+{% macro networkOptions(inventory) %}
+{% for network in inventory.networks %}
+    {% if network.details.Active|default('')|lower == 'yes' %}<option value="network:{{ network.name }}">{{ network.name }} (libvirt)</option>{% endif %}
+{% endfor %}
+{% for bridge in inventory.bridges %}<option value="bridge:{{ bridge }}">{{ bridge }} (Bridge)</option>{% endfor %}
+{% endmacro %}

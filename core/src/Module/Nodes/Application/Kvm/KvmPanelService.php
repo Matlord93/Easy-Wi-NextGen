@@ -13,6 +13,7 @@ use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Nodes\Application\VmProvisioningSettings;
+use App\Module\Nodes\Application\VmRootPassword;
 use App\Repository\AgentJobRepository;
 
 /**
@@ -26,7 +27,7 @@ final readonly class KvmPanelService
 {
     private const UUID = '/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D';
     private const SLUG = '/^[a-z][a-z0-9-]{0,47}$/D';
-    public const ACTIONS = ['inspect', 'template.import', 'vm.create', 'vm.start', 'vm.shutdown', 'vm.stop', 'vm.reboot', 'vm.suspend', 'vm.resume', 'vm.autostart', 'vm.autostart-disable', 'vm.limits', 'vm.disk_grow', 'vm.network', 'vm.console.configure', 'vm.cloud_init', 'vm.boot_order', 'vm.guest_agent', 'vm.agent_status', 'snapshot.create', 'snapshot.revert', 'snapshot.delete', 'backup.create', 'backup.restore', 'backup.delete', 'network.create', 'network.start', 'network.stop', 'network.autostart', 'network.autostart-disable'];
+    public const ACTIONS = ['inspect', 'host.setup', 'host.vm_number_range', 'host.address_pool', 'template.import', 'vm.create', 'vm.start', 'vm.shutdown', 'vm.stop', 'vm.reboot', 'vm.suspend', 'vm.resume', 'vm.autostart', 'vm.autostart-disable', 'vm.limits', 'vm.disk_grow', 'vm.network', 'vm.console.configure', 'vm.cloud_init', 'vm.boot_order', 'vm.guest_agent', 'vm.agent_status', 'vm.root_password', 'vm.address_switch', 'vm.reinstall', 'snapshot.create', 'snapshot.revert', 'snapshot.delete', 'backup.create', 'backup.restore', 'backup.delete', 'network.create', 'network.start', 'network.stop', 'network.autostart', 'network.autostart-disable'];
 
     public function __construct(private AgentJobDispatcherInterface $dispatcher, private AgentJobRepository $jobs)
     {
@@ -91,6 +92,20 @@ final readonly class KvmPanelService
         return $this->jobs->findLatestForNodeAndTypes($node->getId(), ['kvm.managed'], 20);
     }
 
+    public function hasAddressPool(Agent $node, string $kind, string $network): bool
+    {
+        if (null !== $this->availability($node) || 1 !== ($node->getMetadata()['kvm_managed']['address_pool_version'] ?? null)) {
+            return false;
+        }
+        foreach (self::inventoryRows($this->inventory($node)['address_pools'] ?? null) as $pool) {
+            if (($pool['network_type'] ?? null) === $kind && ($pool['network'] ?? null) === $network && in_array($pool['family'] ?? null, [4, 6], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function submit(Agent $node, string $action, array $input): AgentJob
     {
         $error = $this->availability($node);
@@ -104,7 +119,49 @@ final readonly class KvmPanelService
         if ('inspect' !== $action) {
             $payload['operation_id'] = $this->text($input, 'operation_id', self::UUID);
         }
-        if ('template.import' === $action) {
+        if (in_array($action, ['host.address_pool', 'vm.create', 'vm.network'], true) && null !== ($choice = JsonMap::strings($input)['network_choice'] ?? null)) {
+            [$input['network_type'], $input['network']] = array_pad(explode(':', $choice, 2), 2, '');
+        }
+        if ('host.setup' === $action) {
+            if (!$node->hasKvmRole()) {
+                throw new \InvalidArgumentException('kvm.role_required');
+            }
+            if (1 !== ($node->getMetadata()['kvm_managed']['host_setup_version'] ?? null)) {
+                throw new \InvalidArgumentException('kvm.update_agent');
+            }
+            if ('1' !== ($input['confirm'] ?? null)) {
+                throw new \InvalidArgumentException('kvm.host_setup_confirm');
+            }
+            $payload['confirm'] = '1';
+            $payload['role'] = 'KVM';
+        } elseif ('host.vm_number_range' === $action) {
+            if (1 !== ($node->getMetadata()['kvm_managed']['vm_number_version'] ?? null)) {
+                throw new \InvalidArgumentException('kvm.update_agent');
+            }
+            if ('' !== ($input['first'] ?? '') || '' !== ($input['last'] ?? '')) {
+                $payload['first'] = $this->integer($input, 'first', 100, 999999999);
+                $payload['last'] = $this->integer($input, 'last', $payload['first'], 999999999);
+            }
+        } elseif ('host.address_pool' === $action) {
+            if (1 !== ($node->getMetadata()['kvm_managed']['address_pool_version'] ?? null)) {
+                throw new \InvalidArgumentException('kvm.update_agent');
+            }
+            $payload['network_type'] = $this->text($input, 'network_type', '/^(network|bridge)$/D');
+            $payload['network'] = $this->text($input, 'network', '/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/D');
+            $payload['family'] = $this->integer($input, 'family', 4, 6);
+            if (5 === $payload['family']) {
+                throw new \InvalidArgumentException('kvm.invalid');
+            }
+            if ('1' === ($input['remove'] ?? null)) {
+                $payload['remove'] = '1';
+            } else {
+                $v4 = 4 === $payload['family'];
+                $payload['prefix'] = $this->integer($input, 'prefix', 1, $v4 ? 30 : 127);
+                foreach (['first', 'last', 'gateway', 'dns'] as $field) {
+                    $payload[$field] = $this->ipAddress($input[$field] ?? null, $v4 ? FILTER_FLAG_IPV4 : FILTER_FLAG_IPV6);
+                }
+            }
+        } elseif ('template.import' === $action) {
             $payload['template_id'] = $this->text($input, 'template_id', self::SLUG);
             $payload['version'] = $this->text($input, 'version', '/^[a-z0-9][a-z0-9.-]{0,47}$/D');
             if (str_contains($payload['template_id'], '--') || str_contains($payload['version'], '--')) {
@@ -118,6 +175,12 @@ final readonly class KvmPanelService
             }
             $payload['url'] = $url;
         } elseif ('vm.create' === $action) {
+            if ('' !== ($input['vm_number'] ?? '') && null !== ($input['vm_number'] ?? null)) {
+                if (1 !== ($node->getMetadata()['kvm_managed']['vm_number_version'] ?? null)) {
+                    throw new \InvalidArgumentException('kvm.update_agent');
+                }
+                $payload['vm_number'] = $this->integer($input, 'vm_number', 100, 999999999);
+            }
             $payload['label'] = trim((string) ($input['label'] ?? ''));
             if ('' === $payload['label'] || mb_strlen($payload['label']) > 120) {
                 throw new \InvalidArgumentException('kvm.invalid');
@@ -125,8 +188,13 @@ final readonly class KvmPanelService
             $payload['template'] = $this->text($input, 'template', '/^[a-z][a-z0-9-]{0,47}--[a-z0-9][a-z0-9.-]{0,47}$/D');
             $payload['hostname'] = $this->text($input, 'hostname', self::SLUG);
             $payload['username'] = $this->text($input, 'username', '/^(?!root$)[a-z][a-z0-9_-]{0,30}$/D');
-            if (isset($input['network_choice']) && is_string($input['network_choice'])) {
-                [$input['network_type'], $input['network']] = array_pad(explode(':', $input['network_choice'], 2), 2, '');
+            if ('pool' === ($input['address_mode'] ?? null)) {
+                if (1 !== ($node->getMetadata()['kvm_managed']['address_pool_version'] ?? null)) {
+                    throw new \InvalidArgumentException('kvm.update_agent');
+                }
+                $payload['address_mode'] = 'pool';
+            } elseif ('dhcp' !== ($input['address_mode'] ?? 'dhcp')) {
+                throw new \InvalidArgumentException('kvm.invalid');
             }
             $payload['network_type'] = $this->text($input, 'network_type', '/^(network|bridge)$/D');
             $payload['network'] = $this->text($input, 'network', '/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/D');
@@ -146,6 +214,12 @@ final readonly class KvmPanelService
             if ('network.create' === $action) {
                 $payload['mode'] = $this->text($input, 'mode', '/^(nat|isolated)$/D');
                 $payload['cidr'] = $this->text($input, 'cidr', '/^\d{1,3}(\.\d{1,3}){3}\/(24|25|26|27|28)$/D');
+                if ('' !== ($input['dhcp_start'] ?? '')) {
+                    if (1 !== ($node->getMetadata()['kvm_managed']['address_pool_version'] ?? null)) {
+                        throw new \InvalidArgumentException('kvm.update_agent');
+                    }
+                    $payload['dhcp_start'] = $this->ipAddress($input['dhcp_start'], FILTER_FLAG_IPV4);
+                }
             }
         } elseif ('inspect' !== $action) {
             $payload['vm_id'] = $this->text($input, 'vm_id', self::UUID);
@@ -155,10 +229,6 @@ final readonly class KvmPanelService
                 }
                 if ('1' !== ($input['confirm'] ?? null)) {
                     throw new \InvalidArgumentException('kvm.network_confirm');
-                }
-                $networkChoice = JsonMap::strings($input)['network_choice'] ?? null;
-                if (null !== $networkChoice) {
-                    [$input['network_type'], $input['network']] = array_pad(explode(':', $networkChoice, 2), 2, '');
                 }
                 foreach (['network_type', 'expected_network_type'] as $field) {
                     $payload[$field] = $this->text($input, $field, '/^(network|bridge)$/D');
@@ -184,6 +254,37 @@ final readonly class KvmPanelService
             }
             if ('vm.agent_status' === $action && ($node->getMetadata()['kvm_managed']['guest_agent_status_version'] ?? null) !== 1) {
                 throw new \InvalidArgumentException('kvm.update_agent');
+            }
+            if ('vm.root_password' === $action) {
+                if (1 !== ($node->getMetadata()['kvm_managed']['root_password_version'] ?? null)) {
+                    throw new \InvalidArgumentException('kvm.update_agent');
+                }
+                if (($input['confirm'] ?? '') !== '1') {
+                    throw new \InvalidArgumentException('kvm.customer_confirm');
+                }
+                $payload['password_hash'] = $this->text($input, 'password_hash', VmRootPassword::HASH_PATTERN);
+                $payload['confirm'] = '1';
+            }
+            if ('vm.reinstall' === $action) {
+                if (1 !== ($node->getMetadata()['kvm_managed']['reinstall_version'] ?? null)) {
+                    throw new \InvalidArgumentException('kvm.update_agent');
+                }
+                if (($input['confirm'] ?? '') !== '1') {
+                    throw new \InvalidArgumentException('kvm.customer_confirm');
+                }
+                $payload['template'] = $this->text($input, 'template', '/^[a-z][a-z0-9-]{0,47}--[a-z0-9][a-z0-9.-]{0,47}$/D');
+                $payload['confirm'] = '1';
+            }
+            if ('vm.address_switch' === $action) {
+                if (1 !== ($node->getMetadata()['kvm_managed']['address_switch_version'] ?? null)) {
+                    throw new \InvalidArgumentException('kvm.update_agent');
+                }
+                $address = $input['expected_address'] ?? null;
+                if (!is_string($address) || !filter_var($address, FILTER_VALIDATE_IP) || '1' !== ($input['confirm'] ?? '')) {
+                    throw new \InvalidArgumentException('vm_config.address_switch_unavailable');
+                }
+                $payload['expected_address'] = $address;
+                $payload['confirm'] = '1';
             }
             if (in_array($action, ['vm.cloud_init', 'vm.boot_order', 'vm.guest_agent'], true)) {
                 if (($node->getMetadata()['kvm_managed']['config_version'] ?? null) !== 1) {
@@ -251,5 +352,14 @@ final readonly class KvmPanelService
         }
 
         return $value;
+    }
+
+    private function ipAddress(mixed $value, int $family): string
+    {
+        if (!is_string($value) || false === filter_var(trim($value), FILTER_VALIDATE_IP, $family)) {
+            throw new \InvalidArgumentException('kvm.invalid');
+        }
+
+        return trim($value);
     }
 }

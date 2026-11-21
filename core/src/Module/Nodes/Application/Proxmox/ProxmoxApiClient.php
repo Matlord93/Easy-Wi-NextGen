@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Nodes\Application\Proxmox;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxApiException;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
 use Psr\Log\LoggerInterface;
@@ -117,11 +118,50 @@ final readonly class ProxmoxApiClient
     }
 
     /** @return array<array-key, mixed> */
-    public function guestConfig(ProxmoxConnection $connection, string $node, int $vmId, string $kind = 'qemu'): array
+    public function guestConfig(ProxmoxConnection $connection, string $node, int $vmId, string $kind = 'qemu', bool $current = false): array
     {
         $this->assertGuestKind($kind);
 
-        return $this->item($connection, sprintf('/nodes/%s/%s/%d/config', rawurlencode($node), $kind, $vmId));
+        $path = sprintf('/nodes/%s/%s/%d/config', rawurlencode($node), $kind, $vmId);
+
+        return $this->itemData($this->request($connection, 'GET', $path, $current ? ['query' => ['current' => 1]] : []));
+    }
+
+    public function hasPendingGuestConfiguration(ProxmoxConnection $connection, string $node, int $vmId): bool
+    {
+        $rows = $this->list($connection, sprintf('/nodes/%s/qemu/%d/pending', rawurlencode($node), $vmId));
+
+        return array_any($rows, static fn (array $row): bool => isset($row['pending']) || !empty($row['delete']));
+    }
+
+    /** @return array<array-key, mixed> */
+    public function updatePoolAddress(ProxmoxConnection $connection, string $node, int $vmId, string $settings, string $digest): array
+    {
+        return $this->item($connection, sprintf('/nodes/%s/qemu/%d/config', rawurlencode($node), $vmId), 'PUT', ['ipconfig0' => $settings, 'digest' => $digest]);
+    }
+
+    /** @return array<array-key, mixed> */
+    public function importSystemDisk(ProxmoxConnection $connection, string $node, int $vmId, string $device, string $storage, string $source, string $options, string $digest): array
+    {
+        if (!ProxmoxDisks::validDevice('qemu', $device) || !preg_match('/^[A-Za-z][A-Za-z0-9_.-]*$/D', $storage)
+            || !preg_match('~^[A-Za-z][A-Za-z0-9_.-]*:[A-Za-z0-9_./-]+$~D', $source)
+            || !preg_match('/^(?:,[a-z_]+=[A-Za-z0-9_.-]+)*$/D', $options) || '' === $digest) {
+            throw new \InvalidArgumentException('pve.error.reinstall_unavailable');
+        }
+
+        return $this->item($connection, sprintf('/nodes/%s/qemu/%d/config', rawurlencode($node), $vmId), 'POST', [
+            $device => $storage.':0,import-from='.$source.$options, 'digest' => $digest,
+        ]);
+    }
+
+    /** @return array<array-key, mixed> */
+    public function removeUnusedDisk(ProxmoxConnection $connection, string $node, int $vmId, string $device, string $digest): array
+    {
+        if (!preg_match('/^unused\d+$/D', $device) || '' === $digest) {
+            throw new \InvalidArgumentException('pve.error.reinstall_unavailable');
+        }
+
+        return $this->item($connection, sprintf('/nodes/%s/qemu/%d/config', rawurlencode($node), $vmId), 'PUT', ['delete' => $device, 'digest' => $digest]);
     }
 
     /** A fixed read-only QGA allowlist; arbitrary guest commands are never forwarded. */
@@ -201,10 +241,24 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/%s/%d/config', rawurlencode($node), $kind, $vmId), 'PUT', $body);
     }
 
-    /** @return array<array-key, mixed> */
-    public function updateProvisioning(ProxmoxConnection $connection, string $node, int $vmId, string $hostname, string $username, array $keys, ?string $digest): array
+    /**
+     * @param array{cores:int, memory_mib:int, disk_gib:int}|null $rentalResources
+     * @return array<array-key, mixed>
+     */
+    public function updateProvisioning(ProxmoxConnection $connection, string $node, int $vmId, string $hostname, string $username, array $keys, ?string $digest, bool $initialize = false, string $ipConfig = 'ip=dhcp', ?array $rentalResources = null): array
     {
         $body = ['name' => $hostname, 'ciuser' => $username, 'sshkeys' => rawurlencode(implode("\n", self::stringValues($keys)))];
+        if ($initialize) {
+            $body += ['agent' => 'enabled=1', 'ipconfig0' => $ipConfig];
+        }
+        if (null !== $rentalResources) {
+            $cores = $rentalResources['cores'];
+            $memory = $rentalResources['memory_mib'];
+            if (!$initialize || null === $digest || '' === $digest || $cores < 1 || $cores > 256 || $memory < 128 || $memory > 1048576) {
+                throw new \InvalidArgumentException('Invalid rental VM resource limits.');
+            }
+            $body += ['sockets' => 1, 'cores' => $cores, 'vcpus' => $cores, 'cpulimit' => 0, 'memory' => $memory, 'balloon' => 0];
+        }
         if (null !== $digest) {
             $body['digest'] = $digest;
         }
@@ -274,6 +328,24 @@ final readonly class ProxmoxApiClient
         return $this->item($connection, sprintf('/nodes/%s/storage/%s/content/%s', rawurlencode($node), rawurlencode($storage), rawurlencode($volume)), 'DELETE');
     }
 
+    public function backupConfiguration(ProxmoxConnection $connection, string $node, string $volume): string
+    {
+        $path = '/nodes/'.rawurlencode($node).'/vzdump/extractconfig';
+        $data = $this->request($connection, 'GET', $path, [
+            'query' => ['volume' => $volume],
+            'on_progress' => static function (int $bytes): void {
+                if ($bytes > 262144) {
+                    throw new ProxmoxApiException('Proxmox backup configuration is too large.');
+                }
+            },
+        ]);
+        if (!is_string($data) || '' === trim($data)) {
+            throw new ProxmoxApiException('Proxmox returned no backup configuration.', 0, $path);
+        }
+
+        return $data;
+    }
+
     /** @return array<array-key, mixed> */
     public function restoreBackup(ProxmoxConnection $connection, string $node, int $vmId, string $volume, string $kind = 'qemu', ?string $storage = null, bool $replace = false): array
     {
@@ -294,21 +366,83 @@ final readonly class ProxmoxApiClient
     }
 
     /** @return array<array-key, mixed> */
-    public function cloneTemplate(ProxmoxConnection $connection, string $node, int $vmId, int $newId, string $name, string $kind = 'qemu'): array
+    public function cloneTemplate(ProxmoxConnection $connection, string $node, int $vmId, int $newId, string $name, string $kind = 'qemu', ?string $description = null): array
     {
         $this->assertGuestKind($kind);
 
-        return $this->item($connection, sprintf('/nodes/%s/%s/%d/clone', rawurlencode($node), $kind, $vmId), 'POST', ['newid' => $newId, 'qemu' === $kind ? 'name' : 'hostname' => $name, 'full' => 1]);
+        return $this->item($connection, sprintf('/nodes/%s/%s/%d/clone', rawurlencode($node), $kind, $vmId), 'POST', ['newid' => $newId, 'qemu' === $kind ? 'name' : 'hostname' => $name, 'full' => 1] + (null === $description ? [] : ['description' => $description]));
     }
 
-    public function nextVmId(ProxmoxConnection $connection): int
+    public function cloudInitBootFinished(ProxmoxConnection $connection, string $node, int $vmId, ?int $startedAt = null): bool
     {
-        $value = $this->request($connection, 'GET', '/cluster/nextid', []);
-        if (!is_numeric($value) || (int) $value < 100) {
+        $data = JsonMap::strings($this->request($connection, 'GET', sprintf('/nodes/%s/qemu/%d/agent/file-read', rawurlencode($node), $vmId), [
+            'query' => ['file' => '/var/lib/cloud/instance/boot-finished', 'count' => 256],
+            'timeout' => 3, 'max_duration' => 4,
+            'on_progress' => static function (int $bytes): void { if ($bytes > 4096) { throw new \RuntimeException('Cloud-init marker response exceeds limit.'); } },
+        ]));
+
+        $content = trim($data['content'] ?? '');
+        if (null === $startedAt) {
+            return '' !== $content;
+        }
+        if (!preg_match('/^\d+(?:\.\d+)? - ([A-Za-z]{3}, \d{1,2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} [+-]\d{4}) - v\. /D', $content, $match)) {
+            return false;
+        }
+        $finishedAt = \DateTimeImmutable::createFromFormat(\DateTimeInterface::RFC2822, $match[1]);
+
+        return false !== $finishedAt && $finishedAt->getTimestamp() >= $startedAt;
+    }
+
+    /** @return array<array-key, mixed> */
+    public function setRootPasswordHash(ProxmoxConnection $connection, string $node, int $vmId, #[\SensitiveParameter] string $hash): array
+    {
+        return $this->item($connection, sprintf('/nodes/%s/qemu/%d/agent/set-user-password', rawurlencode($node), $vmId), 'POST', [
+            'username' => 'root', 'password' => $hash, 'crypted' => 1,
+        ]);
+    }
+
+    public function nextVmId(ProxmoxConnection $connection, ?int $requested = null): int
+    {
+        $value = $this->request($connection, 'GET', '/cluster/nextid', null === $requested ? [] : ['query' => ['vmid' => $requested]]);
+        if (!is_numeric($value) || (int) $value < 100 || (int) $value > 999999999) {
             throw new ProxmoxApiException('Invalid next VM ID.');
         }
 
         return (int) $value;
+    }
+
+    public function deleteStoppedQemuVm(ProxmoxConnection $connection, string $node, int $vmId): string
+    {
+        $data = JsonMap::strings($this->item($connection, sprintf('/nodes/%s/qemu/%d', rawurlencode($node), $vmId), 'DELETE'));
+        $task = $data['task'] ?? '';
+        if ('' === $task) {
+            throw new ProxmoxApiException('No deletion task was returned.');
+        }
+
+        return $task;
+    }
+
+    public function isGuestIdFree(ProxmoxConnection $connection, int $vmId): bool
+    {
+        $nodes = $this->nodes($connection);
+        if ([] === $nodes) {
+            return false;
+        }
+        foreach ($nodes as $row) {
+            $node = JsonMap::strings($row)['node'] ?? '';
+            if ('' === $node || 'online' !== ($row['status'] ?? null)) {
+                return false;
+            }
+            $path = '/nodes/'.$node;
+            if (empty($this->permissions($connection, $path)[$path]['Sys.Audit']) || [] !== $this->activeTasks($connection, $node, $vmId)) {
+                return false;
+            }
+        }
+        try {
+            return $this->nextVmId($connection, $vmId) === $vmId;
+        } catch (ProxmoxApiException) {
+            return false;
+        }
     }
 
     /** @return array<array-key, mixed> */

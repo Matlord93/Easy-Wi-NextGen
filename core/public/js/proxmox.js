@@ -39,7 +39,7 @@
             for (const row of document.querySelectorAll('[data-pve-task-url]')) {
                 try {
                     const data = await json(row.dataset.pveTaskUrl);
-                    if (!['submitting', 'running', 'uncertain', 'succeeded', 'failed'].includes(data.state) || typeof data.active !== 'boolean') throw new Error('Invalid task response');
+                    if (!['queued', 'submitting', 'running', 'uncertain', 'succeeded', 'failed'].includes(data.state) || typeof data.active !== 'boolean') throw new Error('Invalid task response');
                     const state = row.querySelector('[data-pve-task-state]');
                     if (state) state.textContent = (labels[data.state] || data.state) + (data.result && data.result !== 'OK' ? ' · ' + (labels[data.result] || '') : '');
                     if (!data.active || data.poll === false) {
