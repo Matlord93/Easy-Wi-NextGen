@@ -6,12 +6,57 @@ namespace App\Tests\Module\Setup\Application;
 
 use App\Module\Setup\Application\WebinterfaceUpdateService;
 use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class WebinterfaceUpdateServiceTest extends TestCase
 {
+    #[TestWith(['dev', 'v1.0.0-dev.20261122.1', 'v1.0.0-dev.20261122.1', true])]
+    #[TestWith(['dev', 'v1.0.0-predev.20261122.1', 'v1.0.0-predev.20261122.1', true])]
+    #[TestWith(['dev', 'v1.0.0-dev.20261121.1', 'v1.0.0-dev.20261121.1', false])]
+    #[TestWith(['stable', 'v1.0.0-predev.20261122.1', 'v1.0.0-predev.20261122.1', null])]
+    #[TestWith(['dev', 'v1.0.0-dev.20261122.1', 'v1.0.0-dev.20261121.1', null])]
+    #[TestWith(['stable', 'v1.0.0', 'v1.0.0-dev.20261122.1', null])]
+    public function testManifestRequiresTheSelectedChannelAndExactDownloadTag(string $channel, string $version, string $downloadTag, ?bool $expected): void
+    {
+        $directory = sys_get_temp_dir().'/easywi-update-channel-'.bin2hex(random_bytes(8));
+        mkdir($directory, 0775, true);
+        file_put_contents($directory.'/VERSION', "v1.0.0-predev.20261121.1\n");
+        $settings = new WebinterfaceUpdateSettingsService($directory);
+        $settings->setCoreChannel($channel);
+        try {
+            $manifest = [
+                'latest' => $version,
+                'channel' => $channel,
+                'asset_url' => 'https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/'.$downloadTag.'/easywi-core.tar.gz',
+            ];
+            $service = $this->newWebinterfaceUpdateService([
+                'httpClient' => new MockHttpClient([new MockResponse(json_encode($manifest, JSON_THROW_ON_ERROR))]),
+                'settingsService' => $settings,
+                'manifestUrl' => 'https://example.invalid/manifest.json',
+                'installDir' => $directory,
+                'releasesDir' => '',
+                'currentSymlink' => '',
+                'lockFile' => $directory.'/update.lock',
+                'fallbackVersion' => '',
+                'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+                'kernelEnvironment' => 'test',
+                'kernelDebug' => false,
+                'excludes' => '',
+            ]);
+
+            $status = $service->checkForUpdate();
+            self::assertSame('v1.0.0-predev.20261121.1', $status->installedVersion);
+            self::assertSame($expected === null ? null : $version, $status->latestVersion);
+            self::assertSame($expected, $status->updateAvailable);
+        } finally {
+            (new Filesystem())->remove($directory);
+        }
+    }
+
     public function testCheckForUpdateParsesFeedArtifact(): void
     {
         $feed = [

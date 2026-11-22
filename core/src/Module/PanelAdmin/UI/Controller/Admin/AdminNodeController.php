@@ -28,10 +28,12 @@ use App\Module\Core\Domain\Entity\ShopProduct;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Core\Update\ReleaseVersion;
 use App\Module\Ports\Domain\Entity\PortAllocation;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Domain\Entity\PortPool;
 use App\Module\Ports\Domain\Entity\PortRange;
+use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
 use App\Repository\AgentJobRepository;
 use App\Repository\AgentRepositoryInterface;
 use App\Repository\DdosStatusRepository;
@@ -68,6 +70,7 @@ final class AdminNodeController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly AgentReleaseChecker $releaseChecker,
+        private readonly WebinterfaceUpdateSettingsService $updateSettingsService,
         private readonly EncryptionServiceInterface $encryptionService,
         private readonly SecretsCryptoInterface $secretsCrypto,
         private readonly NodeDiskProtectionService $nodeDiskProtectionService,
@@ -95,7 +98,8 @@ final class AdminNodeController
 
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         $selectedNodeId = trim($request->query->getString('node', ''));
-        $latestVersion = $this->releaseChecker->getLatestVersion();
+        $channel = $this->updateSettingsService->getAgentChannel();
+        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($channel);
         $summary = $this->buildSummary($nodes, $latestVersion);
         $updateJobs = $this->buildUpdateJobIndex($nodes);
         $serverUpdateJobs = $this->buildServerUpdateJobIndex($nodes);
@@ -129,7 +133,7 @@ final class AdminNodeController
             'nodes' => $normalizedNodes,
             'summary' => $summary,
             'selectedNode' => $selectedNode,
-            'updateChannel' => $this->releaseChecker->getChannel(),
+            'updateChannel' => $channel,
             'diskProtectCount' => count($diskProtectActive),
             'activeNav' => 'nodes',
         ]));
@@ -256,7 +260,8 @@ final class AdminNodeController
         }
 
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        $latestVersion = $this->releaseChecker->getLatestVersion();
+        $channel = $this->updateSettingsService->getAgentChannel();
+        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($channel);
         $updateJobs = $this->buildUpdateJobIndex($nodes);
         $serverUpdateJobs = $this->buildServerUpdateJobIndex($nodes);
         $ddosStatuses = $this->buildDdosStatusIndex($nodes);
@@ -264,7 +269,7 @@ final class AdminNodeController
         return new Response($this->twig->render('admin/nodes/_table.html.twig', [
             'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs, $serverUpdateJobs, $ddosStatuses),
             'roleOptions' => self::ROLE_OPTIONS,
-            'updateChannel' => $this->releaseChecker->getChannel(),
+            'updateChannel' => $channel,
         ]));
     }
 
@@ -637,15 +642,16 @@ final class AdminNodeController
         }
 
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        $latestVersion = $this->releaseChecker->getLatestVersion();
+        $channel = $this->updateSettingsService->getAgentChannel();
+        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($channel);
         if ($this->agentUpdatesRequirePanelProxy($nodes, $latestVersion)) {
             return $this->renderNodesTable($this->translateUpdateMessage('admin_updates_agent_private_proxy_blocked', $request->getLocale()));
         }
         $updateJobs = $this->buildUpdateJobIndex($nodes);
 
-        $this->queueAgentUpdates($nodes, $latestVersion, $updateJobs, $actor);
+        $queued = $this->queueAgentUpdates($nodes, $latestVersion, $updateJobs, $actor);
 
-        return $this->renderNodesTable();
+        return $this->renderAgentUpdateNotice($request, $queued);
     }
 
     #[Route(path: '/rollout', name: 'admin_nodes_rollout', methods: ['POST'])]
@@ -697,14 +703,15 @@ final class AdminNodeController
             return new Response('Node not found.', Response::HTTP_NOT_FOUND);
         }
 
-        $latestVersion = $this->releaseChecker->getLatestVersion();
+        $channel = $this->updateSettingsService->getAgentChannel();
+        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($channel);
         if ($this->agentUpdatesRequirePanelProxy([$node], $latestVersion)) {
             return $this->renderNodesTable($this->translateUpdateMessage('admin_updates_agent_private_proxy_blocked', $request->getLocale()));
         }
         $updateJobs = $this->buildUpdateJobIndex([$node]);
-        $this->queueAgentUpdates([$node], $latestVersion, $updateJobs, $actor);
+        $queued = $this->queueAgentUpdates([$node], $latestVersion, $updateJobs, $actor);
 
-        return $this->renderNodesTable();
+        return $this->renderAgentUpdateNotice($request, $queued);
     }
 
     #[Route(path: '/{id}/update-check', name: 'admin_nodes_update_check', methods: ['POST'])]
@@ -939,11 +946,7 @@ final class AdminNodeController
                 continue;
             }
 
-            $updateAvailable = $this->releaseChecker->isUpdateAvailable(
-                $node->getLastHeartbeatVersion(),
-                $latestVersion,
-            );
-            if ($updateAvailable) {
+            if ($latestVersion !== null && $this->releaseChecker->isUpdateAvailable($node->getLastHeartbeatVersion(), $latestVersion) === true) {
                 $summary['updates']++;
             }
         }
@@ -951,10 +954,20 @@ final class AdminNodeController
         return $summary;
     }
 
+    private function renderAgentUpdateNotice(Request $request, int $queued): Response
+    {
+        if ($queued === 0) {
+            return $this->renderNodesTable(error: $this->translateUpdateMessage('admin_updates_agents_nothing_queued', $request->getLocale()));
+        }
+
+        return $this->renderNodesTable($this->translateUpdateMessage('admin_updates_agents_notice_count', $request->getLocale(), ['%count%' => (string) $queued]));
+    }
+
     private function renderNodesTable(?string $notice = null, ?string $error = null): Response
     {
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        $latestVersion = $this->releaseChecker->getLatestVersion();
+        $channel = $this->updateSettingsService->getAgentChannel();
+        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($channel);
         $updateJobs = $this->buildUpdateJobIndex($nodes);
         $serverUpdateJobs = $this->buildServerUpdateJobIndex($nodes);
         $ddosStatuses = $this->buildDdosStatusIndex($nodes);
@@ -962,7 +975,7 @@ final class AdminNodeController
         return new Response($this->twig->render('admin/nodes/_table.html.twig', [
             'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs, $serverUpdateJobs, $ddosStatuses),
             'roleOptions' => self::ROLE_OPTIONS,
-            'updateChannel' => $this->releaseChecker->getChannel(),
+            'updateChannel' => $channel,
             'notice' => $notice,
             'error' => $error,
         ]));
@@ -970,7 +983,8 @@ final class AdminNodeController
 
     private function renderRolesPage(\App\Module\Core\Domain\Entity\Agent $node, ?string $notice = null, ?string $error = null): Response
     {
-        $latestVersion = $this->releaseChecker->getLatestVersion();
+        $channel = $this->updateSettingsService->getAgentChannel();
+        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($channel);
         $normalizedNodes = $this->normalizeNodes([$node], $latestVersion);
         $selectedNode = $normalizedNodes[0] ?? null;
 
@@ -1303,6 +1317,7 @@ final class AdminNodeController
                 }
             }
             $updateJob = $updateJobs[$node->getId()] ?? null;
+            $updateTarget = JsonMap::strings($updateJob?->getPayload() ?? [])['version'] ?? null;
             $serverUpdateJob = $serverUpdateJobs[$node->getId()] ?? null;
             $serverUpdateAvailable = null;
             $serverUpdateMessage = null;
@@ -1377,7 +1392,7 @@ final class AdminNodeController
                 ],
                 'mail' => $mailSettings,
                 'coreAccessMode' => is_string($coreAccessMode) ? $coreAccessMode : null,
-                'updateAvailable' => $this->releaseChecker->isUpdateAvailable($currentVersion, $latestVersion),
+                'updateAvailable' => $latestVersion === null ? null : $this->releaseChecker->isUpdateAvailable($currentVersion, $latestVersion),
                 'latestVersion' => $latestVersion,
                 'updatedAt' => $node->getUpdatedAt(),
                 'ddos' => $ddosStatus === null ? null : [
@@ -1391,7 +1406,9 @@ final class AdminNodeController
                     'createdAt' => $updateJob->getCreatedAt(),
                     'updatedAt' => $updateJob->getUpdatedAt(),
                     'resultStatus' => $updateJob->getResult()?->getStatus()->value,
-                    'resultMessage' => $updateJob->getResult()?->getOutput()['message'] ?? null,
+                    'resultMessage' => $updateJob->getLastError() ?? $updateJob->getResult()?->getOutput()['message'] ?? null,
+                    'targetVersion' => $updateTarget,
+                    'versionConfirmed' => $updateJob->getStatus() === JobStatus::Succeeded && ReleaseVersion::compare($currentVersion, $updateTarget) === 0,
                 ],
                 'serverUpdate' => $serverUpdateJob === null ? null : [
                     'id' => $serverUpdateJob->getId(),
@@ -1614,7 +1631,7 @@ final class AdminNodeController
             }
 
             if ($existingJob !== null) {
-                if ($existingJob->getStatus() === JobStatus::Running) {
+                if (in_array($existingJob->getStatus(), [JobStatus::Claimed, JobStatus::Running], true)) {
                     continue;
                 }
 
@@ -1711,6 +1728,10 @@ final class AdminNodeController
     /** @return array<string, mixed>|null */
     private function resolveAgentReleaseInfo(\App\Module\Core\Domain\Entity\Agent $node, ?string $targetVersion): ?array
     {
+        if ($node->getStatus() === Agent::STATUS_DECOMMISSIONED) {
+            return null;
+        }
+
         $stats = $node->getLastHeartbeatStats() ?? [];
         $os = strtolower(JsonMap::strings($stats)['os'] ?? '');
         $arch = strtolower(JsonMap::strings($stats)['arch'] ?? '');
@@ -1720,7 +1741,7 @@ final class AdminNodeController
             return null;
         }
 
-        return $this->releaseChecker->getReleaseAssetUrls($assetName, $targetVersion);
+        return $this->releaseChecker->getReleaseAssetUrlsForChannel($assetName, $this->updateSettingsService->getAgentChannel(), $targetVersion);
     }
 
     private function resolveAgentAssetName(string $os, string $arch): ?string

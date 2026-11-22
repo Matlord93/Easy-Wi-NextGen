@@ -55,20 +55,23 @@ func TestPrepareUpdateBinaryTarGz(t *testing.T) {
 }
 
 func TestPrepareUpdateBinaryZip(t *testing.T) {
-	tmpDir := t.TempDir()
-	archive := filepath.Join(tmpDir, "agent.zip")
-	createZipWithFile(t, archive, "easywi-agent.exe", "windows-binary")
+	for _, binaryName := range []string{"easywi-agent.exe", "easywi-agent-windows-amd64.exe"} {
+		t.Run(binaryName, func(t *testing.T) {
+			archive := filepath.Join(t.TempDir(), "agent.zip")
+			createZipWithFile(t, archive, binaryName, "windows-binary")
 
-	path, err := prepareUpdateBinary(archive, "easywi-agent-windows-amd64.zip")
-	if err != nil {
-		t.Fatalf("expected success, got %v", err)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read extracted: %v", err)
-	}
-	if string(data) != "windows-binary" {
-		t.Fatalf("unexpected extracted contents: %q", string(data))
+			path, err := prepareUpdateBinary(archive, "easywi-agent-windows-amd64.zip")
+			if err != nil {
+				t.Fatalf("expected success, got %v", err)
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read extracted: %v", err)
+			}
+			if string(data) != "windows-binary" {
+				t.Fatalf("unexpected extracted contents: %q", string(data))
+			}
+		})
 	}
 }
 

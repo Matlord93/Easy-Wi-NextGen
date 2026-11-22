@@ -60,11 +60,16 @@ VM-ID wird aus Proxmox bezogen. Es wird keine sofort startende VM angelegt.
 | GET | `/customer/proxmox/{assignmentId}/tasks/{taskId}` | Status eines Tasks desselben Gasts |
 
 Erlaubte Kundenaktionen: `start`, `shutdown`, `stop`, `reboot`,
-`snapshot-create`, `snapshot-delete`, `snapshot-rollback`, `backup`.
+`snapshot-create`, `snapshot-delete`, `snapshot-rollback`, `backup`, `backup-restore`.
 Cluster, Gasttyp und VM-ID werden aus der Zuordnung genommen, nicht aus frei
 übermittelten Parametern. Auch die Anwendungsschicht prüft Eigentümerschaft und
 Identitäts-Tag. Backups sind auf den administrativ freigegebenen Storage begrenzt.
 Fremde Zuordnungen und Tasks liefern 404, bevor Proxmox abgefragt wird.
+
+Für `backup-restore` sendet das Formular `storage`, `volume` und `confirm=1`.
+Der Gast muss gestoppt und frei von Snapshots sein. Das Panel prüft den
+Eigentums-Tag und die Konfiguration im Backup gegen den aktuellen Gast.
+Der Ziel-Storage ergibt sich aus der geprüften Konfiguration.
 
 ## Antworten
 

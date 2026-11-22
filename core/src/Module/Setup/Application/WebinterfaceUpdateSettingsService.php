@@ -16,12 +16,13 @@ final class WebinterfaceUpdateSettingsService
         'autoEnabled' => false,
         'autoMigrate' => true,
         'coreChannel' => CoreReleaseChecker::CHANNEL_STABLE,
-        'agentChannel' => AgentReleaseChecker::CHANNEL_STABLE,
     ];
 
     public function __construct(
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
+        #[Autowire(param: 'app.agent_release_channel')]
+        private readonly string $defaultAgentChannel = AgentReleaseChecker::CHANNEL_STABLE,
     ) {
     }
 
@@ -36,7 +37,7 @@ final class WebinterfaceUpdateSettingsService
             'autoEnabled' => (bool) ($settings['autoEnabled'] ?? self::DEFAULT_SETTINGS['autoEnabled']),
             'autoMigrate' => (bool) ($settings['autoMigrate'] ?? self::DEFAULT_SETTINGS['autoMigrate']),
             'coreChannel' => $this->normalizeChannel((string) ($settings['coreChannel'] ?? self::DEFAULT_SETTINGS['coreChannel'])),
-            'agentChannel' => $this->normalizeChannel((string) ($settings['agentChannel'] ?? self::DEFAULT_SETTINGS['agentChannel'])),
+            'agentChannel' => $this->normalizeChannel((string) ($settings['agentChannel'] ?? $this->defaultAgentChannel)),
         ];
     }
 
@@ -93,22 +94,24 @@ final class WebinterfaceUpdateSettingsService
 
     private function readSettings(): array
     {
+        $defaults = self::DEFAULT_SETTINGS;
+        $defaults['agentChannel'] = $this->defaultAgentChannel;
         $path = $this->settingsPath();
         if (!is_file($path)) {
-            return self::DEFAULT_SETTINGS;
+            return $defaults;
         }
 
         $contents = file_get_contents($path);
         if ($contents === false) {
-            return self::DEFAULT_SETTINGS;
+            return $defaults;
         }
 
         $decoded = JsonArray::decode($contents);
         if (!is_array($decoded)) {
-            return self::DEFAULT_SETTINGS;
+            return $defaults;
         }
 
-        return array_merge(self::DEFAULT_SETTINGS, $decoded);
+        return array_merge($defaults, $decoded);
     }
 
     private function writeSettings(array $settings): void

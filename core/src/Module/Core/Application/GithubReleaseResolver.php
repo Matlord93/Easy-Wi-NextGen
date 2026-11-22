@@ -6,6 +6,7 @@ namespace App\Module\Core\Application;
 
 use App\Infrastructure\Config\JsonArray;
 use App\Infrastructure\Config\JsonMap;
+use App\Module\Core\Update\ReleaseVersion;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -359,25 +360,19 @@ final class GithubReleaseResolver
 
     public function detectReleaseChannel(array $release): string
     {
+        $tag = $this->extractReleaseTag($release);
+        $tagChannel = $tag === null ? null : ReleaseVersion::prereleaseChannel($tag);
+        if ($tagChannel !== null) {
+            return $tagChannel;
+        }
+
+        $prerelease = ($release['prerelease'] ?? false) === true;
         $explicitChannel = $this->extractExplicitChannel($release);
-        if ($explicitChannel !== null) {
+        if ($explicitChannel !== null && (!$prerelease || $explicitChannel !== self::CHANNEL_STABLE)) {
             return $explicitChannel;
         }
 
-        $tagLower = strtolower((string) ($release['tag_name'] ?? $release['name'] ?? ''));
-        if (($release['prerelease'] ?? false) !== true) {
-            return self::CHANNEL_STABLE;
-        }
-
-        if (preg_match('/(?:^|[._\-+])(?:dev|alpha|snapshot|nightly)(?:$|[._\-+])/', $tagLower) === 1) {
-            return self::CHANNEL_DEV;
-        }
-
-        if (preg_match('/(?:^|[._\-+])(?:beta|preview|rc)(?:$|[._\-+])/', $tagLower) === 1) {
-            return self::CHANNEL_BETA;
-        }
-
-        return self::CHANNEL_BETA;
+        return $prerelease ? self::CHANNEL_BETA : self::CHANNEL_STABLE;
     }
 
     public function normalizeChannel(string $channel): string
@@ -391,42 +386,14 @@ final class GithubReleaseResolver
 
     public function normalizeVersion(?string $version): ?string
     {
-        if ($version === null) {
-            return null;
-        }
-
-        $value = trim($version);
-        if ($value === '') {
-            return null;
-        }
-
-        $value = ltrim($value, 'vV');
-        $value = preg_replace('/[^0-9A-Za-z.+-]/', '', $value) ?? $value;
-
-        return $value !== '' ? $value : null;
+        return ReleaseVersion::normalize($version);
     }
 
     public function compareReleaseTags(string $leftTag, string $rightTag): int
     {
-        $leftNormalized = $this->normalizeVersion($leftTag);
-        $rightNormalized = $this->normalizeVersion($rightTag);
+        $comparison = ReleaseVersion::compare($leftTag, $rightTag);
 
-        if ($leftNormalized !== null && $rightNormalized !== null) {
-            $comparison = version_compare(
-                $this->normalizeDevReleaseAliasForComparison($leftNormalized),
-                $this->normalizeDevReleaseAliasForComparison($rightNormalized),
-            );
-            if ($comparison !== 0) {
-                return $comparison;
-            }
-        }
-
-        return strcmp($leftTag, $rightTag);
-    }
-
-    private function normalizeDevReleaseAliasForComparison(string $version): string
-    {
-        return preg_replace('/([._\-+])(?:alpha|snapshot|nightly)(?=$|[._\-+])/i', '$1dev', $version) ?? $version;
+        return $comparison === null || $comparison === 0 ? strcmp($leftTag, $rightTag) : $comparison;
     }
 
     /** @return list<mixed>|null */

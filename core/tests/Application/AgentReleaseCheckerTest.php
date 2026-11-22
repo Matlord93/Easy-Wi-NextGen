@@ -6,6 +6,7 @@ namespace App\Tests\Application;
 
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\GithubReleaseResolver;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -13,6 +14,33 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class AgentReleaseCheckerTest extends TestCase
 {
+    #[TestWith(['v1.0.0-predev.20261121.1', 'v1.0.0-dev.20261122.1', true])]
+    #[TestWith(['v1.0.0-predev.20261121.1', 'v1.0.0-dev.20261121.1', false])]
+    #[TestWith(['v1.0.0-predev.20261122.1', 'v1.0.0-dev.20261121.1', false])]
+    #[TestWith(['1.0.0-dev.20261121.1', 'agent-v1.0.0-dev.20261122.1', true])]
+    #[TestWith(['1.0.0', 'v1.0.0-dev.20261122.1', false])]
+    #[TestWith(['1.0.0-predev.20261122.1', 'v1.0.0', true])]
+    #[TestWith([null, 'v1.0.0-dev.20261122.1', null])]
+    public function testUpdateAvailabilityOrdersDevAliasesAndPreservesStablePrecedence(?string $installed, string $latest, ?bool $expected): void
+    {
+        self::assertSame($expected, $this->checker('dev')->isUpdateAvailable($installed, $latest));
+    }
+
+    public function testStableChannelIgnoresPreviouslyCachedDevTag(): void
+    {
+        $repository = 'Matlord93/Easy-Wi-NextGen';
+        $cache = new ArrayAdapter();
+        $item = $cache->getItem('agent.latest_release_version.'.hash('sha256', $repository).'.stable');
+        $item->set('v1.0.0-predev.20261121.1');
+        $cache->save($item);
+        $client = new MockHttpClient([new MockResponse(json_encode([
+            ['draft' => false, 'prerelease' => false, 'tag_name' => 'v1.0.0-predev.20261121.1', 'body' => "channel: stable\n"],
+        ], JSON_THROW_ON_ERROR))]);
+        $checker = new AgentReleaseChecker($cache, $repository, releaseResolver: new GithubReleaseResolver($client));
+
+        self::assertNull($checker->getLatestVersionForChannel('stable'));
+    }
+
     public function testSelectLatestReleaseAssetPrefersHighestVersionNotFirstApiEntry(): void
     {
         $checker = $this->checker('beta');
@@ -248,7 +276,10 @@ final class AgentReleaseCheckerTest extends TestCase
             'tag_name' => 'v0.9.8.2-dev.20260521.1',
             'assets' => [
                 ['name' => 'checksums-agent-linux.txt', 'browser_download_url' => 'https://example.invalid/checksums-agent-linux.txt'],
+                ['name' => 'checksums-agent-linux.txt.asc', 'browser_download_url' => 'https://example.invalid/checksums-agent-linux.txt.asc'],
                 ['name' => 'checksums-agent-windows.txt', 'browser_download_url' => 'https://example.invalid/checksums-agent-windows.txt'],
+                ['name' => 'checksums-agent.txt', 'browser_download_url' => 'https://example.invalid/checksums-agent.txt'],
+                ['name' => 'checksums-agent.txt.asc', 'browser_download_url' => 'https://example.invalid/checksums-agent.txt.asc'],
                 ['name' => 'easywi-agent-linux-amd64.tar.gz', 'browser_download_url' => 'https://example.invalid/easywi-agent-linux-amd64.tar.gz'],
                 ['name' => 'easywi-agent-linux-arm64.tar.gz', 'browser_download_url' => 'https://example.invalid/easywi-agent-linux-arm64.tar.gz'],
                 ['name' => 'easywi-agent-windows-amd64.zip', 'browser_download_url' => 'https://example.invalid/easywi-agent-windows-amd64.zip'],
@@ -269,10 +300,39 @@ final class AgentReleaseCheckerTest extends TestCase
 
         self::assertSame('easywi-agent-linux-amd64.tar.gz', $linux['asset_name'] ?? null);
         self::assertSame('https://example.invalid/checksums-agent-linux.txt', $linux['checksums_url'] ?? null);
+        self::assertSame('https://example.invalid/checksums-agent-linux.txt.asc', $linux['signature_url'] ?? null);
         self::assertSame('easywi-agent-linux-arm64.tar.gz', $arm['asset_name'] ?? null);
         self::assertSame('easywi-agent-windows-amd64.zip', $win['asset_name'] ?? null);
-        self::assertSame('https://example.invalid/checksums-agent-windows.txt', $win['checksums_url'] ?? null);
+        self::assertSame('https://example.invalid/checksums-agent.txt', $win['checksums_url'] ?? null);
+        self::assertSame('https://example.invalid/checksums-agent.txt.asc', $win['signature_url'] ?? null);
     }
+
+    public function testReleaseAssetAcceptsLegacyAgentOnlyChecksumAndSignature(): void
+    {
+        $response = new MockResponse(json_encode([[
+            'draft' => false,
+            'prerelease' => false,
+            'tag_name' => 'agent-v1.2.3',
+            'assets' => [
+                ['name' => 'checksums.sha256', 'browser_download_url' => 'https://example.invalid/checksums.sha256'],
+                ['name' => 'checksums.sha256.asc', 'browser_download_url' => 'https://example.invalid/checksums.sha256.asc'],
+                ['name' => 'easywi-agent-windows-amd64.zip', 'browser_download_url' => 'https://example.invalid/easywi-agent-windows-amd64.zip'],
+            ],
+        ]], JSON_THROW_ON_ERROR));
+        $checker = new AgentReleaseChecker(
+            new ArrayAdapter(),
+            'Matlord93/Easy-Wi-NextGen',
+            3600,
+            'stable',
+            new GithubReleaseResolver(new MockHttpClient([$response]), null, new ArrayAdapter(), 3600),
+        );
+
+        $release = $checker->getReleaseAssetUrlsForChannel('easywi-agent-windows-amd64.zip', 'stable', 'agent-v1.2.3');
+
+        self::assertSame('https://example.invalid/checksums.sha256', $release['checksums_url'] ?? null);
+        self::assertSame('https://example.invalid/checksums.sha256.asc', $release['signature_url'] ?? null);
+    }
+
     private function checker(string $channel): AgentReleaseChecker
     {
         return new AgentReleaseChecker(

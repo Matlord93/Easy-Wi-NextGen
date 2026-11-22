@@ -1,6 +1,12 @@
 # Voice Query Rate Limits & Burst Control
 
-## Ziel
+## Gemeinsamer Panel-Pfad
+
+Die zusammengeführte Voice-/TeamSpeak-Oberfläche verwendet die bestehenden `ts3.virtual.*`-/`ts6.virtual.*`-Agent-Jobs. Statusabfragen teilen sich pro Provider/TeamSpeak-Node einen bis zu 30 Sekunden gültigen Job-Verweis. Der gemeinsame ServerQueryLimiter begrenzt neue Abfragen; der persistente VoiceProbeGuard schützt zusätzlich den allgemeinen Kunden-Probe-Endpunkt. Pending-Ergebnisse werden nicht als gemessener Status gespeichert.
+
+Die unten beschriebenen `VOICE_QUERY_*`-Agent-Einstellungen gehören zum separaten HTTP-`voice.probe`-Handler. Sie sind keine zusätzlichen Konfigurationsvoraussetzungen des nativen TS3-/TS6-Panel-Pfads. Architektur, Datenzuordnung und Kompatibilität sind in [voice-teamspeak-module.md](../architecture/voice-teamspeak-module.md) beschrieben.
+
+## Ziel des HTTP-Probe-Handlers
 
 `voice.probe` Requests werden im Agent jetzt aktiv gedrosselt, damit Query-Endpunkte bei Polling-Spitzen nicht in Ban/Cooldown laufen.
 

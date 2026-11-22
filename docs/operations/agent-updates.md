@@ -3,7 +3,7 @@
 ## Source of truth
 - **IST**: `lastHeartbeatVersion` from agent heartbeat.
 - **SOLL**: panel resolves the target version from the selected release channel (`stable`, `beta`, `dev`).
-- Default channel: `stable` (`APP_AGENT_RELEASE_CHANNEL`).
+- The agent channel set under **Updates** applies to the update overview, individual nodes and rollouts. `APP_AGENT_RELEASE_CHANNEL` supplies the default (`stable`) until a channel is saved in the panel.
 
 ## GitHub channel metadata
 The panel keeps Stable, Beta and Dev strictly separated. Prefer an explicit marker in the GitHub Release notes:
@@ -12,11 +12,11 @@ The panel keeps Stable, Beta and Dev strictly separated. Prefer an explicit mark
 easywi-channel: stable
 ```
 
-Allowed values are `stable`, `beta` and `dev` (`alpha` is accepted as legacy alias for `dev`). If the marker is missing, the panel falls back to GitHub metadata:
+Allowed values are `stable`, `beta` and `dev` (`alpha` is accepted as legacy alias for `dev`). A recognized version suffix takes precedence over the marker and the GitHub pre-release flag:
 
-- `stable`: GitHub release is **not** marked as pre-release.
-- `beta`: GitHub pre-release tag contains `beta`, `preview` or `rc`; unclassified pre-releases also fall back to beta.
-- `dev`: GitHub pre-release tag contains `dev`, `alpha`, `snapshot` or `nightly`.
+- `stable`: A stable tag on a release with the GitHub pre-release flag disabled.
+- `beta`: A tag with `beta`, `preview` or `rc`. Unclassified pre-releases also fall back to beta.
+- `dev`: A tag with `predev`, `dev`, `alpha`, `snapshot` or `nightly`.
 
 Recommended agent tags:
 
@@ -32,17 +32,17 @@ Each agent release must include the platform asset and checksum/signature files 
 - `easywi-agent-linux-arm64.tar.gz`
 - `easywi-agent-linux-arm64.zip`
 - `easywi-agent-windows-amd64.zip`
-- `checksums-agent.txt`
-- `checksums-agent.txt.asc` (recommended; the agent update path expects a signature URL when present)
+- `checksums-agent-linux.txt` / `checksums-agent-windows.txt` or the combined `checksums-agent.txt`. Older agent-only releases can use `checksums.sha256`.
+- A matching OpenPGP signature using the same filename with `.asc` appended, when release signing is configured.
 
 ## Feed behavior
 - GitHub Releases are resolved via `APP_AGENT_RELEASE_REPOSITORY`.
 - Core cache TTL: `APP_AGENT_RELEASE_CACHE_TTL` (default 300s).
-- Semver comparison uses `version_compare`, never string sort.
+- The version comparison recognizes legacy `predev` builds as Dev and orders dated builds by their build date and sequence.
 
 ## Update flow
 1. Admin selects Stable, Beta or Dev in the panel.
 2. Panel resolves the newest release in that exact channel and picks the node OS/arch artifact.
 3. Panel creates async `agent.update` / `agent.self_update` job with `version`, `channel`, asset URL and checksums URL.
 4. Agent downloads the archive asset, verifies checksum/signature, extracts the contained `easywi-agent` / `easywi-agent.exe`, swaps the running binary, and restarts.
-5. Core verifies IST version via next heartbeat.
+5. The node details show the last update job and any failure message. After the agent reports that the update was prepared, the next heartbeat must report the target version to confirm installation.

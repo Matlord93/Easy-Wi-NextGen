@@ -95,18 +95,18 @@ func ApplyUpdateFromChecksums(ctx context.Context, opts UpdateFromChecksumsOptio
 	tempDir := filepath.Dir(binaryPath)
 	tempFile := filepath.Join(tempDir, "agent.update")
 	if err := downloadToFile(ctx, opts.DownloadURL, tempFile); err != nil {
-		return UpdatePlan{}, err
+		return UpdatePlan{}, fmt.Errorf("download agent archive: %w", err)
 	}
 
 	checksumsFile := filepath.Join(tempDir, "agent.update.checksums")
 	if err := downloadToFile(ctx, opts.ChecksumsURL, checksumsFile); err != nil {
-		return UpdatePlan{}, err
+		return UpdatePlan{}, fmt.Errorf("download agent checksums: %w", err)
 	}
 
 	if signatureURL := strings.TrimSpace(opts.SignatureURL); signatureURL != "" {
 		signatureFile := filepath.Join(tempDir, "agent.update.checksums.asc")
 		if err := downloadToFile(ctx, signatureURL, signatureFile); err != nil {
-			return UpdatePlan{}, err
+			return UpdatePlan{}, fmt.Errorf("download agent checksums signature: %w", err)
 		}
 
 		if err := verifyChecksumsSignature(checksumsFile, signatureFile); err != nil {
@@ -154,15 +154,15 @@ func prepareUpdateBinary(downloadedPath, assetName string) (string, error) {
 	asset := strings.ToLower(strings.TrimSpace(assetName))
 	switch {
 	case strings.HasSuffix(asset, ".tar.gz"):
-		return extractTarGzBinary(downloadedPath)
+		return extractTarGzBinary(downloadedPath, strings.TrimSuffix(asset, ".tar.gz"))
 	case strings.HasSuffix(asset, ".zip"):
-		return extractZipBinary(downloadedPath)
+		return extractZipBinary(downloadedPath, strings.TrimSuffix(asset, ".zip"))
 	default:
 		return downloadedPath, nil
 	}
 }
 
-func extractTarGzBinary(archivePath string) (string, error) {
+func extractTarGzBinary(archivePath, binaryName string) (string, error) {
 	file, err := os.Open(archivePath)
 	if err != nil {
 		return "", fmt.Errorf("open tar.gz archive: %w", err)
@@ -192,7 +192,7 @@ func extractTarGzBinary(archivePath string) (string, error) {
 			continue
 		}
 		name := path.Base(header.Name)
-		if name != "easywi-agent" && !strings.HasPrefix(name, "easywi-agent-") {
+		if name != "easywi-agent" && name != binaryName {
 			continue
 		}
 		extractedPath := archivePath + ".extracted"
@@ -213,7 +213,7 @@ func extractTarGzBinary(archivePath string) (string, error) {
 	return "", fmt.Errorf("tar.gz archive does not contain agent binary")
 }
 
-func extractZipBinary(archivePath string) (string, error) {
+func extractZipBinary(archivePath, binaryName string) (string, error) {
 	reader, err := zip.OpenReader(archivePath)
 	if err != nil {
 		return "", fmt.Errorf("open zip archive: %w", err)
@@ -227,7 +227,7 @@ func extractZipBinary(archivePath string) (string, error) {
 			continue
 		}
 		name := strings.ToLower(path.Base(file.Name))
-		if name != "easywi-agent.exe" && name != "easywi-agent" {
+		if name != "easywi-agent.exe" && name != "easywi-agent" && name != binaryName && name != binaryName+".exe" {
 			continue
 		}
 		src, err := file.Open()
@@ -408,11 +408,11 @@ if (Test-Path $BackupPath) {
   Remove-Item -Path $BackupPath -Force
 }
 try {
-  Rename-Item -Path $BinaryPath -NewName $BackupPath
-  Rename-Item -Path $UpdatePath -NewName $BinaryPath
+  [System.IO.File]::Move($BinaryPath, $BackupPath)
+  [System.IO.File]::Move($UpdatePath, $BinaryPath)
 } catch {
-  if (Test-Path $BackupPath) {
-    Rename-Item -Path $BackupPath -NewName $BinaryPath -Force
+  if ((Test-Path -LiteralPath $BackupPath) -and (-not (Test-Path -LiteralPath $BinaryPath))) {
+    [System.IO.File]::Move($BackupPath, $BinaryPath)
   }
   throw
 }
@@ -483,13 +483,9 @@ func RestartOrExit(binaryPath string) error {
 	case restartModeSupervisorExit:
 		os.Exit(0)
 	case restartModeManual:
-		cmd := exec.Command(plan.name, plan.args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Start(); err != nil {
+		if err := restartManualAgent(plan.name, plan.args); err != nil {
 			return fmt.Errorf("restart: %w", err)
 		}
-		os.Exit(0)
 	}
 	return nil
 }

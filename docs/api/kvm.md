@@ -19,16 +19,21 @@ Jobtyp: **`kvm.managed`**. Der bestehende signierte Poll-/Finish-Vertrag transpo
 | --- | --- |
 | `inspect` | keine; lesend |
 | `template.import` | `operation_id`, `template_id`, `version`, `url`, `sha256` |
-| `vm.create` | `operation_id`, `label`, `template`, `hostname`, `username`, `ssh_keys[]`, `network_type`, `network`, `vcpus`, `memory_mib`, `disk_gib` |
+| `host.address_pool` | `operation_id`, `network_type`, `network`, `family` (4 oder 6), `first`, `last`, `prefix`, `gateway`, `dns`. Zum Entfernen stattdessen `remove=1` mit Netz und Familie senden. |
+| `vm.create` | `operation_id`, `label`, `template`, `hostname`, `username`, `ssh_keys[]`, `network_type`, `network`, `vcpus`, `memory_mib`, `disk_gib`, optional `address_mode` (`dhcp` oder `pool`) |
 | `vm.start/shutdown/stop/reboot/suspend/resume/autostart/autostart-disable` | `operation_id`, `vm_id` |
 | `vm.limits` | `operation_id`, `vm_id`, `vcpus`, `memory_mib` |
 | `snapshot.create/revert/delete` | `operation_id`, `vm_id`, `snapshot` |
 | `backup.create` | `operation_id`, `vm_id` |
 | `backup.restore/delete` | `operation_id`, `vm_id`, `backup_id` |
-| `network.create` | `operation_id`, `network`, `mode: nat|isolated`, `cidr` |
+| `network.create` | `operation_id`, `network`, `mode` (`nat` oder `isolated`), `cidr`, optional `dhcp_start` |
 | `network.start/stop/autostart/autostart-disable` | `operation_id`, `network` |
 
 UUIDs müssen kanonische kleingeschriebene UUIDv4 sein. Bei `vm.create` wird `operation_id` zugleich zur VM-UUID, bei `backup.create` zur Backup-UUID. Das Panel kann `network_choice=network:default` bzw. `bridge:br-guests` annehmen und setzt daraus die beiden Agentfelder. Andere Pfad-/XML-/User-Data-Felder werden nicht übernommen. Vollständige Wertebereiche und Hostvoraussetzungen: `wiki/KVM-Integration.md`.
+
+Die Pool-Verwaltung, `address_mode=pool` und `dhcp_start` erfordern `metadata.kvm_managed.address_pool_version=1`. Ohne `address_mode` verwendet der Agent DHCP. `inventory.address_pools` enthält die konfigurierten Pools. Bei einer VM mit festen Adressen enthält `static_addresses` die zugewiesene Adresse mit Präfix, Gateway und DNS.
+
+Ein fehlgeschlagenes `vm.create` mit `address_pool_rejected: true` wurde bei der Pool-Prüfung vor dem Anlegen von VM-Dateien und der libvirt-Definition abgebrochen.
 
 Ein erfolgreiches `inspect` liefert:
 

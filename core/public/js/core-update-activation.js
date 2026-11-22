@@ -10,8 +10,27 @@
         memory.set(key, value);
         try { window.sessionStorage.setItem(key, value); } catch { /* Private storage may be disabled. */ }
     };
+    const syncOverview = (overview, card) => {
+        card?.querySelectorAll('[data-update-overview-value]').forEach(source => {
+            const target = overview.querySelector(`[data-update-overview="${source.dataset.updateOverviewValue}"]`);
+            if (!target) return;
+
+            target.replaceChildren(...Array.from(source.childNodes, node => node.cloneNode(true)));
+            const availability = source.dataset.updateAvailability;
+            if (availability) {
+                const metric = target.closest('.tkt-kpi');
+                metric?.classList.toggle('tkt-kpi--open', availability === 'available');
+                metric?.classList.toggle('tkt-kpi--resolved', availability === 'current');
+            }
+        });
+    };
     const check = () => {
         const card = document.getElementById('core-update-card');
+        const overview = document.getElementById('updates-overview');
+        if (overview) {
+            syncOverview(overview, card);
+            syncOverview(overview, document.getElementById('agent-update-card'));
+        }
         if (!card || !['update', 'both'].includes(card.dataset.updateKind)) return;
         const id = card.dataset.updateJob;
         if (!id) return;

@@ -20,11 +20,13 @@
                         <span style="width:6px;height:6px;border-radius:50%;background:#fbbf24;animation:pulse 2s infinite;"></span>
                         {{ agentUpdate.updates }} {{ t('admin_nodes_updates_label', page_locale()) }}
                     </span>
-                {% else %}
+                {% elseif agentUpdate.versionsKnown %}
                     <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(34,197,94,0.1);color:var(--aw-status-success, #4ade80);border:1px solid rgba(34,197,94,0.25);">
                         <svg style="width:11px;height:11px;" viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
                         {{ t('admin_dashboard_core_update_up_to_date', page_locale()) }}
                     </span>
+                {% else %}
+                    <span style="font-size:11px;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_update_unknown', page_locale()) }}</span>
                 {% endif %}
             </div>
         </div>
@@ -35,11 +37,12 @@
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
             <div style="padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
                 <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_nodes_total', page_locale()) }}</p>
-                <p style="margin:0;font-size:22px;font-weight:700;color:var(--ng-text);">{{ agentUpdate.total }}</p>
+                <p data-update-overview-value="agent-total" style="margin:0;font-size:22px;font-weight:700;color:var(--ng-text);">{{ agentUpdate.total }}</p>
             </div>
             <div style="padding:12px 14px;border-radius:var(--ng-radius);border:1px solid {% if agentUpdate.updates > 0 %}rgba(251,191,36,0.3){% else %}var(--ng-border){% endif %};background:{% if agentUpdate.updates > 0 %}rgba(251,191,36,0.06){% else %}var(--ng-surface-soft){% endif %};">
                 <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_nodes_updates_label', page_locale()) }}</p>
-                <p style="margin:0;font-size:22px;font-weight:700;color:{% if agentUpdate.updates > 0 %}#fbbf24{% else %}var(--ng-text){% endif %};">{{ agentUpdate.updates }}</p>
+                <p data-update-overview-value="agent-updates" data-update-availability="{{ agentUpdate.updates > 0 ? 'available' : (agentUpdate.versionsKnown ? 'current' : 'unknown') }}"
+                   style="margin:0;font-size:22px;font-weight:700;color:{% if agentUpdate.updates > 0 %}#fbbf24{% else %}var(--ng-text){% endif %};">{{ agentUpdate.versionsKnown or agentUpdate.updates > 0 ? agentUpdate.updates : '—' }}</p>
             </div>
             <div style="padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
                 <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_updates_agents_latest', page_locale()) }}</p>

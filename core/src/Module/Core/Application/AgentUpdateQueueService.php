@@ -116,7 +116,7 @@ final class AgentUpdateQueueService
 
             $existingJob = $existingJobs[$agent->getId()] ?? null;
             if ($existingJob !== null) {
-                if ($existingJob->getStatus() === JobStatus::Running) {
+                if (in_array($existingJob->getStatus(), [JobStatus::Claimed, JobStatus::Running], true)) {
                     continue;
                 }
 
@@ -154,6 +154,10 @@ final class AgentUpdateQueueService
     /** @return array{payload:?array,reason:?string} */
     private function analyzeAgentUpdatePayload(Agent $agent, ?string $latestVersion, string $channel): array
     {
+        if ($agent->getStatus() === Agent::STATUS_DECOMMISSIONED) {
+            return ['payload' => null, 'reason' => 'decommissioned'];
+        }
+
         $currentVersion = $agent->getLastHeartbeatVersion();
         $stats = $agent->getLastHeartbeatStats() ?? [];
         $os = strtolower(JsonMap::strings($stats)['os'] ?? '');
@@ -200,6 +204,10 @@ final class AgentUpdateQueueService
     /** @return array<string, mixed>|null */
     private function resolveAgentReleaseInfo(Agent $agent, ?string $latestVersion, string $channel): ?array
     {
+        if ($agent->getStatus() === Agent::STATUS_DECOMMISSIONED) {
+            return null;
+        }
+
         $stats = $agent->getLastHeartbeatStats() ?? [];
         $os = strtolower(JsonMap::strings($stats)['os'] ?? '');
         $arch = strtolower(JsonMap::strings($stats)['arch'] ?? '');
@@ -252,13 +260,13 @@ final class AgentUpdateQueueService
 
         foreach ($agents as $agent) {
             $existingJob = $existingJobs[$agent->getId()] ?? null;
-            if ($existingJob !== null && in_array($existingJob->getStatus(), [JobStatus::Queued, JobStatus::Running], true)) {
+            if ($existingJob !== null && in_array($existingJob->getStatus(), [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running], true)) {
                 $blocked[] = [
                     'jobId' => $existingJob->getId(),
                     'agentId' => $agent->getId(),
                     'agentName' => $agent->getName(),
                     'status' => $existingJob->getStatus()->value,
-                    'reason' => $existingJob->getStatus() === JobStatus::Running ? 'already_running' : 'already_queued',
+                    'reason' => $existingJob->getStatus() === JobStatus::Queued ? 'already_queued' : 'already_running',
                     'createdAt' => $existingJob->getCreatedAt()->format(\DateTimeInterface::ATOM),
                     'updatedAt' => $existingJob->getUpdatedAt()->format(\DateTimeInterface::ATOM),
                 ];

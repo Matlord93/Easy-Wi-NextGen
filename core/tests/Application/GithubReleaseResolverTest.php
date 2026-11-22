@@ -13,7 +13,7 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class GithubReleaseResolverTest extends TestCase
 {
-    public function testChannelDetectionSupportsStableBetaRcDevNightlyAndExplicitOverrides(): void
+    public function testChannelDetectionKeepsPrereleaseTagsOutOfStable(): void
     {
         $resolver = $this->resolver([]);
 
@@ -22,8 +22,22 @@ final class GithubReleaseResolverTest extends TestCase
         self::assertSame('beta', $resolver->detectReleaseChannel(['prerelease' => true, 'tag_name' => 'v1.5.0-rc.1']));
         self::assertSame('dev', $resolver->detectReleaseChannel(['prerelease' => true, 'tag_name' => 'v1.5.0-dev.20260515']));
         self::assertSame('dev', $resolver->detectReleaseChannel(['prerelease' => true, 'tag_name' => 'v1.5.0-nightly.20260515']));
-        self::assertSame('stable', $resolver->detectReleaseChannel(['prerelease' => true, 'tag_name' => 'v2.0.0-beta.1', 'body' => "channel: stable\n"]));
+        self::assertSame('beta', $resolver->detectReleaseChannel(['prerelease' => true, 'tag_name' => 'v2.0.0-beta.1', 'body' => "channel: stable\n"]));
+        self::assertSame('beta', $resolver->detectReleaseChannel(['prerelease' => true, 'tag_name' => 'v2.0.0', 'body' => "channel: stable\n"]));
+        self::assertSame('dev', $resolver->detectReleaseChannel(['prerelease' => false, 'tag_name' => 'v1.0.0-predev.20261121.1', 'body' => "channel: stable\n"]));
         self::assertSame('beta', $resolver->detectReleaseChannel(['prerelease' => false, 'tag_name' => 'v2.0.0', 'body' => "easywi-channel: beta\n"]));
+    }
+
+    public function testLegacyDevReleaseCannotAppearInStableOrOutrankANewerDevBuild(): void
+    {
+        $resolver = $this->resolver([]);
+        $releases = [
+            ['draft' => false, 'prerelease' => false, 'tag_name' => 'v1.0.0-predev.20261121.1', 'body' => "channel: stable\n"],
+            ['draft' => false, 'prerelease' => true, 'tag_name' => 'v1.0.0-dev.20261122.1'],
+        ];
+
+        self::assertNull($resolver->selectLatestRelease($releases, 'stable'));
+        self::assertSame('v1.0.0-dev.20261122.1', $resolver->selectLatestRelease($releases, 'dev')['tag_name'] ?? null);
     }
 
     public function testLatestVersionSelectionKeepsChannelsIsolated(): void

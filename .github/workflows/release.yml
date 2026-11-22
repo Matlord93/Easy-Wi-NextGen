@@ -21,7 +21,7 @@ jobs:
         run: |
           tag="${GITHUB_REF_NAME}"
           shopt -s nocasematch
-          if [[ "$tag" == *-dev* || "$tag" == *-alpha* || "$tag" == *-snapshot* || "$tag" == *-nightly* ]]; then
+          if [[ "$tag" == *-predev* || "$tag" == *-dev* || "$tag" == *-alpha* || "$tag" == *-snapshot* || "$tag" == *-nightly* ]]; then
             channel="dev"
             prerelease="true"
           elif [[ "$tag" == *-beta* || "$tag" == *-preview* || "$tag" == *-rc* ]]; then
@@ -35,7 +35,6 @@ jobs:
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
       - name: Setup Go for agent builds
-        if: ${{ hashFiles('agent/go.mod') != '' }}
         uses: actions/setup-go@v7
         with:
           go-version-file: agent/go.mod
@@ -88,24 +87,37 @@ jobs:
               || { echo "$f missing from easywi-webinterface zip" >&2; exit 1; }
           done
 
-          if [[ -f agent/go.mod ]]; then
-            (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-agent-linux-amd64 ./cmd/agent)
-            (cd agent && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-agent-windows-amd64.exe ./cmd/agent)
-            (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-musicbot-linux-amd64 ./cmd/easywi-musicbot)
-            if [[ -d agent/cmd/easywi-teamspeak-bridge ]]; then
-              (cd agent && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "${AGENT_LDFLAGS}" -o ../dist/release/easywi-teamspeak-bridge-linux-amd64 ./cmd/easywi-teamspeak-bridge)
+          for target in linux-amd64 linux-arm64 windows-amd64; do
+            goos="${target%-*}"
+            goarch="${target##*-}"
+            stage_dir="dist/agent-${target}"
+            mkdir -p "$stage_dir"
+            bins=(easywi-agent easywi-musicbot)
+            suffix=""
+            if [[ "$goos" == "windows" ]]; then
+              suffix=".exe"
+            else
+              for optional in easywi-teamspeak-bridge easywi-teamspeak-client; do
+                [[ ! -d "agent/cmd/$optional" ]] || bins+=("$optional")
+              done
             fi
-            (cd dist/release && tar -czf easywi-agent-linux-amd64.tar.gz easywi-agent-linux-amd64)
-            (cd dist/release && zip -q easywi-agent-linux-amd64.zip easywi-agent-linux-amd64)
-            (cd dist/release && zip -q easywi-agent-windows-amd64.zip easywi-agent-windows-amd64.exe)
-            (cd dist/release && zip -q easywi-musicbot-linux-amd64.zip easywi-musicbot-linux-amd64)
-            [[ -f dist/release/easywi-teamspeak-bridge-linux-amd64 ]] && (cd dist/release && zip -q easywi-teamspeak-bridge-linux-amd64.zip easywi-teamspeak-bridge-linux-amd64) || true
-            rm -f dist/release/easywi-agent-linux-amd64 dist/release/easywi-agent-windows-amd64.exe \
-                  dist/release/easywi-musicbot-linux-amd64 dist/release/easywi-teamspeak-bridge-linux-amd64
-          else
-            # TODO: Keep the release structure ready if the agent source is moved out of this repository.
-            echo "agent/go.mod not found; skipping agent binaries" >&2
-          fi
+            for binary in "${bins[@]}"; do
+              package="$binary"
+              [[ "$binary" != "easywi-agent" ]] || package="agent"
+              (cd agent && GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -trimpath -ldflags "$AGENT_LDFLAGS" \
+                -o "../${stage_dir}/${binary}${suffix}" "./cmd/${package}")
+            done
+            (cd "$stage_dir" && zip -q "../release/easywi-agent-${target}.zip" "${bins[@]/%/$suffix}")
+            (cd "$stage_dir" && zip -q "../release/easywi-musicbot-${target}.zip" "easywi-musicbot${suffix}")
+            if [[ "$goos" == "linux" ]]; then
+              (cd "$stage_dir" && tar -czf "../release/easywi-agent-${target}.tar.gz" "${bins[@]}")
+              (cd "$stage_dir" && tar -czf "../release/easywi-musicbot-${target}.tar.gz" easywi-musicbot)
+              if [[ -f "$stage_dir/easywi-teamspeak-bridge" ]]; then
+                mv "$stage_dir/easywi-teamspeak-bridge" "$stage_dir/easywi-teamspeak-bridge-${target}"
+                (cd "$stage_dir" && zip -q "../release/easywi-teamspeak-bridge-${target}.zip" "easywi-teamspeak-bridge-${target}")
+              fi
+            fi
+          done
 
       - name: Generate checksums
         shell: bash
@@ -113,37 +125,52 @@ jobs:
           set -euo pipefail
           (cd dist/release && sha256sum easywi-core.tar.gz > checksums-core.txt)
           (cd dist/release && sha256sum easywi-webinterface-*.zip > checksums-webinterface.txt)
-          agent_files=()
-          shopt -s nullglob
-          agent_files+=(dist/release/easywi-agent-*.zip dist/release/easywi-agent-*.tar.gz)
-          agent_files+=(dist/release/easywi-musicbot-*.zip)
-          agent_files+=(dist/release/easywi-teamspeak-bridge-*.zip)
-          if [[ ${#agent_files[@]} -gt 0 ]]; then
-            (cd dist/release && sha256sum easywi-agent-*.zip easywi-agent-*.tar.gz \
-              $(compgen -G "easywi-musicbot-*.zip" || true) \
-              $(compgen -G "easywi-teamspeak-bridge-*.zip" || true) \
-              2>/dev/null > checksums-agent.txt)
-          else
-            : > dist/release/checksums-agent.txt
-          fi
+          (
+            cd dist/release
+            shopt -s nullglob
+            for platform in linux windows; do
+              assets=(easywi-agent-"${platform}"-* easywi-musicbot-"${platform}"-* easywi-teamspeak-bridge-"${platform}"-*)
+              sha256sum "${assets[@]}" > "checksums-agent-${platform}.txt"
+            done
+            cat checksums-agent-linux.txt checksums-agent-windows.txt > checksums-agent.txt
+            sha256sum --check checksums-agent.txt
+          )
 
-      - name: Sign checksums (optional)
+      - name: Sign core checksums (optional)
         env:
           EASYWI_RELEASE_PRIVATE_KEY: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY }}
         shell: bash
         run: |
           set -euo pipefail
           if [[ -z "${EASYWI_RELEASE_PRIVATE_KEY}" ]]; then
-            echo "EASYWI_RELEASE_PRIVATE_KEY is not configured; skipping checksum signing" >&2
+            echo "EASYWI_RELEASE_PRIVATE_KEY is not configured; skipping core checksum signing" >&2
             exit 0
           fi
-          printf '%s' "$EASYWI_RELEASE_PRIVATE_KEY" > /tmp/easywi-release-key.pem
-          openssl dgst -sha256 -sign /tmp/easywi-release-key.pem -out dist/release/checksums-core.txt.asc dist/release/checksums-core.txt
-          openssl dgst -sha256 -sign /tmp/easywi-release-key.pem -out dist/release/checksums-webinterface.txt.asc dist/release/checksums-webinterface.txt
-          if [[ -s dist/release/checksums-agent.txt ]]; then
-            openssl dgst -sha256 -sign /tmp/easywi-release-key.pem -out dist/release/checksums-agent.txt.asc dist/release/checksums-agent.txt
+          umask 077
+          key_file="$(mktemp)"
+          trap 'rm -f "$key_file"' EXIT
+          printf '%s' "$EASYWI_RELEASE_PRIVATE_KEY" > "$key_file"
+          openssl dgst -sha256 -sign "$key_file" -out dist/release/checksums-core.txt.asc dist/release/checksums-core.txt
+          openssl dgst -sha256 -sign "$key_file" -out dist/release/checksums-webinterface.txt.asc dist/release/checksums-webinterface.txt
+
+      - name: Sign agent checksums (optional)
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.EASYWI_GPG_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${GPG_PRIVATE_KEY}" ]]; then
+            echo "EASYWI_GPG_PRIVATE_KEY is not configured; skipping agent checksum signing" >&2
+            exit 0
           fi
-          rm -f /tmp/easywi-release-key.pem
+          export GNUPGHOME
+          GNUPGHOME="$(mktemp -d)"
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          for file in dist/release/checksums-agent*.txt; do
+            gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --detach-sign "$file"
+          done
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
@@ -159,12 +186,9 @@ jobs:
             - easywi-webinterface-<version>.zip (version without leading v)
             - checksums-core.txt
             - checksums-webinterface.txt
-            - easywi-agent-linux-amd64.tar.gz
-            - easywi-agent-linux-amd64.zip
-            - easywi-agent-windows-amd64.zip
-            - easywi-musicbot-linux-amd64.zip
-            - easywi-teamspeak-bridge-linux-amd64.zip
-            - checksums-agent.txt (SHA256 for all agent/musicbot/bridge binaries)
+            - Agent and Musicbot archives for Linux amd64, Linux arm64 and Windows amd64
+            - TeamSpeak bridge packages for Linux
+            - checksums-agent.txt and platform checksum files
           files: |
             dist/release/easywi-core.tar.gz
             dist/release/easywi-webinterface-*.zip
@@ -172,10 +196,10 @@ jobs:
             dist/release/checksums-core.txt.asc
             dist/release/checksums-webinterface.txt
             dist/release/checksums-webinterface.txt.asc
-            dist/release/easywi-agent-linux-amd64.tar.gz
-            dist/release/easywi-agent-linux-amd64.zip
-            dist/release/easywi-agent-windows-amd64.zip
-            dist/release/easywi-musicbot-linux-amd64.zip
-            dist/release/easywi-teamspeak-bridge-linux-amd64.zip
-            dist/release/checksums-agent.txt
-            dist/release/checksums-agent.txt.asc
+            dist/release/easywi-agent-*.tar.gz
+            dist/release/easywi-agent-*.zip
+            dist/release/easywi-musicbot-*.tar.gz
+            dist/release/easywi-musicbot-*.zip
+            dist/release/easywi-teamspeak-bridge-*.zip
+            dist/release/checksums-agent*.txt
+            dist/release/checksums-agent*.txt.asc

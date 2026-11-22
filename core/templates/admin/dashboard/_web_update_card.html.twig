@@ -15,7 +15,7 @@
             </div>
 
             {# Status badge #}
-            <div>
+            <div data-update-overview-value="core-status">
                 {% if isRunning %}
                     <span style="color:#fbbf24;">{{ t('admin_updates_activation_running',page_locale()) }}</span>
                 {% elseif coreUpdate.latestJob and coreUpdate.latestJob.status == 'failed' %}
@@ -44,11 +44,18 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
             <div style="padding:12px 14px;border-radius:var(--ng-radius);background:var(--ng-surface-soft);border:1px solid var(--ng-border);">
                 <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_current_version', page_locale()) }}</p>
-                <p style="margin:0;font-size:18px;font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.currentVersion ?? '—' }}</p>
+                <p data-update-overview-value="core-current" style="margin:0;font-size:18px;font-weight:700;color:var(--ng-text);font-family:monospace;">{{ coreUpdate.currentVersion ?? '—' }}</p>
             </div>
             <div style="padding:12px 14px;border-radius:var(--ng-radius);border:1px solid {% if coreUpdate.updateAvailable %}rgba(251,191,36,0.3){% else %}var(--ng-border){% endif %};background:{% if coreUpdate.updateAvailable %}rgba(251,191,36,0.06){% else %}var(--ng-surface-soft){% endif %};">
                 <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-muted);">{{ t('admin_dashboard_core_latest_version', page_locale()) }}</p>
-                <p style="margin:0;font-size:18px;font-weight:700;color:{% if coreUpdate.updateAvailable %}#fbbf24{% else %}var(--ng-text){% endif %};font-family:monospace;">{{ coreUpdate.latestVersion ?? '—' }}</p>
+                <p data-update-overview-value="core-latest" data-update-availability="{{ coreUpdate.updateAvailable ? 'available' : (coreUpdate.updateAvailable is same as(false) ? 'current' : 'unknown') }}"
+                   style="margin:0;font-size:18px;font-weight:700;color:{% if coreUpdate.updateAvailable %}#fbbf24{% else %}var(--ng-text){% endif %};font-family:monospace;">{{ coreUpdate.latestVersion ?? '—' }}</p>
+                {% if coreUpdate.packageSha256|default(null) %}
+                    <p class="mt-2 break-all text-xs text-slate-500">SHA-256 <code>{{ coreUpdate.packageSha256 }}</code></p>
+                {% endif %}
+                {% if coreUpdate.signatureUrl|default(null) %}
+                    <a class="text-sm underline" href="{{ coreUpdate.signatureUrl }}" rel="noopener noreferrer">{{ t('admin_updates_download_signature', page_locale()) }}</a>
+                {% endif %}
             </div>
         </div>
 

@@ -13,15 +13,21 @@ use App\Module\Core\Domain\Enum\JobStatus;
 use App\Repository\AgentRepositoryInterface;
 use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
 final class AgentUpdateQueueServiceTest extends TestCase
 {
-    public function testAnalyzeManualCandidatesMarksRunningAndQueuedAsBlockedWithReason(): void
+    #[TestWith([JobStatus::Queued, 'already_queued'])]
+    #[TestWith([JobStatus::Claimed, 'already_running'])]
+    #[TestWith([JobStatus::Running, 'already_running'])]
+    public function testAnalyzeManualCandidatesMarksPendingJobsAsBlocked(JobStatus $status, string $reason): void
     {
         $agent = $this->createAgent('agent-running');
         $runningJob = new Job('agent.update', ['agent_id' => $agent->getId(), 'version' => 'v1.1.0']);
-        $runningJob->transitionTo(JobStatus::Running);
+        if ($status !== JobStatus::Queued) {
+            $runningJob->transitionTo($status);
+        }
 
         $service = $this->createService([$runningJob], [
             'easywi-agent-linux-amd64.tar.gz' => [
@@ -35,7 +41,7 @@ final class AgentUpdateQueueServiceTest extends TestCase
         $analysis = $service->analyzeManualUpdateCandidates([$agent], 'v1.2.0', AgentReleaseChecker::CHANNEL_STABLE);
 
         self::assertCount(1, $analysis['blocked']);
-        self::assertSame('already_running', $analysis['blocked'][0]['reason']);
+        self::assertSame($reason, $analysis['blocked'][0]['reason']);
         self::assertCount(0, $analysis['eligible']);
     }
 

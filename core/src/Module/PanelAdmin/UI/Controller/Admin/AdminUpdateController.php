@@ -385,10 +385,17 @@ final class AdminUpdateController
     {
         $agentChannel = $this->updateSettingsService->getAgentChannel();
         $updates = 0;
-        if ($latestVersion !== null && $latestVersion !== '') {
+        $versionsKnown = $latestVersion !== null && $latestVersion !== '';
+        if ($versionsKnown) {
             foreach ($agents as $agent) {
-                if ($this->releaseChecker->isUpdateAvailable($agent->getLastHeartbeatVersion(), $latestVersion)) {
+                if ($agent->getStatus() === Agent::STATUS_DECOMMISSIONED) {
+                    continue;
+                }
+                $available = $this->releaseChecker->isUpdateAvailable($agent->getLastHeartbeatVersion(), $latestVersion);
+                if ($available === true) {
                     $updates++;
+                } elseif ($available === null) {
+                    $versionsKnown = false;
                 }
             }
         }
@@ -398,6 +405,7 @@ final class AdminUpdateController
         return [
             'total' => count($agents),
             'updates' => $updates,
+            'versionsKnown' => $versionsKnown,
             'latestVersion' => $latestVersion,
             'channel' => $agentChannel,
             'error' => $latestVersion === null ? $this->agentReleaseErrorMessage($cacheStatus, $locale) : null,

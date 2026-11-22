@@ -203,6 +203,21 @@
                             <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:4px;">{{ t('admin_nodes_table_version', page_locale()) }}</div>
                             <div style="font-size:14px;font-weight:600;color:var(--ng-text);font-family:monospace;">{{ selectedNode.lastHeartbeatVersion ?? '—' }}</div>
                         </div>
+                        {% if selectedNode.updateJob %}
+                            {% set updateJob = selectedNode.updateJob %}
+                            <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
+                                <a href="{{ path('admin_jobs_show', {id: updateJob.id}) }}">{{ t('admin_nodes_agent_update_status', page_locale()) }}</a>
+                                {% if updateJob.targetVersion %}<span> · {{ updateJob.targetVersion }}</span>{% endif %}
+                                {% if updateJob.status == 'succeeded' and updateJob.targetVersion and not updateJob.versionConfirmed %}
+                                    <p class="ui-badge ui-badge--warning">{{ t('admin_nodes_agent_update_waiting_for_version', page_locale()) }}</p>
+                                {% else %}
+                                    <p>{{ t('customer_job_status_' ~ (updateJob.status == 'claimed' ? 'queued' : updateJob.status), page_locale()) }}</p>
+                                {% endif %}
+                                {% if updateJob.status == 'failed' and updateJob.resultMessage %}
+                                    <p style="color:var(--ng-text-muted);overflow-wrap:anywhere;">{{ updateJob.resultMessage }}</p>
+                                {% endif %}
+                            </div>
+                        {% endif %}
                         <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:8px;padding:12px;">
                             <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ng-text-muted);margin-bottom:4px;">{{ t('admin_nodes_health', page_locale()) }}</div>
                             <div style="font-size:14px;font-weight:600;color:var(--ng-text);">{{ selectedNode.health|title }}</div>

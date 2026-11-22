@@ -110,11 +110,28 @@ Initial handler types:
 - `gameserver.auto_restart`
 - `gameserver.watchdog`
 - `cleanup.jobs`
+- `cleanup.metrics`
 - `cleanup.backups`
 
 Gameserver auto-backup still uses `BackupSchedule` and queues
 `instance.backup.create`. Gameserver auto-restart still uses `InstanceSchedule`
 and queues `instance.restart` with `reason=scheduled_restart` and `schedule_id`.
+
+`cleanup.jobs` and `cleanup.metrics` are active hourly maintenance handlers. They
+apply the configured job/task history mode and the independent system, instance
+and infrastructure metric retention periods. Metrics are pruned even when
+infrastructure collection is disabled. Each handler limits its delete batches,
+uses a lock and avoids repeat automatic runs within an hour. See
+[job and metric retention](../operations/job-and-metric-retention.md).
+
+`cleanup.backups` now processes the encrypted generic archive inventory at minute
+30 of each hour. It deletes only verified local archives for plans explicitly
+configured with `retention_enabled: true`; retention is off by default. This does
+not prune the separate gameserver-agent archive history. Apply migration
+`Version20261117210000` before creating generic backups. Use
+`app:backup-plans:prune PLAN_ID` to preview and add `--apply` for an immediate
+cleanup. See [generic backup plans](../operations/generic-backup-plans.md) for
+inventory, integrity checks, worker leases and blocked-file handling.
 
 ## Gameserver backups
 

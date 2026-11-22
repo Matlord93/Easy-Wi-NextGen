@@ -10,6 +10,7 @@ use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\CoreReleaseChecker;
 use App\Module\Core\Application\PanelUpdateNewsPublisher;
+use App\Module\Core\Update\ReleaseVersion;
 use App\Module\Core\Update\UpdateManifest;
 use App\Module\Core\Update\UpdateResult;
 use App\Module\Core\Update\UpdateStatus;
@@ -722,31 +723,9 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
 
     private function isUpdateAvailable(?string $installedVersion, ?string $latestVersion): ?bool
     {
-        $installed = $this->normalizeVersion($installedVersion);
-        $latest = $this->normalizeVersion($latestVersion);
+        $comparison = ReleaseVersion::compare($installedVersion, $latestVersion);
 
-        if ($installed === null || $latest === null) {
-            return null;
-        }
-
-        return version_compare($installed, $latest, '<');
-    }
-
-    private function normalizeVersion(?string $version): ?string
-    {
-        if ($version === null) {
-            return null;
-        }
-
-        $value = trim($version);
-        if ($value === '') {
-            return null;
-        }
-
-        $value = ltrim($value, 'vV');
-        $value = preg_replace('/[^0-9A-Za-z.+-]/', '', $value) ?? $value;
-
-        return $value !== '' ? $value : null;
+        return $comparison === null ? null : $comparison < 0;
     }
 
     private function getInstalledVersion(): ?string
@@ -973,26 +952,14 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             return false;
         }
 
-        $versionChannel = $this->detectVersionChannel($manifest->latest);
-        if ($versionChannel !== $channel) {
+        $version = ReleaseVersion::normalize($manifest->latest);
+        $versionChannel = ReleaseVersion::prereleaseChannel($manifest->latest) ?? CoreReleaseChecker::CHANNEL_STABLE;
+        if ($version === null || $versionChannel !== $channel) {
             return false;
         }
 
         $tag = $this->releaseTagFromGithubDownloadUrl($manifest->assetUrl);
-        return $tag === null || $this->detectVersionChannel($tag) === $channel;
-    }
-
-    private function detectVersionChannel(string $version): string
-    {
-        $lower = strtolower($version);
-        if (preg_match('/(?:^|[._\-+])(?:dev|alpha|snapshot|nightly)(?:$|[._\-+])/', $lower) === 1) {
-            return 'dev';
-        }
-        if (preg_match('/(?:^|[._\-+])(?:beta|preview|rc)(?:$|[._\-+])/', $lower) === 1) {
-            return 'beta';
-        }
-
-        return 'stable';
+        return $tag === null || ReleaseVersion::normalize($tag) === $version;
     }
 
     private function releaseTagFromGithubDownloadUrl(string $url): ?string
@@ -2046,8 +2013,8 @@ final class WebinterfaceUpdateService implements WebinterfaceUpdateServiceInterf
             return false;
         }
 
-        $installed = $this->normalizeVersion($installedVersion);
-        $deltaFrom = $this->normalizeVersion($manifest->deltaFrom);
+        $installed = ReleaseVersion::normalize($installedVersion);
+        $deltaFrom = ReleaseVersion::normalize($manifest->deltaFrom);
         if ($installed === null || $deltaFrom === null) {
             return false;
         }

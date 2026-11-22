@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
-
+use App\Module\Core\Update\ReleaseVersion;
 use Psr\Cache\CacheItemPoolInterface;
 
 final class AgentReleaseChecker implements AgentReleaseCheckerInterface
@@ -16,7 +16,7 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
         'linux' => 'checksums-agent-linux.txt',
         'windows' => 'checksums-agent-windows.txt',
     ];
-    private const SIGNATURE_ASSET = 'checksums-agent.txt.asc';
+    private const LEGACY_CHECKSUMS_ASSET = 'checksums.sha256';
 
     public const CHANNEL_STABLE = GithubReleaseResolver::CHANNEL_STABLE;
     public const CHANNEL_BETA = GithubReleaseResolver::CHANNEL_BETA;
@@ -45,7 +45,7 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
 
     public function getLatestVersion(bool $force = false): ?string
     {
-        return $this->getLatestVersionForChannel($this->channel, $force);
+        return $this->getLatestVersionForChannel($this->getChannel(), $force);
     }
 
     #[\Override]
@@ -60,7 +60,10 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
         $item = $this->cache->getItem($cacheKey);
         $cached = self::cacheText($item->get());
         if (!$force && $item->isHit() && is_string($cached) && $cached !== '') {
-            return $cached;
+            $cachedChannel = ReleaseVersion::prereleaseChannel($cached);
+            if ($cachedChannel === null || $cachedChannel === $channel) {
+                return $cached;
+            }
         }
 
         $latest = $this->resolver()->getLatestVersion($this->repository, $channel, 'agent', $force);
@@ -76,14 +79,6 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
     /**
      * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
      */
-    public function getReleaseAssetUrls(string $assetName, ?string $targetVersion = null): ?array
-    {
-        return $this->getReleaseAssetUrlsForChannel($assetName, $this->channel, $targetVersion);
-    }
-
-    /**
-     * @return array{version:string,download_url:string,checksums_url:string,signature_url:?string,asset_name:string,channel:string}|null
-     */
     #[\Override]
     public function getReleaseAssetUrlsForChannel(string $assetName, string $channel, ?string $targetVersion = null, bool $force = false): ?array
     {
@@ -92,36 +87,37 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
         }
 
         $checksumsAssets = $this->resolveChecksumAssetCandidates($assetName);
+        // Prefer a signed checksum list for the same release when one is available.
+        $unsignedRelease = null;
         foreach ($checksumsAssets as $checksumsAsset) {
             $release = $this->resolver()->getLatestAsset(
                 $this->repository,
                 $channel,
                 $assetName,
                 $checksumsAsset,
-                self::SIGNATURE_ASSET,
-                $targetVersion,
+                $checksumsAsset . '.asc',
+                $unsignedRelease['version'] ?? $targetVersion,
                 'agent',
                 $force,
             );
-            if ($release !== null) {
+            if ($release === null) {
+                continue;
+            }
+            if ($release['signature_url'] !== null) {
                 return $release;
             }
+            $unsignedRelease ??= $release;
         }
 
-        return null;
+        return $unsignedRelease;
     }
 
     #[\Override]
     public function isUpdateAvailable(?string $currentVersion, ?string $latestVersion = null): ?bool
     {
-        $current = $this->resolver()->normalizeVersion($currentVersion);
-        $latest = $this->resolver()->normalizeVersion($latestVersion ?? $this->getLatestVersion());
+        $comparison = ReleaseVersion::compare($currentVersion, $latestVersion ?? $this->getLatestVersion());
 
-        if ($current === null || $latest === null) {
-            return null;
-        }
-
-        return version_compare($current, $latest, '<');
+        return $comparison === null ? null : $comparison < 0;
     }
 
     /** @return array<string, mixed> */
@@ -168,11 +164,11 @@ final class AgentReleaseChecker implements AgentReleaseCheckerInterface
         $lower = strtolower($assetName);
         foreach (self::PLATFORM_CHECKSUM_ASSETS as $platform => $checksumAsset) {
             if (str_contains($lower, '-' . $platform . '-')) {
-                return [$checksumAsset, self::CHECKSUMS_ASSET];
+                return [$checksumAsset, self::CHECKSUMS_ASSET, self::LEGACY_CHECKSUMS_ASSET];
             }
         }
 
-        return [self::CHECKSUMS_ASSET];
+        return [self::CHECKSUMS_ASSET, self::LEGACY_CHECKSUMS_ASSET];
     }
 
     private function resolver(): GithubReleaseResolver

@@ -593,6 +593,9 @@ func resolveJobScheduling(job jobs.Job) (instanceLock string, lockMode jobLockMo
 	}
 
 	jobType, _ := normalizeJobType(job.Type)
+	if jobType == "agent.update" || jobType == "agent.self_update" {
+		return "agent:self-update", jobLockWrite, false
+	}
 	if strings.HasPrefix(jobType, "instance.") {
 		switch jobType {
 		case "instance.start", "instance.stop", "instance.restart", "instance.create", "instance.delete", "instance.config.apply", "instance.reinstall", "instance.backup.restore", "instance.backup.delete", "instance.files.write", "instance.files.delete", "instance.files.mkdir":
@@ -956,7 +959,9 @@ func handleAgentUpdate(job jobs.Job) (jobs.Result, func() error) {
 		}, nil
 	}
 
-	updatePlan, err := system.ApplyUpdateFromChecksums(context.Background(), system.UpdateFromChecksumsOptions{
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	updatePlan, err := system.ApplyUpdateFromChecksums(ctx, system.UpdateFromChecksumsOptions{
 		DownloadURL:  downloadURL,
 		ChecksumsURL: checksumsURL,
 		SignatureURL: signatureURL,
@@ -974,7 +979,7 @@ func handleAgentUpdate(job jobs.Job) (jobs.Result, func() error) {
 	result := jobs.Result{
 		JobID:     job.ID,
 		Status:    "success",
-		Output:    map[string]string{"message": "update applied; restarting agent"},
+		Output:    map[string]string{"message": "update verified; restarting agent"},
 		Completed: time.Now().UTC(),
 	}
 
