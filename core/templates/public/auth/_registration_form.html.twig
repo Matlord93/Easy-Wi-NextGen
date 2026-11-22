@@ -20,7 +20,7 @@
         </ul>
     {% endif %}
     <form method="post" action="{{ path('public_register') }}" class="portal-registration-form ng-auth-form"
-          {% if pow_difficulty > 0 %}data-registration-pow="{{ pow_difficulty }}" data-registration-nonce="{{ anti_abuse_nonce }}"{% endif %}>
+          {% if pow_difficulty > 0 %}data-form-pow="{{ pow_difficulty }}" data-form-nonce="{{ anti_abuse_nonce }}"{% endif %}>
         <input type="hidden" name="_token" value="{{ csrf_token('public_register') }}">
         <input type="hidden" name="account" value="{{ customer_account ? 'customer' : 'member' }}">
         {% if checkout_target %}<input type="hidden" name="target" value="{{ checkout_target }}">{% endif %}
@@ -43,11 +43,9 @@
         {% endif %}
         <label class="portal-consent"><input name="consents" type="checkbox" value="1" required{% if form.consents %} checked{% endif %}> {{ t('registration_consents', locale) }}</label>
         {% if pow_difficulty > 0 %}
-            <p role="status" data-registration-status data-failure="{{ t('registration_security_check', locale) }}" data-unavailable="{{ t('registration_security_browser', locale) }}">{{ t('registration_security_working', locale) }}</p>
-            <noscript><p>{{ t('registration_security_javascript', locale) }}</p></noscript>
+            {% include 'public/_form_pow_status.html.twig' %}
         {% endif %}
         <button class="ui-button ui-button--primary ng-btn ng-btn--primary" type="submit">{{ t('create_account', locale) }}</button>
     </form>
-    {% if pow_difficulty > 0 %}<script src="{{ asset('js/registration-challenge.js') }}" defer></script>{% endif %}
     <p><a href="{{ login_url }}">{{ t('log_in', locale) }}</a></p>
 {% endif %}

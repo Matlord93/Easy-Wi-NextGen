@@ -187,7 +187,7 @@ TWIG;
         self::KEY_ANTI_ABUSE_ENABLE_POW_CONTACT => true,
         self::KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION => true,
         self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION => false,
-        self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT => false,
+        self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT => true,
         self::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS => 2,
         self::KEY_ANTI_ABUSE_POW_DIFFICULTY => 4,
         self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT => 20,
@@ -909,7 +909,7 @@ TWIG;
     #[\Override]
     public function isAntiAbuseCaptchaEnabledForContact(): bool
     {
-        return (bool) ($this->getSettings()[self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT] ?? false);
+        return (bool) ($this->getSettings()[self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT] ?? true);
     }
 
     #[\Override]

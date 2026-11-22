@@ -8,9 +8,9 @@ require (
 	github.com/UserExistsError/conpty v0.1.4
 	github.com/creack/pty v1.1.24
 	github.com/gliderlabs/ssh v0.3.8
-	github.com/go-sql-driver/mysql v1.10.1
+	github.com/go-sql-driver/mysql v1.10.2
 	github.com/gorilla/websocket v1.5.3
-	github.com/jackc/pgx/v5 v5.12.0
+	github.com/jackc/pgx/v5 v5.13.0
 	github.com/pkg/sftp v1.13.12
 	github.com/shirou/gopsutil/v4 v4.26.10
 	golang.org/x/crypto v0.59.0

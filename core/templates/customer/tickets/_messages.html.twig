@@ -1,5 +1,5 @@
 {% set locale = page_locale() %}
-<div class="tkt-thread">
+<div id="ticket-messages" class="tkt-thread">
     {% for message in messages %}
         {% set isStaff = message.author.type in ['admin', 'superadmin', 'reseller'] %}
         <div class="tkt-msg {{ isStaff ? 'tkt-msg--admin' : '' }}">

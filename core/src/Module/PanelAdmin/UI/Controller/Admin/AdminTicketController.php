@@ -140,7 +140,7 @@ final class AdminTicketController
         $attachmentFiles = $this->attachmentFiles($request);
         $attachmentError = $this->validateAttachmentFiles($attachmentFiles);
         if ($attachmentError !== null) {
-            $formData['errors'][] = $attachmentError;
+            $formData['errors'][] = $this->translator->trans($attachmentError, domain: 'portal');
         }
         $customers = $this->userRepository->findBy(['type' => UserType::Customer], ['email' => 'ASC']);
         $templates = $this->ticketTemplateRepository->findByAdmin($actor);
@@ -268,39 +268,42 @@ final class AdminTicketController
             return new Response($this->translator->trans('error_not_found'), Response::HTTP_NOT_FOUND);
         }
 
+        $messageBody = trim((string) $request->request->get('message', ''));
+        if ($messageBody === '') {
+            return $this->replyValidationError('error_message_required');
+        }
+
         $attachmentFiles = $this->attachmentFiles($request);
         $attachmentError = $this->validateAttachmentFiles($attachmentFiles);
         if ($attachmentError !== null) {
-            return new Response($attachmentError, Response::HTTP_BAD_REQUEST);
-        }
-
-        $messageBody = trim((string) $request->request->get('message', ''));
-        if ($messageBody === '') {
-            return new Response('Message is required.', Response::HTTP_BAD_REQUEST);
+            return $this->replyValidationError($attachmentError);
         }
 
         $includeSignature = $request->request->get('include_signature') === '1';
         $messageBody = $this->applySignature($actor, $messageBody, $includeSignature);
 
         $message = new TicketMessage($ticket, $actor, $messageBody);
-        $ticket->noteMessage();
+        $this->entityManager->wrapInTransaction(function () use ($ticket, $message, $actor, $attachmentFiles): void {
+            $ticket->noteMessage();
+            $this->entityManager->persist($message);
+            $this->persistAttachments($ticket, $message, $actor, $attachmentFiles);
+            $this->entityManager->flush();
 
-        $this->entityManager->persist($message);
-        $this->persistAttachments($ticket, $message, $actor, $attachmentFiles);
-        $this->auditLogger->log($actor, 'ticket.message.created', [
-            'ticket_id' => $ticket->getId(),
-            'message_id' => $message->getId(),
-            'author_id' => $actor->getId(),
-        ]);
-        $this->notificationService->notify(
-            $ticket->getCustomer(),
-            sprintf('ticket.message.%s.%s', EntityIdentifier::require($ticket->getId()), EntityIdentifier::require($message->getId())),
-            $this->translator->trans('ticket_notification_reply_customer_title', ['%id%' => $ticket->getId()]),
-            $this->translator->trans('ticket_notification_reply_customer_body'),
-            'tickets',
-            '/tickets',
-        );
-        $this->entityManager->flush();
+            $messageId = EntityIdentifier::require($message->getId());
+            $this->auditLogger->log($actor, 'ticket.message.created', [
+                'ticket_id' => $ticket->getId(),
+                'message_id' => $messageId,
+                'author_id' => $actor->getId(),
+            ]);
+            $this->notificationService->notify(
+                $ticket->getCustomer(),
+                sprintf('ticket.message.%d.%d', EntityIdentifier::require($ticket->getId()), $messageId),
+                $this->translator->trans('ticket_notification_reply_customer_title', ['%id%' => $ticket->getId()], 'portal'),
+                $this->translator->trans('ticket_notification_reply_customer_body', domain: 'portal'),
+                'tickets',
+                '/tickets',
+            );
+        });
 
         $customer = $ticket->getCustomer();
         $this->mailService->sendTemplate(
@@ -318,6 +321,10 @@ final class AdminTicketController
             null,
             true,
         );
+
+        if ($request->headers->get('HX-Request') !== 'true') {
+            return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets/' . $id]);
+        }
 
         return new Response($this->twig->render('admin/tickets/_messages.html.twig', [
             'ticket' => $this->normalizeTicket($ticket),
@@ -672,7 +679,13 @@ final class AdminTicketController
      */
     private function attachmentFiles(Request $request): array
     {
-        $files = $request->files->all('attachments');
+        $files = $request->files->get('attachments', []);
+        if ($files instanceof UploadedFile) {
+            return [$files];
+        }
+        if (!is_array($files)) {
+            return [];
+        }
         return array_values(array_filter($files, static fn (mixed $file): bool => $file instanceof UploadedFile));
     }
 
@@ -682,27 +695,38 @@ final class AdminTicketController
     private function validateAttachmentFiles(array $files): ?string
     {
         foreach ($files as $file) {
+            if (in_array($file->getError(), [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+                return 'ticket_reply_attachment_size';
+            }
             if (!$file->isValid()) {
-                return 'Attachment upload failed.';
+                return 'ticket_reply_attachment_upload';
             }
 
             $size = $file->getSize();
             if ($size === false || $size > self::MAX_ATTACHMENT_BYTES) {
-                return 'Attachment exceeds the maximum size of 10 MB.';
+                return 'ticket_reply_attachment_size';
             }
 
             $mimeType = $file->getMimeType() ?? 'application/octet-stream';
             if (!in_array($mimeType, self::ALLOWED_ATTACHMENT_MIME_TYPES, true)) {
-                return 'Attachment file type is not allowed.';
+                return 'ticket_reply_attachment_type';
             }
 
             $extension = strtolower(pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION));
             if ($extension !== '' && in_array($extension, self::BLOCKED_ATTACHMENT_EXTENSIONS, true)) {
-                return 'Attachment file type is not allowed.';
+                return 'ticket_reply_attachment_type';
             }
         }
 
         return null;
+    }
+
+    private function replyValidationError(string $key): Response
+    {
+        return new Response($this->translator->trans($key, domain: 'portal'), Response::HTTP_BAD_REQUEST, [
+            'Content-Type' => 'text/plain; charset=UTF-8',
+            'X-EasyWi-Ticket-Validation' => '1',
+        ]);
     }
 
     /**

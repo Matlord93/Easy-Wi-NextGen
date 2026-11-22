@@ -1,4 +1,8 @@
 {% extends 'admin/base.html.twig' %}
+{% block head %}
+    {{ parent() }}
+    <script src="{{ asset('js/ticket-replies.js') }}" defer></script>
+{% endblock %}
 {% set activeNav = 'tickets' %}
 {% set locale = page_locale() %}
 {% set statusLabels = {

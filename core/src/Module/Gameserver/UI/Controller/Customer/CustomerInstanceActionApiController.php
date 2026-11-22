@@ -159,12 +159,20 @@ final class CustomerInstanceActionApiController
             }
         }
 
+        $jobType = 'instance.' . $action;
         $existingJob = $this->jobRepository->findLatestActiveByTypesAndInstanceId([
             'instance.start',
             'instance.stop',
             'instance.restart',
         ], $instance->getId() ?? 0);
         if ($existingJob instanceof Job) {
+            if ($existingJob->getType() !== $jobType) {
+                return $this->apiError($request, 'POWER_ACTION_IN_PROGRESS', 'Another power action is already running.', JsonResponse::HTTP_CONFLICT, [
+                    'job_id' => $existingJob->getId(),
+                    'job_type' => $existingJob->getType(),
+                ]);
+            }
+
             $this->auditLogger->log($customer, 'instance.power.already_queued', [
                 'instance_id' => $instance->getId(),
                 'job_id' => $existingJob->getId(),
@@ -238,7 +246,7 @@ final class CustomerInstanceActionApiController
         if (in_array($action, ['start', 'restart'], true)) {
             $jobPayload = array_merge(JsonMap::fromValue($this->instanceJobPayloadBuilder->buildRuntimePayload($instance)) ?? [], $jobPayload);
         }
-        $message = new InstanceActionMessage(sprintf('instance.%s', $action), EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $jobPayload);
+        $message = new InstanceActionMessage($jobType, EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $jobPayload);
 
         $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
         $result = json_decode((string) $response->getContent(), true);

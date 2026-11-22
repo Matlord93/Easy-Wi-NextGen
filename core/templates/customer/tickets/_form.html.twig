@@ -1,5 +1,5 @@
 {% set locale = locale ?? page_locale() %}
-<div id="ticket-form" data-panel-validation class="ng-card" style="overflow:hidden;" hx-get="/tickets/form" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
+<div id="ticket-form" data-panel-validation class="ng-card" style="overflow:hidden;">
 
     {# Header #}
     <div style="padding:16px 20px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;gap:12px;">
@@ -21,7 +21,8 @@
         hx-encoding="multipart/form-data"
         hx-post="/tickets"
         hx-target="#ticket-form"
-        hx-swap="outerHTML">
+        hx-swap="outerHTML"
+        hx-disabled-elt="find button[type=submit]">
         <input type="hidden" name="_token" value="{{ csrf_token('customer_ticket_create') }}">
 
         {% if form.errors is not empty %}

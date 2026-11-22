@@ -139,33 +139,37 @@ final class TicketApiController
         }
 
         $message = new TicketMessage($ticket, $actor, $messageBody);
-        $ticket->noteMessage();
+        $this->entityManager->wrapInTransaction(function () use ($ticket, $actor, $message): void {
+            $ticket->noteMessage();
+            $this->entityManager->persist($message);
+            $this->entityManager->flush();
 
-        $this->entityManager->persist($message);
-        $this->auditLogger->log($actor, 'ticket.message.created', [
-            'ticket_id' => $ticket->getId(),
-            'message_id' => $message->getId(),
-            'author_id' => $actor->getId(),
-        ]);
-        if ($actor->getType() === UserType::Customer) {
-            $this->notificationService->notifyAdmins(
-                sprintf('ticket.message.%s.%s', EntityIdentifier::require($ticket->getId()), EntityIdentifier::require($message->getId())),
-                $this->translator->trans('ticket_notification_reply_admin_title', ['%id%' => $ticket->getId()]),
-                $this->translator->trans('ticket_notification_reply_admin_body', ['%email%' => $actor->getEmail()]),
-                'tickets',
-                '/admin/tickets',
-            );
-        } elseif ($actor->isAdmin()) {
-            $this->notificationService->notify(
-                $ticket->getCustomer(),
-                sprintf('ticket.message.%s.%s', EntityIdentifier::require($ticket->getId()), EntityIdentifier::require($message->getId())),
-                $this->translator->trans('ticket_notification_reply_customer_title', ['%id%' => $ticket->getId()]),
-                $this->translator->trans('ticket_notification_reply_customer_body'),
-                'tickets',
-                '/tickets',
-            );
-        }
-        $this->entityManager->flush();
+            $messageId = EntityIdentifier::require($message->getId());
+            $eventKey = sprintf('ticket.message.%d.%d', EntityIdentifier::require($ticket->getId()), $messageId);
+            $this->auditLogger->log($actor, 'ticket.message.created', [
+                'ticket_id' => $ticket->getId(),
+                'message_id' => $messageId,
+                'author_id' => $actor->getId(),
+            ]);
+            if ($actor->getType() === UserType::Customer) {
+                $this->notificationService->notifyAdmins(
+                    $eventKey,
+                    $this->translator->trans('ticket_notification_reply_admin_title', ['%id%' => $ticket->getId()], 'portal'),
+                    $this->translator->trans('ticket_notification_reply_admin_body', ['%email%' => $actor->getEmail()], 'portal'),
+                    'tickets',
+                    '/admin/tickets',
+                );
+            } elseif ($actor->isAdmin()) {
+                $this->notificationService->notify(
+                    $ticket->getCustomer(),
+                    $eventKey,
+                    $this->translator->trans('ticket_notification_reply_customer_title', ['%id%' => $ticket->getId()], 'portal'),
+                    $this->translator->trans('ticket_notification_reply_customer_body', domain: 'portal'),
+                    'tickets',
+                    '/tickets',
+                );
+            }
+        });
 
         return new JsonResponse([
             'ticket' => $this->normalizeTicket($ticket),

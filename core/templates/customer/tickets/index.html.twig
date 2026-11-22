@@ -19,6 +19,9 @@
 {% block content %}
 <div class="pm-workspace" data-panel-tabs="customer-tickets">
     <header class="pm-page-head"><div><h1>{{ t('customer_tickets_title',locale) }}</h1><p>{{ t('customer_tickets_modern_intro',locale) }}</p></div><div class="pm-page-head__actions"><button class="ui-button ui-button--ghost" type="button" hx-get="/tickets/table" hx-include="#customer-ticket-filters" hx-target="#tickets-table" hx-swap="outerHTML">{{ t('refresh',locale) }}</button><a class="ui-button ui-button--primary" href="#pm-customer-tickets-create">+ {{ t('customer_ticket_new_title',locale) }}</a></div></header>
+    {% for ticketId in app.flashes('customer_ticket_created') %}
+        <div class="ng-alert ng-alert--success" role="status">{{ 'customer_ticket_created_success'|trans({'%id%': ticketId}, 'portal', locale) }}</div>
+    {% endfor %}
     {% include 'components/panel/_tabs.html.twig' with {panelKey:'customer-tickets',panelTabs:{overview:'workspace_inventory',create:'create'}} %}
     <div class="pm-stats pm-stats--four">{% for label,value in {customer_tickets_total:summary.total,customer_tickets_open:summary.open,customer_tickets_pending:summary.pending,customer_tickets_resolved:summary.resolved} %}{% include 'components/panel/_stat.html.twig' with {value:value,label:t(label,locale)} only %}{% endfor %}</div>
         {# ── Ticket list ── #}

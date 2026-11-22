@@ -1,4 +1,8 @@
 {% extends 'customer/base.html.twig' %}
+{% block head %}
+    {{ parent() }}
+    <script src="{{ asset('js/ticket-replies.js') }}" defer></script>
+{% endblock %}
 {% set locale = page_locale() %}
 {% set activeNav = 'tickets' %}
 {% set statusLabels = {
@@ -38,9 +42,7 @@
                     <p style="margin:2px 0 0;font-size:11px;color:var(--ng-text-muted);">{{ t('customer_tickets_transparency_hint', locale) }}</p>
                 </div>
             </div>
-            <div id="ticket-messages">
-                {% include 'customer/tickets/_messages.html.twig' with { ticket: ticket, messages: messages } %}
-            </div>
+            {% include 'customer/tickets/_messages.html.twig' with { ticket: ticket, messages: messages } %}
         </div>
 
         {# ── Sidebar ── #}

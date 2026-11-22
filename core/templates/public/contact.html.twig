@@ -1,4 +1,5 @@
 {% extends 'themes/' ~ (active_theme|default(active_theme())) ~ '/base.html.twig' %}
+{% set locale = page_locale() %}
 
 {% block title %}{{ t('contact_title', page_locale()) }} · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
@@ -17,49 +18,41 @@
 <div class="ng-container ng-section">
     <div class="mx-auto max-w-xl">
         {% if success %}
-            <div class="mb-6 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">
+            <div class="mb-6 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400" role="status">
                 {{ t('contact_success', page_locale()) }}
             </div>
         {% endif %}
         {% if errors is not empty %}
-            <div class="mb-6 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
+            <div class="mb-6 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-400" role="alert">
                 {% for error in errors %}<p>{{ t(error, page_locale()) }}</p>{% endfor %}
             </div>
         {% endif %}
 
         <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-            <form method="post" class="space-y-4">
-                <input type="hidden" name="_token" value="{{ csrf_token('public_contact') }}">
+            <form method="post" action="{{ path('public_contact') }}" class="space-y-4"
+                  {% if protection.pow_difficulty > 0 %}data-form-pow="{{ protection.pow_difficulty }}" data-form-nonce="{{ protection.nonce }}"{% endif %}>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-400">{{ t('common_name', page_locale()) }}</label>
-                    <input name="name" placeholder="{{ t('contact_name_placeholder', page_locale()) }}" class="ng-input w-full" required>
+                    <input name="name" placeholder="{{ t('contact_name_placeholder', page_locale()) }}" class="ng-input w-full" value="{{ form.name|default('') }}" maxlength="140" required>
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-400">{{ t('contact_email_label', page_locale()) }}</label>
-                    <input name="email" type="email" placeholder="{{ t('contact_email_placeholder', page_locale()) }}" class="ng-input w-full" required>
+                    <input name="email" type="email" placeholder="{{ t('contact_email_placeholder', page_locale()) }}" class="ng-input w-full" value="{{ form.email|default('') }}" maxlength="180" required>
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-400">{{ t('contact_subject_label', page_locale()) }}</label>
-                    <input name="subject" placeholder="{{ t('contact_subject_label', page_locale()) }}" class="ng-input w-full" required>
+                    <input name="subject" placeholder="{{ t('contact_subject_label', page_locale()) }}" class="ng-input w-full" value="{{ form.subject|default('') }}" maxlength="140" required>
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-400">{{ t('contact_message_label', page_locale()) }}</label>
-                    <textarea name="message" rows="6" class="ng-input w-full" required></textarea>
+                    <textarea name="message" rows="6" class="ng-input w-full" maxlength="5000" required>{{ form.message|default('') }}</textarea>
                 </div>
-                <input type="text" name="website" class="hidden" autocomplete="off" tabindex="-1">
-                <input type="hidden" name="pow_solution" id="pow_solution">
-                {% if captcha_question %}
-                    <div>
-                        <label class="mb-1 block text-sm font-medium text-slate-400">{{ captcha_question }}</label>
-                        <input name="captcha_answer" class="ng-input w-full" required>
-                    </div>
-                {% endif %}
-                <button class="ng-btn">{{ t('contact_submit', page_locale()) }}</button>
+                {% include 'public/_contact_challenge.html.twig' with {
+                    form_key: 'public_contact', label_class: 'mb-1 block text-sm font-medium text-slate-400', input_class: 'ng-input w-full'
+                } %}
+                <button type="submit" class="ng-btn" {{ protection.pow_difficulty > 0 ? 'disabled' : '' }}>{{ t('contact_submit', page_locale()) }}</button>
             </form>
         </div>
     </div>
 </div>
-<script>
-(async()=>{const nonce='{{ anti_abuse_nonce }}';const diff={{ pow_difficulty|default(4) }};const out=document.getElementById('pow_solution');if(!nonce||!out||!window.crypto?.subtle){return;}const target='0'.repeat(diff);const enc=new TextEncoder();for(let i=0;i<2000000;i++){const bytes=enc.encode(nonce+String(i));const hash=await crypto.subtle.digest('SHA-256',bytes);const hex=[...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');if(hex.startsWith(target)){out.value=String(i);break;}}})();
-</script>
 {% endblock %}

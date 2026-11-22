@@ -1,0 +1,13 @@
+<input type="hidden" name="_token" value="{{ csrf_token(form_key) }}">
+<input type="hidden" name="contact_form_nonce" value="{{ protection.nonce }}">
+<div hidden aria-hidden="true"><input type="text" name="website" tabindex="-1" autocomplete="off"></div>
+{% if protection.captcha_question %}
+    <div class="{{ field_class|default('') }}">
+        <label class="{{ label_class }}" for="contact-captcha">{{ t('contact_captcha_label', locale) }} {{ protection.captcha_question }}</label>
+        <input class="{{ input_class }}" id="contact-captcha" name="captcha_answer" inputmode="numeric" autocomplete="off" maxlength="2" required>
+    </div>
+{% endif %}
+{% if protection.pow_difficulty > 0 %}
+    <input type="hidden" name="pow_solution">
+    {% include 'public/_form_pow_status.html.twig' %}
+{% endif %}

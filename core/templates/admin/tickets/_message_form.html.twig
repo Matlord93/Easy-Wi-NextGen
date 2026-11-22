@@ -2,7 +2,10 @@
 <div style="padding:20px;display:flex;flex-direction:column;gap:16px;">
 
     {# Reply form #}
-    <form class="tkt-reply-form" method="post" action="/admin/tickets/{{ ticket.id }}/messages" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="/admin/tickets/{{ ticket.id }}/messages" hx-target="#ticket-messages" hx-swap="outerHTML">
+    {% set replyUrl = path('admin_ticket_messages_create', {id: ticket.id}) %}
+    <form class="tkt-reply-form" method="post" action="{{ replyUrl }}" enctype="multipart/form-data"
+        hx-encoding="multipart/form-data" hx-post="{{ replyUrl }}" hx-target="#ticket-messages" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]"
+        data-ticket-reply data-request-failed="{{ t('ticket_reply_request_failed', locale) }}" data-upload-too-large="{{ t('ticket_reply_upload_too_large', locale) }}">
         <input type="hidden" name="_token" value="{{ csrf_token('admin_ticket_message_' ~ ticket.id) }}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
             <div>
@@ -21,9 +24,10 @@
             </div>
         {% endif %}
         <div class="form-field" style="margin-bottom:10px;">
-            <label class="form-label">{{ t('ticket_ui_message', locale) }}</label>
-            <textarea id="admin-ticket-reply-message" name="message" rows="5" placeholder="{{ t('ticket_ui_reply_placeholder', locale) }}"></textarea>
+            <label class="form-label" for="admin-ticket-reply-message">{{ t('ticket_ui_message', locale) }}</label>
+            <textarea id="admin-ticket-reply-message" name="message" rows="5" placeholder="{{ t('ticket_ui_reply_placeholder', locale) }}" required></textarea>
         </div>
+        {% include 'components/tickets/_reply_error.html.twig' %}
         <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
             <label style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:var(--ng-radius-sm);border:1px dashed var(--ng-border);background:var(--ng-surface-soft);font-size:12px;font-weight:600;color:var(--ng-text-muted);cursor:pointer;transition:border-color .15s;">
                 <input type="file" name="attachments[]" style="display:none;" multiple>

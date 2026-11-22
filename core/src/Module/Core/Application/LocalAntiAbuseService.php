@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Infrastructure\Config\JsonMap;
 use App\Module\Core\Domain\Entity\AbuseLog;
 use App\Repository\AbuseLogRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -24,7 +25,7 @@ final class LocalAntiAbuseService
     /** @return array{nonce:string,issued_at:int} */
     public function registerFormSession(SessionInterface $session, string $formKey): array
     {
-        $current = \App\Infrastructure\Config\JsonMap::fromValue($session->get($this->sessionKey($formKey)));
+        $current = JsonMap::fromValue($session->get($this->sessionKey($formKey)));
         if (is_array($current) && isset($current['nonce'], $current['issued_at'])) {
             return [
                 'nonce' => (string) $current['nonce'],
@@ -47,6 +48,19 @@ final class LocalAntiAbuseService
         }
 
         return (time() - (int) ($data['issued_at'] ?? 0)) >= $this->settings->getAntiAbuseMinSubmitSeconds();
+    }
+
+    public function verifyFormNonce(SessionInterface $session, string $formKey, string $nonce): bool
+    {
+        $data = JsonMap::fromValue($session->get($this->sessionKey($formKey))) ?? [];
+
+        return isset($data['nonce'], $data['issued_at']) && is_string($data['nonce']) && is_int($data['issued_at'])
+            && $data['issued_at'] >= time() - 1800 && hash_equals($data['nonce'], $nonce);
+    }
+
+    public function resetFormSession(SessionInterface $session, string $formKey): void
+    {
+        $session->remove($this->sessionKey($formKey));
     }
 
     public function verifyPow(SessionInterface $session, string $formKey, string $solution): bool

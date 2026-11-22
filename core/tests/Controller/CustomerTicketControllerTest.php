@@ -48,7 +48,7 @@ final class CustomerTicketControllerTest extends TestCase
         $file->method('getSize')->willReturn(false);
         $controller = (new \ReflectionClass(CustomerTicketController::class))->newInstanceWithoutConstructor();
 
-        self::assertSame('Attachment exceeds the maximum size of 10 MB.', (new \ReflectionMethod($controller, 'validateAttachmentFiles'))->invoke($controller, [$file]));
+        self::assertSame('ticket_reply_attachment_size', (new \ReflectionMethod($controller, 'validateAttachmentFiles'))->invoke($controller, [$file]));
     }
 
     public function testDownloadStreamsTheAllowedPathAndClosesTheStream(): void

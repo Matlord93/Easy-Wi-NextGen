@@ -42,7 +42,7 @@
 {% set runtimeStatus = (instance.runtime_status ?? displayStatus ?? status)|lower %}
 {% set isRunning     = runtimeStatus in ['running', 'online', 'up'] %}
 {% set powerState    = instance.power ?? {} %}
-{% set powerDisabled = powerState.disabled ?? false %}
+{% set powerDisabled = (powerState.disabled ?? false) or status == 'suspended' %}
 {% set powerReason   = powerState.reason ?? '' %}
 {% set installPath   = instance.installPath ?? instance.install_path ?? instance.data_path ?? null %}
 
@@ -53,6 +53,7 @@
     data-query-url="{{ path('customer_instance_query_api', {id: instance.id}) }}"
     data-query-health-url="{{ path('customer_instance_query_health_api_v2', {id: instance.id}) }}"
     data-power-url="{{ path('customer_instance_power_api', {id: instance.id}) }}"
+    data-power-blocked="{{ powerDisabled ? '1' : '0' }}"
     data-url-overview="{{ path('customer_instance_overview_page', {id: instance.id}) }}"
 >
     {# ─── Header ─── #}

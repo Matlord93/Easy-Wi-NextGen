@@ -19,6 +19,7 @@ use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClientInterface;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
 use App\Repository\InstanceRepositoryInterface;
 use App\Repository\JobRepositoryInterface;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Messenger\Envelope;
@@ -156,6 +157,40 @@ final class CustomerInstancePowerApiControllerTest extends TestCase
         self::assertTrue((bool) $payload['ok']);
         self::assertFalse((bool) $payload['data']['transition']);
         self::assertSame('running', $payload['data']['current_state']);
+    }
+
+    #[TestWith(['instance.stop', 409])]
+    #[TestWith(['instance.restart', 202])]
+    public function testRestartOnlyReusesAMatchingActiveJob(string $activeJobType, int $expectedStatus): void
+    {
+        $customer = new User('customer@example.test', UserType::Customer);
+        $this->setEntityId($customer, 10);
+        $instance = $this->createStub(Instance::class);
+        $instance->method('getCustomer')->willReturn($customer);
+        $instance->method('getStatus')->willReturn(InstanceStatus::Running);
+        $instance->method('getId')->willReturn(7);
+        $instance->method('getDiskState')->willReturn(InstanceDiskState::Ok);
+
+        $instances = $this->createStub(InstanceRepositoryInterface::class);
+        $instances->method('find')->willReturn($instance);
+        $settings = $this->createStub(AppSettingsServiceInterface::class);
+        $settings->method('isGameserverStartStopAllowed')->willReturn(true);
+        $activeJob = new Job($activeJobType, ['instance_id' => '7']);
+        $jobs = $this->createStub(JobRepositoryInterface::class);
+        $jobs->method('findLatestActiveByTypesAndInstanceId')->willReturn($activeJob);
+        $request = Request::create('/api/instances/7/power', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: '{"action":"restart"}');
+        $request->attributes->set('current_user', $customer);
+
+        $response = $this->newControllerWith($instances, $settings, $jobs)->power($request, 7);
+        $payload = json_decode((string) $response->getContent(), true);
+
+        self::assertSame($expectedStatus, $response->getStatusCode());
+        if ($expectedStatus === 202) {
+            self::assertSame($activeJob->getId(), $payload['data']['job_id']);
+        } else {
+            self::assertSame('POWER_ACTION_IN_PROGRESS', $payload['error_code']);
+            self::assertSame($activeJobType, $payload['context']['job_type']);
+        }
     }
 
     private function newControllerWith(

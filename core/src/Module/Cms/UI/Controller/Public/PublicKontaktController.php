@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Public;
 
+use App\Module\Cms\Application\Security\ContactFormProtection;
 use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Cms\Application\CmsSiteResolver;
@@ -19,12 +20,15 @@ use Twig\Environment;
 #[Route(path: '/kontakt', name: 'public_kontakt', methods: ['GET', 'POST'])]
 final class PublicKontaktController
 {
+    private const FORM_KEY = 'public_kontakt';
+
     public function __construct(
         private readonly Environment $twig,
         private readonly CmsSiteResolver $siteResolver,
         private readonly CmsSettingsProvider $settingsProvider,
         private readonly ThemeResolver $themeResolver,
         private readonly EntityManagerInterface $entityManager,
+        private readonly ContactFormProtection $protection,
         private readonly RateLimiterFactory $kontaktLimiter,
         private readonly TranslatorInterface $translator,
     ) {
@@ -39,35 +43,35 @@ final class PublicKontaktController
 
         $success = false;
         $error = null;
+        $form = [];
 
         if ($request->isMethod('POST')) {
-            $honeypot = (string) $request->request->get('website_url', '');
-            if ($honeypot !== '') {
-                return $this->renderSuccess($request, $site);
-            }
-
-            $limit = $this->kontaktLimiter->create($request->getClientIp() ?? 'anon')->consume(1);
-            if (!$limit->isAccepted()) {
-                $error = $this->translator->trans('flash_kontakt_rate_limit');
+            $error = $this->protection->validate($request, self::FORM_KEY, $this->kontaktLimiter);
+            if ($error === ContactFormProtection::HONEYPOT) {
+                $success = true;
+                $error = null;
             } else {
-                $name = trim((string) $request->request->get('name', ''));
-                $email = trim((string) $request->request->get('email', ''));
-                $subject = trim((string) $request->request->get('subject', ''));
-                $message = trim((string) $request->request->get('message', ''));
+                $message = trim($request->request->getString('message'));
+                $form = [
+                    'name' => trim($request->request->getString('name')),
+                    'email' => trim($request->request->getString('email')),
+                    'subject' => mb_substr(trim(str_replace(["\r", "\n"], ' ', $request->request->getString('subject'))), 0, 255),
+                    'message' => mb_substr($message, 0, 5000),
+                ];
 
-                if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $subject === '' || $message === '') {
-                    $error = 'contact_validation_error';
-                } elseif (mb_strlen($message) > 5000) {
-                    $error = $this->translator->trans('flash_kontakt_message_too_long');
-                } else {
-                    $subject = mb_substr(str_replace(["\r", "\n"], ' ', $subject), 0, 255);
-                    $message = mb_substr($message, 0, 5000);
-                    $ip = $request->getClientIp() ?? '';
-
-                    $contactMsg = new ContactMessage($site, $name, $email, $subject, $message, $ip);
-                    $this->entityManager->persist($contactMsg);
-                    $this->entityManager->flush();
-                    $success = true;
+                if ($error === null) {
+                    $error = match (true) {
+                        mb_strlen($message) > 5000 => 'flash_kontakt_message_too_long',
+                        $form['name'] === '', mb_strlen($form['name']) > 140, mb_strlen($form['email']) > 180,
+                        !filter_var($form['email'], FILTER_VALIDATE_EMAIL), $form['subject'] === '', $form['message'] === '' => 'contact_validation_error',
+                        default => null,
+                    };
+                    if ($error === null) {
+                        $contactMsg = new ContactMessage($site, $form['name'], $form['email'], $form['subject'], $form['message'], $request->getClientIp() ?? '');
+                        $this->entityManager->persist($contactMsg);
+                        $this->entityManager->flush();
+                        $success = true;
+                    }
                 }
             }
         }
@@ -77,6 +81,8 @@ final class PublicKontaktController
         return new Response($this->twig->render('themes/nexus-gaming/pages/kontakt.html.twig', [
             'success' => $success,
             'error' => $error,
+            'form' => $form,
+            'protection' => $success ? null : $this->protection->issue($request, self::FORM_KEY),
             'cms_navigation' => $this->settingsProvider->getNavigationLinks($site),
             'cms_footer_links' => $this->settingsProvider->getFooterLinks($site),
             'cms_branding' => $this->settingsProvider->getBranding($site),
@@ -84,23 +90,6 @@ final class PublicKontaktController
             'blocks' => [],
             'template_key' => $theme,
             'active_theme' => $theme,
-        ]));
-    }
-
-    private function renderSuccess(Request $request, \App\Module\Core\Domain\Entity\Site $site): Response
-    {
-        $theme = $this->themeResolver->resolveThemeKey($site);
-
-        return new Response($this->twig->render('themes/nexus-gaming/pages/kontakt.html.twig', [
-            'success' => true,
-            'error' => null,
-            'cms_navigation' => $this->settingsProvider->getNavigationLinks($site),
-            'cms_footer_links' => $this->settingsProvider->getFooterLinks($site),
-            'cms_branding' => $this->settingsProvider->getBranding($site),
-            'page' => ['title' => $this->translator->trans('theme_contact_title'), 'slug' => 'kontakt'],
-            'blocks' => [],
-            'template_key' => $theme,
-            'active_theme' => $theme,
-        ]));
+        ]), $error === null ? Response::HTTP_OK : Response::HTTP_UNPROCESSABLE_ENTITY);
     }
 }

@@ -1,4 +1,5 @@
 {% set locale = locale ?? page_locale() %}
+{% set replyUrl = path('customer_ticket_messages_create', {id: ticket.id}) %}
 
 <div style="padding:14px 20px;border-bottom:1px solid var(--ng-border);display:flex;align-items:center;gap:10px;">
     <div style="width:32px;height:32px;border-radius:8px;background:rgba(99,102,241,0.15);color:#818cf8;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
@@ -14,20 +15,23 @@
 
 <form style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;"
     method="post"
-    action="/tickets/{{ ticket.id }}/messages"
+    action="{{ replyUrl }}"
     enctype="multipart/form-data"
     hx-encoding="multipart/form-data"
-    hx-post="/tickets/{{ ticket.id }}/messages"
+    hx-post="{{ replyUrl }}"
     hx-target="#ticket-messages"
-    hx-swap="outerHTML">
+    hx-swap="outerHTML"
+    hx-disabled-elt="find button[type=submit]"
+    data-ticket-reply data-request-failed="{{ t('ticket_reply_request_failed', locale) }}" data-upload-too-large="{{ t('ticket_reply_upload_too_large', locale) }}">
     <input type="hidden" name="_token" value="{{ csrf_token('customer_ticket_message_' ~ ticket.id) }}">
 
     <div class="form-field">
-        <label class="form-label">{{ t('admin_tickets_reply_message', locale) }}</label>
-        <textarea name="message" rows="6"
+        <label class="form-label" for="customer-ticket-reply-message">{{ t('admin_tickets_reply_message', locale) }}</label>
+        <textarea id="customer-ticket-reply-message" name="message" rows="6" required
             placeholder="{{ t('admin_tickets_reply_placeholder', locale) }}"
             style="resize:vertical;"></textarea>
     </div>
+    {% include 'components/tickets/_reply_error.html.twig' %}
 
     <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--ng-radius-sm);border:1px dashed var(--ng-border);background:var(--ng-surface-soft);font-size:12px;font-weight:600;color:var(--ng-text-muted);cursor:pointer;transition:border-color .15s,background .15s;">
         <input type="file" name="attachments[]" style="display:none;" multiple>

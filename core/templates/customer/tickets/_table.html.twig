@@ -5,11 +5,7 @@
     'technical': t('admin_tickets_category_label_technical', locale),
     'abuse':     t('admin_tickets_category_label_abuse', locale),
 } %}
-<div id="tickets-table" style="background:var(--ng-surface-soft);"
-    hx-get="/tickets/table"
-    hx-include="#customer-ticket-filters"
-    hx-trigger="tickets-changed from:body"
-    hx-swap="outerHTML">
+<div id="tickets-table" style="background:var(--ng-surface-soft);">
     {% if tickets is empty %}
         <div style="padding:16px;">
             {% include 'components/tickets/_empty_state.html.twig' with {
