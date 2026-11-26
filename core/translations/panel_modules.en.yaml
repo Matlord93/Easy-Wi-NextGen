@@ -108,6 +108,9 @@ workspace_all_versions: All versions
 workspace_service_details: Service information and more actions
 workspace_cpu_cores: allocated CPU cores
 workspace_storage: Storage
+workspace_disk_unknown: No measurement yet
+workspace_disk_stale: Last known value
+workspace_disk_checked: Measured at %time%
 workspace_usage: Usage (CPU / RAM)
 workspace_metrics_empty: Not enough measurements are available yet.
 workspace_metrics_window: Measurements from the last 15 minutes

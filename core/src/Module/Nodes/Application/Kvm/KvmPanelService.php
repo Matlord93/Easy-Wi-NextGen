@@ -27,7 +27,8 @@ final readonly class KvmPanelService
 {
     private const UUID = '/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D';
     private const SLUG = '/^[a-z][a-z0-9-]{0,47}$/D';
-    public const ACTIONS = ['inspect', 'host.setup', 'host.vm_number_range', 'host.address_pool', 'template.import', 'vm.create', 'vm.start', 'vm.shutdown', 'vm.stop', 'vm.reboot', 'vm.suspend', 'vm.resume', 'vm.autostart', 'vm.autostart-disable', 'vm.limits', 'vm.disk_grow', 'vm.network', 'vm.console.configure', 'vm.cloud_init', 'vm.boot_order', 'vm.guest_agent', 'vm.agent_status', 'vm.root_password', 'vm.address_switch', 'vm.reinstall', 'snapshot.create', 'snapshot.revert', 'snapshot.delete', 'backup.create', 'backup.restore', 'backup.delete', 'network.create', 'network.start', 'network.stop', 'network.autostart', 'network.autostart-disable'];
+    public const int REINSTALL_VERSION = 2;
+    public const ACTIONS = ['inspect', 'host.setup', 'host.vm_number_range', 'host.address_pool', 'template.import', 'vm.create', 'vm.start', 'vm.shutdown', 'vm.stop', 'vm.reboot', 'vm.suspend', 'vm.resume', 'vm.autostart', 'vm.autostart-disable', 'vm.limits', 'vm.disk_grow', 'vm.network', 'vm.console.configure', 'vm.cloud_init', 'vm.boot_order', 'vm.guest_agent', 'vm.agent_status', 'vm.root_password', 'vm.address_switch', 'vm.reinstall', 'vm.reinstall_rollback', 'snapshot.create', 'snapshot.revert', 'snapshot.delete', 'backup.create', 'backup.restore', 'backup.delete', 'network.create', 'network.start', 'network.stop', 'network.autostart', 'network.autostart-disable'];
 
     public function __construct(private AgentJobDispatcherInterface $dispatcher, private AgentJobRepository $jobs)
     {
@@ -92,6 +93,19 @@ final readonly class KvmPanelService
         return $this->jobs->findLatestForNodeAndTypes($node->getId(), ['kvm.managed'], 20);
     }
 
+    /** @param KvmInventory|null $inventory */
+    public function reinstallationForRollback(Agent $node, string $vmId, ?array $inventory): ?string
+    {
+        if (1 !== ($node->getMetadata()['kvm_managed']['reinstall_rollback_version'] ?? null)) {
+            return null;
+        }
+        $pending = JsonArray::orEmpty($inventory['pending_operations'] ?? null);
+        $recovery = JsonMap::strings(JsonArray::orEmpty($inventory['reinstall_rollback'] ?? null));
+        $operation = $recovery['operation_id'] ?? '';
+
+        return [$operation] === $pending && $vmId === ($recovery['vm_id'] ?? null) && preg_match(self::UUID, $operation) ? $operation : null;
+    }
+
     public function hasAddressPool(Agent $node, string $kind, string $network): bool
     {
         if (null !== $this->availability($node) || 1 !== ($node->getMetadata()['kvm_managed']['address_pool_version'] ?? null)) {
@@ -116,8 +130,10 @@ final readonly class KvmPanelService
             throw new \InvalidArgumentException('kvm.invalid');
         }
         $payload = ['action' => $action];
+        $operationId = null;
         if ('inspect' !== $action) {
-            $payload['operation_id'] = $this->text($input, 'operation_id', self::UUID);
+            $operationId = $this->text($input, 'operation_id', self::UUID);
+            $payload['operation_id'] = $operationId;
         }
         if (in_array($action, ['host.address_pool', 'vm.create', 'vm.network'], true) && null !== ($choice = JsonMap::strings($input)['network_choice'] ?? null)) {
             [$input['network_type'], $input['network']] = array_pad(explode(':', $choice, 2), 2, '');
@@ -175,6 +191,15 @@ final readonly class KvmPanelService
             }
             $payload['url'] = $url;
         } elseif ('vm.create' === $action) {
+            if ('1' === ($input['start_after_install'] ?? null)) {
+                if (1 !== ($node->getMetadata()['kvm_managed']['install_access_version'] ?? null)) {
+                    throw new \InvalidArgumentException('kvm.update_agent');
+                }
+                $payload['start_after_install'] = '1';
+                if (isset($input['install_password_hash'])) {
+                    $payload['install_password_hash'] = $this->text($input, 'install_password_hash', VmRootPassword::HASH_PATTERN);
+                }
+            }
             if ('' !== ($input['vm_number'] ?? '') && null !== ($input['vm_number'] ?? null)) {
                 if (1 !== ($node->getMetadata()['kvm_managed']['vm_number_version'] ?? null)) {
                     throw new \InvalidArgumentException('kvm.update_agent');
@@ -266,13 +291,27 @@ final readonly class KvmPanelService
                 $payload['confirm'] = '1';
             }
             if ('vm.reinstall' === $action) {
-                if (1 !== ($node->getMetadata()['kvm_managed']['reinstall_version'] ?? null)) {
+                if (self::REINSTALL_VERSION !== ($node->getMetadata()['kvm_managed']['reinstall_version'] ?? null)) {
                     throw new \InvalidArgumentException('kvm.update_agent');
                 }
                 if (($input['confirm'] ?? '') !== '1') {
                     throw new \InvalidArgumentException('kvm.customer_confirm');
                 }
                 $payload['template'] = $this->text($input, 'template', '/^[a-z][a-z0-9-]{0,47}--[a-z0-9][a-z0-9.-]{0,47}$/D');
+                $payload['confirm'] = '1';
+                if (isset($input['install_password_hash'])) {
+                    if (1 !== ($node->getMetadata()['kvm_managed']['install_access_version'] ?? null)) {
+                        throw new \InvalidArgumentException('kvm.update_agent');
+                    }
+                    $payload['install_password_hash'] = $this->text($input, 'install_password_hash', VmRootPassword::HASH_PATTERN);
+                }
+            }
+            if ('vm.reinstall_rollback' === $action) {
+                $origin = $this->text($input, 'reinstall_operation_id', self::UUID);
+                if ('1' !== ($input['confirm'] ?? null) || $origin === $operationId || $origin !== $this->reinstallationForRollback($node, $payload['vm_id'], $this->inventory($node))) {
+                    throw new \InvalidArgumentException('kvm.reinstall_rollback_unavailable');
+                }
+                $payload['reinstall_operation_id'] = $origin;
                 $payload['confirm'] = '1';
             }
             if ('vm.address_switch' === $action) {

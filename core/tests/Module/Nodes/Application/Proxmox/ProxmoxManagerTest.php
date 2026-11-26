@@ -45,7 +45,7 @@ final class ProxmoxManagerTest extends KernelTestCase
         $this->fixture = new ProxmoxFixture();
         $crypto = self::getContainer()->get(SecretsCrypto::class);
         $this->ipPools = new ProxmoxIpPools($this->em);
-        $this->manager = new ProxmoxManager($this->fixture->client(), $crypto, $this->em, self::getContainer()->get(AuditLogger::class), new \App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()), new \App\Module\Nodes\Application\Proxmox\ProxmoxRrdUsage($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()), new \App\Module\Nodes\Application\Proxmox\ProxmoxInstallation($this->fixture->client(), $crypto, $this->em, new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore()), self::getContainer()->get(AuditLogger::class), $this->ipPools), $this->ipPools, new \App\Module\Nodes\Application\Proxmox\ProxmoxRentalLifecycle($this->em, $this->fixture->client(), $crypto, $this->ipPools, new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore())), new \App\Module\Nodes\Application\Proxmox\ProxmoxReinstallation($this->fixture->client(), $crypto, $this->em, new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore()), self::getContainer()->get(AuditLogger::class)));
+        $this->manager = new ProxmoxManager($this->fixture->client(), $crypto, $this->em, self::getContainer()->get(AuditLogger::class), new \App\Module\Nodes\Application\Proxmox\ProxmoxGuestAgent($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()), new \App\Module\Nodes\Application\Proxmox\ProxmoxRrdUsage($this->fixture->client(), new \Symfony\Component\Cache\Adapter\ArrayAdapter()), new \App\Module\Nodes\Application\Proxmox\ProxmoxInstallation($this->fixture->client(), $crypto, $this->em, new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore()), self::getContainer()->get(AuditLogger::class), $this->ipPools, self::getContainer()->get(\App\Module\Nodes\Application\VmPasswordDelivery::class)), $this->ipPools, new \App\Module\Nodes\Application\Proxmox\ProxmoxRentalLifecycle($this->em, $this->fixture->client(), $crypto, $this->ipPools, new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore())), new \App\Module\Nodes\Application\Proxmox\ProxmoxReinstallation($this->fixture->client(), $crypto, $this->em, new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore()), self::getContainer()->get(AuditLogger::class)));
         $this->cluster = new ProxmoxCluster('Test cluster', new ProxmoxConnection('https://pve.example.test:8006', 'panel@pve!test', 'synthetic-secret'), $crypto);
         $this->admin = new User('pve-admin@example.test', UserType::Admin);
         $this->admin->setPasswordHash('unused');
@@ -581,11 +581,47 @@ final class ProxmoxManagerTest extends KernelTestCase
         yield 'confirmed start' => [false];
         yield 'start response lost' => [true];
         yield 'dual-stack pool' => [false, true];
+        yield 'initial root password' => [false, false, true];
+        yield 'initial root password response lost' => [false, false, true, 'lost-reply'];
+        yield 'initial root password response malformed' => [false, false, true, 'malformed'];
+        yield 'initial root password never confirmed' => [false, false, true, 'timeout'];
+        yield 'initial root password rejected' => [false, false, true, 'rejected'];
+        yield 'VM replaced before initial root password retry' => [false, false, true, 'foreign'];
+    }
+
+    public function testQueuedRootPasswordInstallationRechecksThePrivilegeBeforeCloningAndReleasesTheLease(): void
+    {
+        $this->fixture->configs[900] = ['template' => 1, 'ide2' => 'local-lvm:vm-900-cloudinit,media=cdrom', 'net0' => 'virtio=52:54:00:12:34:56,bridge=vmbr0'];
+        $this->fixture->rootPasswordPermission = true;
+        $this->ipPools->save($this->cluster, 'pve-a', new ProxmoxIpRange(4, '192.0.2.55', '192.0.2.60', 24, '192.0.2.1'), 'vmbr0', null, true);
+        $input = [
+            'name' => 'test-vm', 'username' => 'debian', 'target_vm_id' => '1001', 'customer_id' => $this->customer->getId(),
+            'ssh_keys' => \phpseclib3\Crypt\EC::createKey('Ed25519')->getPublicKey()->toString('OpenSSH'),
+            'address_mode' => 'pool', 'prepare_root_password' => '1',
+        ];
+        $task = $this->manager->queueInstallation($this->cluster, 900, $input, bin2hex(random_bytes(16)), $this->admin);
+        self::assertSame('queued', $task->getState());
+        self::assertCount(1, $this->ipPools->leases($task));
+
+        $this->fixture->rootPasswordPermission = false;
+        $this->manager->refreshTask($task);
+        self::assertSame('failed', $task->getState());
+        self::assertSame('install_password_permission', $task->getResult());
+        self::assertSame([], $this->fixture->writes());
+        self::assertSame([], $this->ipPools->leases($task));
+
+        $newTask = $this->manager->queueInstallation($this->cluster, 900, array_replace($input, ['prepare_root_password' => '0']), bin2hex(random_bytes(16)), $this->admin);
+        self::assertSame(1001, $newTask->getTargetVmId());
+        self::assertSame(['192.0.2.55'], array_map(static fn (\App\Module\Nodes\Domain\Entity\ProxmoxIpLease $lease): string => $lease->getAddress(), $this->ipPools->leases($newTask)));
+        $this->manager->refreshTask($newTask);
+        self::assertSame('running', $newTask->getState());
+        self::assertStringEndsWith('/qemu/900/clone', $this->fixture->writes()[0]['path']);
     }
 
     #[DataProvider('installationStartOutcomes')]
-    public function testTemplateInstallationTracksCloneStartAndCloudInitBeforeSuccess(bool $loseStartResponse, bool $pooled = false): void
+    public function testTemplateInstallationTracksCloneStartAndCloudInitBeforeSuccess(bool $loseStartResponse, bool $pooled = false, bool $preparePassword = false, string $passwordOutcome = 'confirmed'): void
     {
+        $this->fixture->rootPasswordPermission = $preparePassword;
         $key = \phpseclib3\Crypt\EC::createKey('Ed25519')->getPublicKey()->toString('OpenSSH');
         $this->fixture->configs[900] = ['ide2' => 'local-lvm:vm-900-cloudinit,media=cdrom', 'net0' => 'virtio=52:54:00:12:34:56,bridge=vmbr0'];
         if ($pooled) {
@@ -593,7 +629,7 @@ final class ProxmoxManagerTest extends KernelTestCase
             $this->ipPools->save($this->cluster, 'pve-a', new ProxmoxIpRange(6, '2001:db8::66', '2001:db8::70', 64, 'fe80::1'), 'vmbr0', null, true);
         }
         $requestKey = bin2hex(random_bytes(16));
-        $task = $this->manager->perform($this->cluster, 'qemu', 900, 'install-template', ['name' => 'test-vm', 'username' => 'debian', 'target_vm_id' => '1001', 'ssh_keys' => $key, 'customer_id' => $this->customer->getId(), 'address_mode' => $pooled ? 'pool' : 'dhcp'], $requestKey, $this->admin);
+        $task = $this->manager->perform($this->cluster, 'qemu', 900, 'install-template', ['name' => 'test-vm', 'username' => 'debian', 'target_vm_id' => '1001', 'ssh_keys' => $key, 'customer_id' => $this->customer->getId(), 'address_mode' => $pooled ? 'pool' : 'dhcp', 'prepare_root_password' => $preparePassword ? '1' : '0'], $requestKey, $this->admin);
         self::assertSame(1001, $task->getTargetVmId());
         self::assertSame('Easy-WI installation '.$requestKey, $this->fixture->writes()[0]['body']['description']);
         $this->manager->refreshTask($task);
@@ -623,13 +659,75 @@ final class ProxmoxManagerTest extends KernelTestCase
             ];
         }
         $sync = new \App\Module\Nodes\Application\Proxmox\ProxmoxTaskSynchronizer($this->em, $this->manager, new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore()));
+        $passwordPath = '/nodes/pve-a/qemu/1001/agent/set-user-password';
+        $this->fixture->loseResponseAfterWrite = in_array($passwordOutcome, ['lost-reply', 'timeout', 'foreign'], true) ? $passwordPath : null;
+        $this->fixture->malformedRootPasswordResponse = 'malformed' === $passwordOutcome;
+        // A failed QGA response after tagging is handled on the following poll.
+        if ('rejected' === $passwordOutcome) {
+            $this->fixture->rejectedRootPasswordStatus = 400;
+        }
+        $customerWasEnabled = $this->customer->isCustomerAccessEnabled();
         self::assertSame(['checked' => 1, 'errors' => 0], $sync->run(25));
+        $assignments = $this->em->getRepository(ProxmoxGuestAssignment::class);
+        $guest = ['cluster' => $this->cluster, 'vmId' => 1001];
+        $passwordWrites = $preparePassword ? 5 : 4;
+        if ('confirmed' !== $passwordOutcome) {
+            self::assertNull($assignments->findOneBy($guest));
+            self::assertSame($customerWasEnabled, $this->customer->isCustomerAccessEnabled());
+            self::assertSame($passwordPath, $this->fixture->writes()[4]['path']);
+            $firstAttempt = $this->fixture->writes()[4]['body'];
+            if ('rejected' === $passwordOutcome) {
+                self::assertSame('uncertain', $task->getState());
+                self::assertSame('install_password_rejected', $task->getResult());
+                self::assertArrayNotHasKey('root_password_setup', $task->getInstallation());
+
+                return;
+            }
+            self::assertSame('submitting', $task->getState());
+            $settings = $task->getInstallation();
+            $setup = $settings['root_password_setup'];
+            self::assertStringNotContainsString($firstAttempt['password'], json_encode($settings, JSON_THROW_ON_ERROR));
+            $this->fixture->loseResponseAfterWrite = null;
+            $this->fixture->malformedRootPasswordResponse = false;
+            $sync->run(25);
+            self::assertCount(5, $this->fixture->writes());
+            $settings['root_password_setup']['attempted_at'] = time() - 30;
+            if ('timeout' === $passwordOutcome) {
+                $settings['root_password_setup']['requested_at'] = time() - 301;
+            } elseif ('foreign' === $passwordOutcome) {
+                $this->fixture->configs[1001]['description'] = 'Different VM';
+            }
+            $this->em->getConnection()->update('proxmox_tasks', ['installation' => json_encode($settings, JSON_THROW_ON_ERROR)], ['id' => $task->getId()]);
+            self::assertSame(['checked' => 1, 'errors' => 0], $sync->run(25));
+            if (in_array($passwordOutcome, ['timeout', 'foreign'], true)) {
+                self::assertSame('uncertain', $task->getState());
+                self::assertSame('timeout' === $passwordOutcome ? 'install_password_unconfirmed' : 'identity_mismatch', $task->getResult());
+                self::assertCount(5, $this->fixture->writes());
+                self::assertArrayNotHasKey('root_password_setup', $task->getInstallation());
+                self::assertNull($assignments->findOneBy($guest));
+
+                return;
+            }
+            ++$passwordWrites;
+            self::assertSame($passwordPath, $this->fixture->writes()[5]['path']);
+            self::assertSame($firstAttempt, $this->fixture->writes()[5]['body']);
+            self::assertSame($setup['ciphertext'], $assignments->findOneBy($guest)?->getRootPasswordHandoff()['ciphertext']);
+        }
         self::assertSame('succeeded', $task->getState());
-        $assignment = $this->em->getRepository(ProxmoxGuestAssignment::class)->findOneBy(['cluster' => $this->cluster, 'vmId' => 1001]);
+        self::assertArrayNotHasKey('root_password_setup', $task->getInstallation());
+        $assignment = $assignments->findOneBy($guest);
         self::assertSame($this->customer, $assignment?->getCustomer());
         self::assertSame('easywi-owned-'.substr($requestKey, 0, 16), $assignment->getIdentityTag());
         $this->manager->refreshTask($task);
-        self::assertCount(4, $this->fixture->writes());
+        self::assertCount($passwordWrites, $this->fixture->writes());
+        if ($preparePassword) {
+            self::assertSame('ready', $this->manager->passwordState($assignment, $this->customer, (string) $task->getId()));
+            $password = self::getContainer()->get(\App\Module\Nodes\Application\VmPasswordDelivery::class)->reveal($assignment, fn (string $id): string => $this->manager->passwordState($assignment, $this->customer, $id));
+            self::assertSame('/nodes/pve-a/qemu/1001/agent/set-user-password', $this->fixture->writes()[4]['path']);
+            $hash = $this->fixture->writes()[4]['body']['password'];
+            self::assertSame($hash, crypt($password, $hash));
+            self::assertNull($assignment->getRootPasswordHandoff());
+        }
         if ($pooled) {
             $this->fixture->guests[3]['status'] = 'stopped';
             $origin = $this->fixture->configs[1001]['ipconfig0'];

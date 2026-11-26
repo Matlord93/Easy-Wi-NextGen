@@ -25,13 +25,13 @@ vm_config.access: "Access"
 vm_config.assigned_ip: "Assigned IP addresses"
 vm_config.live_ip: "Check guest IP addresses"
 vm_config.root_password: "Root password"
-vm_config.root_password_hint: "The panel can replace a forgotten password. The guest's SSH login rules still apply."
-vm_config.root_password_confirm: "Replace the existing root password"
-vm_config.root_password_reset: "Generate a new password"
+vm_config.root_password_hint: "Set a root password after installation or replace a forgotten password. The VM SSH login rules still apply."
+vm_config.root_password_confirm: "Set the VM root password and replace any existing password"
+vm_config.root_password_reset: "Set root password"
 vm_config.root_password_unavailable: "Changing the password requires a running VM with QEMU Guest Agent enabled and an updated host agent or the required Proxmox permission."
 vm_config.root_password_copy: "New password shown once"
-vm_config.root_password_pending: "Save this password. It takes effect once the task is marked successful in Activity."
-vm_config.root_password_ready: "The root password has changed. Save the new password now."
+vm_config.root_password_pending: "The VM has yet to confirm the password change. You can retrieve the password here once it has been confirmed."
+vm_config.root_password_ready: "The VM has confirmed the password change. Save the displayed password now."
 vm_config.root_password_back: "Back to VM"
 
 vm_config.address_switch: 'Switch reserved IP'
@@ -40,3 +40,14 @@ vm_config.address_switch_proxmox_ssh: 'Cloud-Init can regenerate the SSH host ke
 vm_config.address_switch_current: 'Currently configured address'
 vm_config.address_switch_confirm: 'I confirm switching this address.'
 vm_config.address_switch_unavailable: 'Switching requires a stopped VM with a managed pool address and Cloud-Init.'
+vm_config.root_password_reveal: "Show root password once"
+vm_config.root_password_expiry_hint: "You can view the password once within 24 hours."
+vm_config.root_password_refresh: "Refresh status"
+vm_config.root_password_custom: "Enter your own password"
+vm_config.root_password_custom_hint: "Leave both fields empty to generate a random password."
+vm_config.root_password_new: "New password"
+vm_config.root_password_repeat: "Repeat password"
+vm_config.root_password_invalid: "The entries must match and contain 12 to 128 bytes with no control characters."
+vm_config.root_password_busy: "A password change is already in progress for this VM. Refresh the status."
+vm_config.root_password_not_revealable: "The password is pending, has expired or was invalidated by a VM operation. Check Activity for the job status."
+vm_config.install_password: "Prepare a new root password for retrieval after the first boot"

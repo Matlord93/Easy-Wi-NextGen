@@ -11,6 +11,8 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Nodes\Application\Console\VmConsoleBroker;
 use App\Module\Nodes\Application\InfrastructureUsage;
 use App\Module\Nodes\Application\Kvm\CustomerKvmService;
+use App\Module\Nodes\Application\VmPasswordDelivery;
+use App\Module\Nodes\Application\VmRootPassword;
 use App\Module\Nodes\Domain\Entity\KvmGuestAssignment;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -25,7 +27,7 @@ use Symfony\Component\Uid\Uuid;
 #[Route('/customer/kvm')]
 final class CustomerKvmController extends AbstractController
 {
-    public function __construct(private readonly EntityManagerInterface $em, private readonly VmConsoleBroker $console, private readonly CustomerKvmService $kvm)
+    public function __construct(private readonly EntityManagerInterface $em, private readonly VmConsoleBroker $console, private readonly CustomerKvmService $kvm, private readonly VmPasswordDelivery $passwords)
     {
     }
 
@@ -49,7 +51,9 @@ final class CustomerKvmController extends AbstractController
         $guest = $this->kvm->guest($assignment, $actor);
         $consoleReason = $this->console->unavailableReason($guest, $assignment->getNode());
 
-        return $this->render('customer/kvm/guest.html.twig', ['assignment' => $assignment, 'guest' => $guest, 'jobs' => $this->kvm->recent($assignment, $actor), 'operationId' => Uuid::v4()->toRfc4122(), 'consoleConfigured' => null === $consoleReason, 'consoleUnavailableReason' => $consoleReason, 'activeNav' => 'kvm'], new Response(headers: ['Cache-Control' => 'private, no-store']));
+        $passwordState = $this->passwords->state($assignment, fn (string $operation): string => $this->kvm->passwordState($assignment, $actor, $operation));
+
+        return $this->render('customer/kvm/guest.html.twig', ['assignment' => $assignment, 'guest' => $guest, 'jobs' => $this->kvm->recent($assignment, $actor), 'passwordState' => $passwordState, 'operationId' => Uuid::v4()->toRfc4122(), 'consoleConfigured' => null === $consoleReason, 'consoleUnavailableReason' => $consoleReason, 'activeNav' => 'kvm'], new Response(headers: ['Cache-Control' => 'private, no-store']));
     }
 
     #[Route('/{id<\d+>}/action', name: 'customer_kvm_action', methods: ['POST'])]
@@ -66,7 +70,14 @@ final class CustomerKvmController extends AbstractController
         }
         $submitted = false;
         try {
-            $job = $this->kvm->submit($assignment, $actor, $action, $request->request->all());
+            $input = $request->request->all();
+            if ('vm.reinstall' === $action && '1' === ($input['prepare_root_password'] ?? null)) {
+                $operation = $this->passwords->queueChange($assignment, VmRootPassword::prepare(),
+                    fn (string $hash): string => $this->kvm->submit($assignment, $actor, $action, $input, $hash)->getId());
+                $job = $this->em->find(AgentJob::class, $operation) ?? throw new \LogicException('The queued KVM installation job was not found.');
+            } else {
+                $job = $this->kvm->submit($assignment, $actor, $action, $input);
+            }
             if ($request->isXmlHttpRequest()) {
                 return new JsonResponse(['job_id' => $job->getId(), 'status' => $job->getStatus()->value], 202, ['Cache-Control' => 'private, no-store']);
             }
@@ -98,18 +109,37 @@ final class CustomerKvmController extends AbstractController
             throw new AccessDeniedHttpException();
         }
         try {
-            $credentials = \App\Module\Nodes\Application\VmRootPassword::generate();
-            $this->kvm->submit($assignment, $actor, 'vm.root_password', [
-                'operation_id' => Uuid::v4()->toRfc4122(), 'confirm' => '1', 'password_hash' => $credentials->hash,
-            ]);
-        } catch (\InvalidArgumentException|\RuntimeException) {
+            $credentials = VmRootPassword::prepare($request->request->getString('password'), $request->request->getString('password_confirm'));
+            $this->passwords->queueChange($assignment, $credentials, fn (string $hash): string => $this->kvm->submit($assignment, $actor, 'vm.root_password', [
+                'operation_id' => Uuid::v4()->toRfc4122(), 'confirm' => '1', 'password_hash' => $hash,
+            ])->getId());
+        } catch (\InvalidArgumentException $exception) {
+            $key = $exception->getMessage();
+            $this->addFlash('kvm_customer_error', str_starts_with($key, 'vm_config.') || str_starts_with($key, 'kvm.') ? $key : 'kvm.customer_unavailable');
+        } catch (\RuntimeException) {
             $this->addFlash('kvm_customer_error', 'kvm.customer_unavailable');
-
-            return $this->redirectToRoute('customer_kvm_guest', ['id' => $id], 303);
         }
 
+        return $this->redirectToRoute('customer_kvm_guest', ['id' => $id, '_fragment' => 'kvm-access'], 303);
+    }
+
+    #[Route('/{id<\d+>}/root-password/reveal', name: 'customer_kvm_root_password_reveal', methods: ['POST'])]
+    public function revealRootPassword(Request $request, int $id): Response
+    {
+        $actor = $this->actor($request);
+        $assignment = $this->assignment($id, $actor);
+        if (!$this->isCsrfTokenValid('kvm-customer-'.$id, $request->request->getString('_token'))) {
+            throw new AccessDeniedHttpException();
+        }
+        try {
+            $password = $this->passwords->reveal($assignment, fn (string $operation): string => $this->kvm->passwordState($assignment, $actor, $operation));
+        } catch (\InvalidArgumentException|\RuntimeException) {
+            $this->addFlash('kvm_customer_error', 'vm_config.root_password_not_revealable');
+
+            return $this->redirectToRoute('customer_kvm_guest', ['id' => $id, '_fragment' => 'kvm-access'], 303);
+        }
         return $this->render('customer/vm/root-password.html.twig', [
-            'password' => $credentials->password, 'pending' => true, 'back' => $this->generateUrl('customer_kvm_guest', ['id' => $id, '_fragment' => 'kvm-activity']), 'activeNav' => 'kvm',
+            'password' => $password, 'back' => $this->generateUrl('customer_kvm_guest', ['id' => $id, '_fragment' => 'kvm-access']), 'activeNav' => 'kvm',
         ], new Response(headers: ['Cache-Control' => 'private, no-store', 'Referrer-Policy' => 'no-referrer']));
     }
 
@@ -118,7 +148,7 @@ final class CustomerKvmController extends AbstractController
     {
         $assignment = $this->assignment($id, $this->actor($request));
         $job = $this->em->find(AgentJob::class, $jobId);
-        if (!$job || 'kvm.managed' !== $job->getType() || $job->getNode()->getId() !== $assignment->getNode()->getId() || ($job->getPayload()['vm_id'] ?? '') !== $assignment->getVmUuid() || !in_array($job->getPayload()['action'] ?? '', CustomerKvmService::ACTIONS, true)) {
+        if (!$job || !$this->kvm->ownsJob($assignment, $job)) {
             throw $this->createNotFoundException();
         }
 

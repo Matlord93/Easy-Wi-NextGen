@@ -14,6 +14,8 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Nodes\Application\InfrastructureUsage;
 use App\Module\Nodes\Application\Kvm\KvmOperationLock;
 use App\Module\Nodes\Application\Kvm\KvmPanelService;
+use App\Module\Nodes\Application\VmPasswordDelivery;
+use App\Module\Nodes\Application\VmRootPassword;
 use App\Module\Nodes\Domain\Entity\KvmGuestAssignment;
 use App\Repository\AgentJobRepository;
 use App\Repository\AgentRepositoryInterface;
@@ -36,6 +38,7 @@ final class AdminKvmController extends AbstractController
         private readonly KvmPanelService $kvm,
         private readonly AuditLoggerInterface $audit,
         private readonly EntityManagerInterface $em,
+        private readonly VmPasswordDelivery $passwords,
     ) {
     }
 
@@ -57,7 +60,7 @@ final class AdminKvmController extends AbstractController
     }
 
     #[Route('/nodes/{id}/actions', name: 'admin_kvm_action', methods: ['POST'])]
-    public function action(Request $request, string $id): Response
+    public function action(Request $request, string $id, KvmOperationLock $lock): Response
     {
         $actor = $this->actor($request);
         $node = $this->nodeById($id);
@@ -66,7 +69,11 @@ final class AdminKvmController extends AbstractController
         }
         try {
             $action = (string) $request->request->get('action', '');
-            $job = $this->kvm->submit($node, $action, $request->request->all());
+            $input = $request->request->all();
+            unset($input['install_password_hash']);
+            $job = 'vm.create' === $action
+                ? $lock->run($node, fn (): AgentJob => $this->queueInstallation($node, $input, $request->request->getInt('customer_id')))
+                : $this->kvm->submit($node, $action, $input);
             // Deliberately exclude template URLs, SSH keys and raw job payloads.
             $this->audit->log($actor, 'kvm.job_requested', ['node_id' => $id, 'job_id' => $job->getId(), 'action' => $action]);
             $this->em->flush();
@@ -92,14 +99,46 @@ final class AdminKvmController extends AbstractController
         return $this->redirectToRoute('admin_kvm_node', ['id' => $id], 303);
     }
 
+    private function queueInstallation(Agent $node, array $input, int $customerId): AgentJob
+    {
+        $preparePassword = '1' === ($input['prepare_root_password'] ?? null);
+        if (0 === $customerId && !$preparePassword) {
+            return $this->kvm->submit($node, 'vm.create', $input);
+        }
+        $customer = $this->em->find(User::class, $customerId);
+        $uuid = $input['operation_id'] ?? '';
+        if (!$customer?->isCustomer() || !is_string($uuid)) {
+            throw new \InvalidArgumentException('kvm.install_customer_required');
+        }
+        if (null !== $this->em->getRepository(KvmGuestAssignment::class)->findOneBy(['node' => $node, 'vmUuid' => $uuid])) {
+            throw new \InvalidArgumentException('kvm.busy');
+        }
+        $password = $preparePassword ? VmRootPassword::prepare() : null;
+        if ($password !== null) {
+            $input['start_after_install'] = '1';
+            $input['install_password_hash'] = $password->hash;
+        }
+        $job = $this->kvm->submit($node, 'vm.create', $input);
+        $assignment = new KvmGuestAssignment($node, $uuid, $customer);
+        if ($password !== null) {
+            $this->passwords->remember($assignment, $password, $job->getId());
+        }
+        $customer->setCustomerAccessEnabled(true);
+        $this->em->persist($assignment);
+        $this->em->flush();
+
+        return $job;
+    }
+
     #[Route('/nodes/{id}/guests/{uuid}', name: 'admin_kvm_guest', methods: ['GET'])]
     public function guest(Request $request, string $id, string $uuid): Response
     {
         $this->actor($request);
         $node = $this->nodeById($id);
         $vm = $this->findGuest($node, $uuid);
+        $inventory = $this->kvm->inventory($node);
 
-        return $this->render('admin/kvm/guest.html.twig', ['node' => $node, 'vm' => $vm, 'inventory' => $this->kvm->inventory($node), 'jobs' => array_values(array_filter($this->kvm->recent($node), static fn (AgentJob $job): bool => ($job->getPayload()['vm_id'] ?? '') === $uuid)), 'operationId' => Uuid::v4()->toRfc4122(), 'customers' => $this->em->getRepository(User::class)->findBy(['type' => UserType::Customer], ['email' => 'ASC']), 'assignments' => $this->assignmentMap($node), 'activeNav' => 'kvm'], new Response(headers: ['Cache-Control' => 'private, no-store']));
+        return $this->render('admin/kvm/guest.html.twig', ['node' => $node, 'vm' => $vm, 'inventory' => $inventory, 'rollbackOperation' => $this->kvm->reinstallationForRollback($node, $uuid, $inventory), 'jobs' => array_values(array_filter($this->kvm->recent($node), static fn (AgentJob $job): bool => ($job->getPayload()['vm_id'] ?? '') === $uuid)), 'operationId' => Uuid::v4()->toRfc4122(), 'customers' => $this->em->getRepository(User::class)->findBy(['type' => UserType::Customer], ['email' => 'ASC']), 'assignments' => $this->assignmentMap($node), 'activeNav' => 'kvm'], new Response(headers: ['Cache-Control' => 'private, no-store']));
     }
 
     #[Route('/nodes/{id}/usage', name: 'admin_kvm_node_usage', methods: ['GET'])]

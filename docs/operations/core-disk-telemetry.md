@@ -8,7 +8,12 @@ Job-Ergebnissen. Zuvor ersetzte er die gesamten Metadaten: Dadurch verschwanden
 Festplattenwerte und ihr Messzeitpunkt; der Scheduler konnte unnötig weitere
 Scans einplanen. Weggefallene native Fähigkeiten werden weiterhin entfernt.
 
-`disk:scan:reconcile` berücksichtigt wartende, beanspruchte und laufende Disk-Jobs.
+Der zentrale Scheduler (`app:run-schedules`) plant Messungen für Linux-Gameserver
+auch bei gestoppten Instanzen anhand des eingestellten Agent-Intervalls ein.
+`disk:scan:reconcile` verwendet dieselbe Logik für einen manuellen Lauf.
+Beide berücksichtigen wartende, beanspruchte und laufende Disk-Jobs. Der
+Scheduler wählt über alle Agenten zuerst die ältesten fälligen Messungen aus.
+Erfolgreiche Hintergrundmessungen erzeugen keine Admin-Benachrichtigung.
 Ein Symfony-Lock verhindert gleichzeitig laufende Scheduler auf demselben
 Panel-Host. Fehlgeschlagene oder abgeschlossene Jobs blockieren den nächsten Scan
 nicht. Die Scanintervalle und das Instanz-Batchlimit bleiben erhalten.
@@ -48,6 +53,10 @@ Migration entfernt ausschließlich die beiden neu benannten Indizes.
 Nach dem Rollout müssen `disk_stat.checked_at` und die Werte mehrere Heartbeats
 überstehen, aktive Disk-Jobs dürfen durch wiederholte Scheduler-Aufrufe nicht
 anwachsen, und der letzte Sparkline-Punkt muss dem jüngsten Messwert entsprechen.
+Die Gameserver-Übersicht liest den gespeicherten Messwert einmal pro Minute.
+Sie kennzeichnet fehlende oder veraltete Werte. Nach einem Messfehler bleibt
+der letzte gültige Wert erhalten. Die Größe eines Gameserver-Verzeichnisses
+lässt sich mit `du -sb -- "$INSTALL_PATH"` vergleichen.
 Kapazitäten mit `df -B1 /` beziehungsweise `df -B1 "$EASYWI_INSTANCE_BASE_DIR"`
 auf dem Agent vergleichen. Der bisherige Lock-Store ist `flock`; mehrere
 Panel-Hosts benötigen weiterhin einen gemeinsam konfigurierten Lock-Store.

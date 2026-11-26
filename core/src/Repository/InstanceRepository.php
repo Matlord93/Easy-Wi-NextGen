@@ -7,6 +7,8 @@ namespace App\Repository;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\InstanceStatus;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -30,19 +32,37 @@ final class InstanceRepository extends ServiceEntityRepository implements Instan
     }
 
     /**
+     * @param list<Agent> $nodes
+     * @param list<int|string> $excludedIds
      * @return Instance[]
      */
     #[\Override]
-    public function findScanCandidates(Agent $node, \DateTimeImmutable $threshold, int $limit): array
+    public function findScanCandidates(array $nodes, \DateTimeImmutable $now, int $limit, array $excludedIds): array
     {
-        return EntityQueryResult::all($this->createQueryBuilder('i')
-            ->andWhere('i.node = :node')
-            ->andWhere('i.diskLastScannedAt IS NULL OR i.diskLastScannedAt < :threshold')
-            ->setParameter('node', QueryParameter::entityId($node->getId(), \App\Module\Core\Domain\Entity\Agent::class))
-            ->setParameter('threshold', $threshold, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+        if ($nodes === []) {
+            return [];
+        }
+
+        $query = $this->createQueryBuilder('i');
+        $due = $query->expr()->orX();
+        foreach ($nodes as $index => $node) {
+            $nodeParam = 'node'.$index;
+            $timeParam = 'time'.$index;
+            $due->add(sprintf('(i.node = :%s AND (i.diskLastScannedAt IS NULL OR i.diskLastScannedAt <= :%s))', $nodeParam, $timeParam));
+            $query->setParameter($nodeParam, QueryParameter::entityId($node->getId(), Agent::class))
+                ->setParameter($timeParam, $now->modify(sprintf('-%d seconds', $node->getDiskScanIntervalSeconds())), Types::DATETIME_IMMUTABLE);
+        }
+        $query->andWhere($due)
+            ->andWhere('i.status NOT IN (:uninstalled)')
+            ->setParameter('uninstalled', [InstanceStatus::PendingSetup->value, InstanceStatus::Provisioning->value])
             ->orderBy('i.diskLastScannedAt', 'ASC')
-            ->setMaxResults($limit)
-            ->getQuery(), \App\Module\Core\Domain\Entity\Instance::class);
+            ->addOrderBy('i.id', 'ASC')
+            ->setMaxResults($limit);
+        if ([] !== $excludedIds) {
+            $query->andWhere('i.id NOT IN (:activeScans)')->setParameter('activeScans', array_map('intval', $excludedIds));
+        }
+
+        return EntityQueryResult::all($query->getQuery(), Instance::class);
     }
 
     /**

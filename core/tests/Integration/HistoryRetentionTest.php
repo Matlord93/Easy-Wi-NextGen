@@ -10,7 +10,9 @@ use App\Module\Core\Application\JobHistoryPolicy;
 use App\Module\Core\Application\JobHistoryRetention;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Application\MetricsRetentionService;
+use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Application\Scheduler\CentralSchedulerRunner;
+use App\Module\Core\Application\Scheduler\JobsCleanupScheduleHandler;
 use App\Module\Core\Application\Scheduler\MetricsCleanupScheduleHandler;
 use App\Module\Core\Application\Scheduler\ScheduleExecutionResult;
 use App\Module\Core\Application\Scheduler\ScheduleHandlerInterface;
@@ -36,6 +38,11 @@ use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Nodes\Domain\Entity\KvmGuestAssignment;
+use App\Module\Nodes\Application\VmPasswordDelivery;
+use App\Module\Nodes\Domain\Entity\ProxmoxCluster;
+use App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment;
+use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
 use App\Repository\JobRepositoryInterface;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -154,6 +161,47 @@ final class HistoryRetentionTest extends KernelTestCase
         self::assertSame(1, (int) $this->db->fetchOne('SELECT COUNT(*) FROM job_logs'));
         self::assertSame(100, $running->getProgress());
         self::assertStringContainsString('Original detailed error', $this->db->fetchOne('SELECT output FROM job_results'));
+    }
+
+    public function testJobCleanupRemovesExpiredVmPasswordHandoffsForBothProviders(): void
+    {
+        $customer = new User('vm-password-retention@example.test', UserType::Customer);
+        $customer->setPasswordHash('fixture-only');
+        $agent = new Agent('vm-password-retention', ['key_id' => 'fixture', 'nonce' => 'fixture', 'ciphertext' => 'fixture']);
+        $cluster = new ProxmoxCluster('Retention fixture', new ProxmoxConnection('https://pve.example.test', 'panel@pve!fixture', 'fixture-token'), self::getContainer()->get(SecretsCryptoInterface::class));
+        foreach ([$customer, $agent, $cluster] as $entity) {
+            $this->em->persist($entity);
+        }
+        $assignments = [];
+        foreach ([-1, 0, 1, null] as $i => $secondsToExpiry) {
+            $handoff = $secondsToExpiry === null ? null : ['operation' => 'fixture-'.$i, 'expires_at' => $this->now->getTimestamp() + $secondsToExpiry, 'ciphertext' => 'fixture-ciphertext'];
+            $kvm = new KvmGuestAssignment($agent, sprintf('11111111-1111-4111-8111-%012d', $i), $customer);
+            $proxmox = new ProxmoxGuestAssignment($cluster, 100 + $i, 'qemu', $customer, 'easywi-owned-0123456789abcdef');
+            foreach ([$kvm, $proxmox] as $assignment) {
+                $assignment->setRootPasswordHandoff($handoff);
+                $this->em->persist($assignment);
+                $assignments[] = [$assignment, $secondsToExpiry === 1 ? $handoff : null];
+            }
+        }
+        $this->em->flush();
+
+        $container = self::getContainer();
+        self::assertInstanceOf(JobsCleanupScheduleHandler::class, $container->get(ScheduleHandlerRegistry::class)->get('cleanup.jobs'));
+        $handler = new JobsCleanupScheduleHandler($container->get(JobHistoryRetention::class), new ArrayAdapter(), $container->get(VmPasswordDelivery::class));
+        $first = $handler->runDue($this->now);
+        self::assertSame('success', $first->status);
+        self::assertStringContainsString('4 expired VM password handoffs', $first->message ?? '');
+        self::assertSame('skipped', $handler->runDue($this->now)->status);
+        foreach ($assignments as [$assignment, $expected]) {
+            $this->em->refresh($assignment);
+            self::assertSame($expected, $assignment->getRootPasswordHandoff());
+            self::assertSame($customer->getId(), $assignment->getCustomer()->getId());
+        }
+
+        $second = $handler->runNow('system', 'cleanup.jobs', $this->now);
+        self::assertSame('success', $second->status);
+        self::assertStringContainsString('0 expired VM password handoffs', $second->message ?? '');
+        self::assertStringContainsString('2 expired VM password handoffs', $handler->runNow('system', 'cleanup.jobs', $this->now->modify('+1 second'))->message ?? '');
     }
 
     public function testCentralSchedulerExecutesAllHandlersButPersistsOnlyFailuresInErrorMode(): void

@@ -10,13 +10,15 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\ShopContract;
 use App\Module\Core\Domain\Enum\ShopProductKind;
 use App\Module\Nodes\Application\Kvm\KvmPanelService;
+use App\Module\Nodes\Application\VmPasswordDelivery;
+use App\Module\Nodes\Application\VmRootPassword;
 use App\Module\Nodes\Domain\Entity\KvmGuestAssignment;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Uid\Uuid;
 
 final readonly class KvmContractProvider implements ContractResourceProvider
 {
-    public function __construct(private EntityManagerInterface $em, private KvmPanelService $kvm, private ContractJobs $jobs, private RentalCapacity $capacity)
+    public function __construct(private EntityManagerInterface $em, private KvmPanelService $kvm, private ContractJobs $jobs, private RentalCapacity $capacity, private VmPasswordDelivery $passwords)
     {
     }
 
@@ -35,6 +37,7 @@ final readonly class KvmContractProvider implements ContractResourceProvider
             throw new \DomainException('KVM_NODE_MISSING');
         }
         $id = Uuid::v4()->toRfc4122();
+        $password = 1 === ($node->getMetadata()['kvm_managed']['install_access_version'] ?? null) ? VmRootPassword::prepare() : null;
         $job = $this->kvm->submit($node, 'vm.create', [
             'operation_id' => $id,
             'label' => (string) $c['name'].' #'.($contract->getId() ?? 0),
@@ -48,8 +51,11 @@ final readonly class KvmContractProvider implements ContractResourceProvider
             'vcpus' => (int) $c['cpu'],
             'memory_mib' => (int) $c['ram_mib'],
             'disk_gib' => (int) $c['disk'],
-        ]);
+        ] + ($password === null ? [] : ['start_after_install' => '1', 'install_password_hash' => $password->hash]));
         $assignment = new KvmGuestAssignment($node, $id, $contract->getCustomer());
+        if ($password !== null) {
+            $this->passwords->remember($assignment, $password, $job->getId());
+        }
         $this->em->persist($assignment);
         $this->em->flush();
         $contract->bind($id, $job->getId(), 'agent');

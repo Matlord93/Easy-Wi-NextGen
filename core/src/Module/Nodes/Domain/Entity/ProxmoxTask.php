@@ -11,8 +11,9 @@ use Doctrine\ORM\Mapping as ORM;
  *
  * @psalm-api
  * @psalm-type RentalResources = array{cores:int, memory_mib:int, disk_gib:int}
- * @psalm-type Installation = array{hostname: string, username: string, keys: list<string>, phase: string, customer_id: ?int, clone_submitted?: true, rental_id?: int, resources?: RentalResources}
- * @psalm-type Reinstallation = array{phase: string, assignment_id: int, tag: string, product_id: int, digest: string, configuration: string, original_volume: string, device: string, device_options: string, disk_gib: int, source_volume: string, source_digest: string, replacement_volume?: string, started_at?: int}
+ * @psalm-type InstallationPasswordSetup = array{ciphertext: string, hash_ciphertext: string, requested_at: int, attempted_at: int}
+ * @psalm-type Installation = array{hostname: string, username: string, keys: list<string>, phase: string, customer_id: ?int, clone_submitted?: true, rental_id?: int, resources?: RentalResources, prepare_root_password?: 'required'|'if-supported', started_at?: int, root_password_setup?: InstallationPasswordSetup}
+ * @psalm-type Reinstallation = array{phase: string, assignment_id: int, tag: string, product_id: int, digest: string, configuration: string, original_volume: string, device: string, device_options: string, disk_gib: int, source_volume: string, source_digest: string, import_serial?: string, replacement_volume?: string, started_at?: int, removal_requested_at?: int, step_submitted_at?: int, install_password_hash?: string, password_requested_at?: int, rollback_requested_at?: int}
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'proxmox_tasks')]
@@ -92,6 +93,9 @@ class ProxmoxTask
 
     public function finish(bool $success, string $result): void
     {
+        if (isset($this->installation['root_password_setup'])) {
+            unset($this->installation['root_password_setup']);
+        }
         $this->state = $success ? 'succeeded' : 'failed';
         $this->guestLock = null;
         $this->targetLock = null;
@@ -102,6 +106,9 @@ class ProxmoxTask
     /** Retain the exclusive VM claim until the upstream outcome is reviewed. */
     public function uncertain(string $reason = 'dispatch_unknown'): void
     {
+        if (isset($this->installation['root_password_setup'])) {
+            unset($this->installation['root_password_setup']);
+        }
         $this->state = 'uncertain';
         $this->result = $reason;
     }
@@ -187,6 +194,17 @@ class ProxmoxTask
         $this->dispatched($upid);
     }
 
+    /** @param Reinstallation $plan */
+    public function queueReinstallationRollback(array $plan): void
+    {
+        if ('uncertain' !== $this->state) {
+            throw new \LogicException('Only an uncertain reinstallation can be queued for rollback.');
+        }
+        $this->beginReinstallationStep($plan);
+        $this->reinstallationStepDispatched(null);
+        $this->result = null;
+    }
+
     public function installationPhase(string $phase): void
     {
         if (!isset($this->installation['hostname'])) {
@@ -198,11 +216,19 @@ class ProxmoxTask
     public function beginInstallationStart(): void
     {
         $this->beginInstallationStep('starting');
+        $this->installation['started_at'] = time();
     }
 
     public function beginInstallationResize(): void
     {
         $this->beginInstallationStep('resizing');
+    }
+
+    /** @param InstallationPasswordSetup $setup */
+    public function recordInstallationPasswordAttempt(#[\SensitiveParameter] array $setup): void
+    {
+        $this->beginInstallationStep('setting_password');
+        $this->installation['root_password_setup'] = $setup;
     }
 
     private function beginInstallationStep(string $phase): void

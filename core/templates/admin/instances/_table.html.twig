@@ -142,7 +142,7 @@
                             <div style="margin-top:4px;font-size:11px;color:#d97706;">{{ instance.install_error_code == 'MINECRAFT_AGENT_UPDATE_REQUIRED' ? t('minecraft_agent_update_required', page_locale()) : instance.install_error_code }}</div>
                         {% endif %}
                     </details>{% endif %}</td>
-                    <td><div class="pm-limit-line">CPU {{ instance.cpu_limit }}% · RAM {{ instance.ram_limit }} MiB</div><div class="pm-cell-sub">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}</div><meter class="pm-meter" min="0" max="100" value="{{ diskBarWidth }}" aria-label="Disk"></meter><details class="pm-row-details"><summary>{{ 'configuration'|trans({},'panel_modules') }}</summary>
+                    <td><div class="pm-limit-line">CPU {{ instance.cpu_limit }}% · RAM {{ instance.ram_limit }} MiB</div><div class="pm-cell-sub">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}{% if instance.disk_measurement_state != 'current' %} · {{ ('workspace_disk_' ~ instance.disk_measurement_state)|trans({}, 'panel_modules') }}{% endif %}</div>{% if instance.disk_measurement_state != 'unknown' and instance.disk_limit_bytes > 0 %}<meter class="pm-meter" min="0" max="100" value="{{ diskBarWidth }}" aria-label="Disk"></meter>{% endif %}<details class="pm-row-details"><summary>{{ 'configuration'|trans({},'panel_modules') }}</summary>
                         <div style="font-size:12px;">{{ instance.cpu_limit }}% · {{ instance.ram_limit }} MB · {{ instance.disk_limit }} MB</div>
                         <details style="margin-top:6px;">
                             <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#6366f1;">{{ t('admin_instances_update_resources', page_locale()) }}</summary>
@@ -164,11 +164,13 @@
 
                         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                             <span class="ui-badge ui-badge--{{ diskVariant }}">{{ instance.disk_state|replace({'_': ' '})|title }}</span>
-                            <span style="font-size:11px;color:var(--color-text-muted,#64748b);">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}</span>
+                            <span style="font-size:11px;color:var(--color-text-muted,#64748b);">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}{% if instance.disk_measurement_state != 'current' %} · {{ ('workspace_disk_' ~ instance.disk_measurement_state)|trans({}, 'panel_modules') }}{% endif %}</span>
                         </div>
+                        {% if instance.disk_measurement_state != 'unknown' and instance.disk_limit_bytes > 0 %}
                         <div style="margin-top:6px;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;">
                             <div style="height:4px;background:#6366f1;border-radius:2px;width:{{ diskBarWidth }}%;"></div>
                         </div>
+                        {% endif %}
 
                         <span class="ui-badge ui-badge--{{ installVariant }}">
                             {{ instance.install_ready ? t('admin_instances_install_ready', page_locale()) : t('admin_instances_setup_open', page_locale()) }}

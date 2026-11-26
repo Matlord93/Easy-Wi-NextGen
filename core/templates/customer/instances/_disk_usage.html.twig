@@ -1,0 +1,14 @@
+<div class="pm-stat" data-disk-measurement="{{ instance.disk_measurement_state }}" hx-get="{{ path('customer_instance_disk_usage', {id: instance.id}) }}" hx-trigger="every 60s" hx-swap="outerHTML">
+    <div>
+        <span>{{ 'workspace_storage'|trans({}, 'panel_modules') }}</span>
+        <strong>{{ instance.disk_used_human }} <small>/ {{ instance.disk_limit_human }}</small></strong>
+        {% if instance.disk_measurement_state != 'unknown' and instance.disk_limit_bytes > 0 %}
+            <meter class="pm-meter" min="0" max="100" value="{{ min(100, max(0, instance.disk_percent)) }}" aria-label="{{ 'workspace_storage'|trans({}, 'panel_modules') }}"></meter>
+        {% endif %}
+        {% if instance.disk_measurement_state != 'current' %}
+            <small class="pm-cell-sub">{{ ('workspace_disk_' ~ instance.disk_measurement_state)|trans({}, 'panel_modules') }}</small>
+        {% elseif instance.disk_last_scanned_at %}
+            <small class="pm-cell-sub">{{ 'workspace_disk_checked'|trans({'%time%': instance.disk_last_scanned_at|date('H:i')}, 'panel_modules') }}</small>
+        {% endif %}
+    </div>
+</div>

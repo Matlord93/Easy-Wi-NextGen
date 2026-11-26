@@ -10,7 +10,9 @@ use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\ShopContract;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Nodes\Application\VmGuestNetworkReport;
+use App\Module\Nodes\Application\VmPasswordDelivery;
 use App\Module\Nodes\Application\VmProvisioningSettings;
+use App\Module\Nodes\Application\VmRootPassword;
 use App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment;
 use App\Module\Nodes\Domain\Entity\ProxmoxTask;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxApiException;
@@ -21,11 +23,15 @@ use Symfony\Component\Lock\LockFactory;
 
 /**
  * @psalm-import-type Installation from ProxmoxTask
+ * @psalm-import-type InstallationPasswordSetup from ProxmoxTask
  * @psalm-import-type RentalResources from ProxmoxTask
  */
 final readonly class ProxmoxInstallation
 {
-    public function __construct(private ProxmoxApiClient $api, private SecretsCryptoInterface $crypto, private EntityManagerInterface $em, private LockFactory $locks, private AuditLoggerInterface $audit, private ProxmoxIpPools $ipPools)
+    private const PASSWORD_CONFIRMATION_SECONDS = 300;
+    private const PASSWORD_RETRY_SECONDS = 15;
+
+    public function __construct(private ProxmoxApiClient $api, private SecretsCryptoInterface $crypto, private EntityManagerInterface $em, private LockFactory $locks, private AuditLoggerInterface $audit, private ProxmoxIpPools $ipPools, private VmPasswordDelivery $passwords)
     {
     }
 
@@ -37,11 +43,13 @@ final readonly class ProxmoxInstallation
             throw new \InvalidArgumentException('vm_config.invalid_username');
         }
         $customerId = '' === ($input['customer_id'] ?? '') ? null : filter_var($input['customer_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-        if (false === $customerId) {
+        $preparePassword = '1' === ($input['prepare_root_password'] ?? null);
+        if (false === $customerId || ($preparePassword && null === $customerId)) {
             throw new \InvalidArgumentException('pve.error.customer');
         }
 
-        return ['hostname' => VmProvisioningSettings::hostname($input['name'] ?? null), 'username' => $username, 'keys' => VmProvisioningSettings::publicKeys($input['ssh_keys'] ?? null), 'phase' => 'cloning', 'customer_id' => $customerId];
+        return ['hostname' => VmProvisioningSettings::hostname($input['name'] ?? null), 'username' => $username, 'keys' => VmProvisioningSettings::publicKeys($input['ssh_keys'] ?? null), 'phase' => 'cloning', 'customer_id' => $customerId]
+            + ($preparePassword ? ['prepare_root_password' => 'required'] : []);
     }
 
     public static function assertTemplate(array $config): void
@@ -59,6 +67,13 @@ final readonly class ProxmoxInstallation
     public static function marker(string $requestKey): string
     {
         return 'Easy-WI installation '.$requestKey;
+    }
+
+    public function assertRootPasswordPermission(ProxmoxConnection $connection, int $vmId): void
+    {
+        if (!$this->api->hasRootPasswordPermission($connection, $vmId)) {
+            throw new \InvalidArgumentException('pve.error.install_password_permission');
+        }
     }
 
     /**
@@ -133,11 +148,11 @@ final readonly class ProxmoxInstallation
             }
             if ($task->getCreatedAt() < new \DateTimeImmutable('-30 minutes')) {
                 if ('queued' === $task->getState()) {
-                    $task->finish(false, 'preflight_failed');
+                    $this->failQueuedInstallation($task, 'preflight_failed');
                 } else {
                     $task->uncertain('installation_timeout');
+                    $this->em->flush();
                 }
-                $this->em->flush();
 
                 return;
             }
@@ -149,6 +164,7 @@ final readonly class ProxmoxInstallation
                 return;
             }
             $phase = $settings['phase'];
+            $passwordSetup = $settings['root_password_setup'] ?? null;
             $upid = $task->getUpid();
             $recoveringClone = 'cloning' === $phase && null === $upid;
             if ($recoveringClone && !isset($settings['clone_submitted'])) {
@@ -167,10 +183,19 @@ final readonly class ProxmoxInstallation
                     return;
                 }
             }
-            if ((in_array($phase, ['configuring', 'booting'], true) || null !== $upid) && !$this->rentalCanProceed($task)) {
+            if ((in_array($phase, ['configuring', 'booting', 'setting_password'], true) || null !== $upid) && !$this->rentalCanProceed($task)) {
                 $task->finish(false, 'cancelled');
                 $this->em->flush();
 
+                return;
+            }
+            if (null !== $passwordSetup && $passwordSetup['requested_at'] <= time() - self::PASSWORD_CONFIRMATION_SECONDS) {
+                $task->uncertain('install_password_unconfirmed');
+                $this->em->flush();
+
+                return;
+            }
+            if (null !== $passwordSetup && $passwordSetup['attempted_at'] > time() - self::PASSWORD_RETRY_SECONDS) {
                 return;
             }
 
@@ -200,8 +225,7 @@ final readonly class ProxmoxInstallation
             }
             if ($recoveringClone) {
                 // Proxmox registers qmclone against the source ID and may unlock the clone before the worker exits.
-                $path = '/nodes/'.$node;
-                if (empty($this->api->permissions($connection, $path)[$path]['Sys.Audit'])
+                if (!$this->api->hasPrivilege($connection, '/nodes/'.$node, 'Sys.Audit')
                     || [] !== $this->api->activeTasks($connection, $node, $task->getVmId())
                     || [] !== $this->api->activeTasks($connection, $node, $id)) {
                     return;
@@ -254,14 +278,14 @@ final readonly class ProxmoxInstallation
 
                 return;
             }
-            if ('running' !== ($status['status'] ?? null)) {
+            if ('running' !== ($status['status'] ?? null) || !empty($config['lock'])) {
                 return;
             }
             if (null !== $resources) {
                 self::assertRentalResources($config, $resources);
                 self::assertRentalCloudInit($config, $settings, $ipConfig);
             }
-            if ('booting' !== $phase) {
+            if (!in_array($phase, ['booting', 'setting_password'], true)) {
                 $task->installationPhase('booting');
                 $this->em->flush();
             }
@@ -285,19 +309,8 @@ final readonly class ProxmoxInstallation
                         $hasIpv4 = true;
                     }
                 }
-                if (([] === $expected ? $hasIpv4 : [] === array_diff($expected, $observed)) && $this->api->cloudInitBootFinished($connection, $node, $id)) {
-                    $this->em->getConnection()->transactional(function () use ($task, $connection, $id, $settings, $config, $digest): void {
-                        if (!$this->rentalCanProceed($task, true)) {
-                            $task->finish(false, 'cancelled');
-                        } else {
-                            if (null !== $settings['customer_id']) {
-                                $this->assign($task, $connection, $id, $settings['customer_id'], $config, $digest);
-                            }
-                            $task->finish(true, 'OK');
-                            $this->audit->log(null, 'proxmox.installation_ready', ['cluster_id' => $task->getCluster()->getId(), 'vm_id' => $id, 'task_id' => $task->getId()]);
-                        }
-                        $this->em->flush();
-                    });
+                if (([] === $expected ? $hasIpv4 : [] === array_diff($expected, $observed)) && $this->api->cloudInitBootFinished($connection, $node, $id, $settings['started_at'] ?? null)) {
+                    $this->completeBoot($task, $connection, $id, $settings, $config, $digest);
 
                     return;
                 }
@@ -308,6 +321,7 @@ final readonly class ProxmoxInstallation
                 'pve.error.rental_cloud_init_unconfirmed', 'pve.error.install_template' => 'rental_cloud_init_unconfirmed',
                 'pve.error.identity' => 'identity_mismatch',
                 'pve.error.ip_pool_network' => 'ip_pool_network',
+                'pve.error.install_password_unconfirmed' => 'install_password_unconfirmed',
                 default => 'dispatch_unknown',
             });
             $this->em->flush();
@@ -315,11 +329,11 @@ final readonly class ProxmoxInstallation
             // Connectivity, agent startup and transient provider errors are checked again later.
             if (in_array($error->statusCode, [401, 403], true)) {
                 if ('queued' === $task->getState()) {
-                    $task->finish(false, 'preflight_failed');
+                    $this->failQueuedInstallation($task, 'preflight_failed');
                 } else {
                     $task->uncertain('permission_denied');
+                    $this->em->flush();
                 }
-                $this->em->flush();
             }
         } finally {
             $lock->release();
@@ -334,9 +348,7 @@ final readonly class ProxmoxInstallation
         if ($disk['size_bytes'] === $resources['disk_gib'] * 1073741824) {
             if ('resizing' === $phase && null === $task->getUpid()) {
                 // A cancelled or lost HTTP response might leave the storage task running.
-                $path = '/nodes/'.$task->getNode();
-
-                return !empty($this->api->permissions($connection, $path)[$path]['Sys.Audit'])
+                return $this->api->hasPrivilege($connection, '/nodes/'.$task->getNode(), 'Sys.Audit')
                     && [] === $this->api->activeTasks($connection, $task->getNode(), $id);
             }
 
@@ -389,9 +401,11 @@ final readonly class ProxmoxInstallation
             foreach ($this->ipPools->leases($task) as $lease) {
                 ProxmoxIpPools::assertPort(JsonMap::strings($source)['net0'] ?? '', $lease->getBridge(), $lease->getVlan());
             }
-        } catch (\InvalidArgumentException) {
-            $task->finish(false, 'preflight_failed');
-            $this->em->flush();
+            if ('required' === ($settings['prepare_root_password'] ?? null)) {
+                $this->assertRootPasswordPermission($connection, $target);
+            }
+        } catch (\InvalidArgumentException $error) {
+            $this->failQueuedInstallation($task, 'pve.error.install_password_permission' === $error->getMessage() ? 'install_password_permission' : 'preflight_failed');
 
             return;
         }
@@ -429,6 +443,21 @@ final readonly class ProxmoxInstallation
         $this->em->flush();
     }
 
+    private function failQueuedInstallation(ProxmoxTask $task, string $result): void
+    {
+        $this->em->getConnection()->transactional(function () use ($task, $result): void {
+            $this->em->refresh($task, LockMode::PESSIMISTIC_WRITE);
+            if ('queued' !== $task->getState()) {
+                return;
+            }
+            foreach ($this->ipPools->leases($task) as $lease) {
+                $this->em->remove($lease);
+            }
+            $task->finish(false, $result);
+            $this->em->flush();
+        });
+    }
+
     private function rentalCanProceed(ProxmoxTask $task, bool $lock = false): bool
     {
         $id = $task->getInstallation()['rental_id'] ?? null;
@@ -444,7 +473,91 @@ final readonly class ProxmoxInstallation
         return 'provisioning' === $contract->getStatus() && 'proxmox' === $contract->getJobSystem() && (string) $task->getId() === $contract->getJobId();
     }
 
-    private function assign(ProxmoxTask $task, ProxmoxConnection $connection, int $vmId, int $customerId, array $config, string $digest): void
+    /** @param Installation $settings */
+    private function completeBoot(ProxmoxTask $task, ProxmoxConnection $connection, int $vmId, #[\SensitiveParameter] array $settings, array $config, string $digest): void
+    {
+        if (!$this->rentalCanProceed($task)) {
+            $task->finish(false, 'cancelled');
+            $this->em->flush();
+
+            return;
+        }
+        $assignment = null === $settings['customer_id'] ? null : $this->prepareAssignment($task, $connection, $vmId, $settings['customer_id'], $config, $digest);
+        $mode = $settings['prepare_root_password'] ?? null;
+        $setup = $settings['root_password_setup'] ?? null;
+        if (null !== $setup && (null === $assignment || null !== $assignment->getId())) {
+            throw new \InvalidArgumentException('pve.error.identity');
+        }
+        $ciphertext = null;
+        if (null !== $assignment && null === $assignment->getId()
+            && (null !== $setup || 'required' === $mode || ('if-supported' === $mode && $this->canSetRootPassword($connection, $vmId)))) {
+            $ciphertext = $this->confirmPassword($task, $connection, $vmId, $setup);
+            if (null === $ciphertext) {
+                return;
+            }
+        }
+
+        $this->em->getConnection()->transactional(function () use ($task, $vmId, $assignment, $ciphertext): void {
+            if (!$this->rentalCanProceed($task, true)) {
+                $task->finish(false, 'cancelled');
+            } else {
+                if (null !== $assignment && null === $assignment->getId()) {
+                    if (null !== $ciphertext) {
+                        $this->passwords->rememberCiphertext($assignment, $ciphertext, (string) \App\Infrastructure\Doctrine\EntityIdentifier::require($task->getId()));
+                    }
+                    $assignment->getCustomer()->setCustomerAccessEnabled(true);
+                    $this->em->persist($assignment);
+                }
+                $task->finish(true, 'OK');
+                $this->audit->log(null, 'proxmox.installation_ready', ['cluster_id' => $task->getCluster()->getId(), 'vm_id' => $vmId, 'task_id' => $task->getId()]);
+            }
+            $this->em->flush();
+        });
+    }
+
+    /** @param InstallationPasswordSetup|null $setup */
+    private function confirmPassword(ProxmoxTask $task, ProxmoxConnection $connection, int $vmId, #[\SensitiveParameter] ?array $setup): ?string
+    {
+        if ($this->em->getConnection()->isTransactionActive()) {
+            return null;
+        }
+        $now = time();
+        if (null === $setup) {
+            $password = VmRootPassword::prepare();
+            $setup = [
+                'ciphertext' => $this->crypto->encrypt($password->password),
+                'hash_ciphertext' => $this->crypto->encrypt($password->hash),
+                'requested_at' => $now,
+                'attempted_at' => $now,
+            ];
+            $hash = $password->hash;
+        } else {
+            $hash = $this->crypto->decrypt($setup['hash_ciphertext']);
+            if (!preg_match(VmRootPassword::HASH_PATTERN, $hash)) {
+                throw new \InvalidArgumentException('pve.error.install_password_unconfirmed');
+            }
+            $setup['attempted_at'] = $now;
+        }
+        // Commit the same encrypted credentials before each attempt can reach QGA.
+        $task->recordInstallationPasswordAttempt($setup);
+        $this->em->flush();
+
+        try {
+            $this->api->setRootPasswordHash($connection, $task->getNode(), $vmId, $hash);
+        } catch (ProxmoxApiException $error) {
+            $status = $error->statusCode;
+            if ($status >= 400 && $status < 500 && !in_array($status, [408, 429], true)) {
+                $task->uncertain(in_array($status, [401, 403], true) ? 'permission_denied' : 'install_password_rejected');
+                $this->em->flush();
+            }
+
+            return null;
+        }
+
+        return $setup['ciphertext'];
+    }
+
+    private function prepareAssignment(ProxmoxTask $task, ProxmoxConnection $connection, int $vmId, int $customerId, array $config, string $digest): ProxmoxGuestAssignment
     {
         $customer = $this->em->find(User::class, $customerId);
         if (!$customer?->isCustomer()) {
@@ -465,8 +578,16 @@ final readonly class ProxmoxInstallation
             $tags[] = $tag;
             $this->api->setGuestTags($connection, $task->getNode(), $vmId, 'qemu', implode(';', $tags), $digest);
         }
-        if (null === $existing) {
-            $this->em->persist(new ProxmoxGuestAssignment($task->getCluster(), $vmId, 'qemu', $customer, $tag));
+        return $existing ?? new ProxmoxGuestAssignment($task->getCluster(), $vmId, 'qemu', $customer, $tag);
+    }
+
+    private function canSetRootPassword(ProxmoxConnection $connection, int $vmId): bool
+    {
+        try {
+            return $this->api->hasRootPasswordPermission($connection, $vmId);
+        } catch (ProxmoxApiException) {
+            // An installation can still deliver a working SSH-key login.
+            return false;
         }
     }
 }

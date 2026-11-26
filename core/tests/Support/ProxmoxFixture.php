@@ -14,14 +14,24 @@ final class ProxmoxFixture
 {
     public array $requests = [];
     public bool $loseWriteResponse = false;
+    public bool $loseDiskImportResponse = false;
+    public bool $loseDiskReattachResponse = false;
+    public bool $loseDiskRemovalResponse = false;
     public ?string $lostWritePath = null;
+    public ?string $loseResponseAfterWrite = null;
     public bool $asynchronousResize = false;
     public array $ignoredConfigFields = [];
     public int $writeFailureStatus = 503;
     public bool $auditPermission = true;
+    public bool $propagatePermissions = true;
+    public bool $rootPasswordPermission = false;
+    public bool $malformedRootPasswordResponse = false;
+    public ?int $rejectedRootPasswordStatus = null;
     public array $activeJobs = [];
     public int $configReadError = 0;
     public array $configs = [];
+    /** @var list<string> */
+    public array $imageVolumes = [];
     public array $backupConfigurations = [];
     public array $configTags = [];
     public array $pendingConfiguration = [];
@@ -70,11 +80,18 @@ final class ProxmoxFixture
         $nodes = $this->nodes;
         $data = null;
         if ('/access/permissions' === $path) {
-            $data = [$query['path'] => ['Sys.Audit' => (int) $this->auditPermission]];
-            if (str_starts_with($query['path'], '/vms/')) {
-                $data[$query['path']] += array_fill_keys(['VM.Clone', 'VM.Config.Disk', 'VM.Config.Cloudinit', 'VM.PowerMgmt', 'VM.GuestAgent.Audit', 'VM.GuestAgent.FileRead'], 1);
-            } elseif (str_starts_with($query['path'], '/storage/')) {
-                $data[$query['path']]['Datastore.AllocateSpace'] = 1;
+            $resource = $query['path'];
+            $propagation = (int) $this->propagatePermissions;
+            $data = [$resource => []];
+            if (str_starts_with($resource, '/nodes/') && $this->auditPermission) {
+                $data[$resource]['Sys.Audit'] = $propagation;
+            } elseif (str_starts_with($resource, '/vms/')) {
+                $data[$resource] = array_fill_keys(['VM.Clone', 'VM.Config.Disk', 'VM.Config.Cloudinit', 'VM.PowerMgmt', 'VM.GuestAgent.Audit', 'VM.GuestAgent.FileRead'], $propagation);
+                if ($this->rootPasswordPermission) {
+                    $data[$resource]['VM.GuestAgent.Unrestricted'] = 0;
+                }
+            } elseif (str_starts_with($resource, '/storage/')) {
+                $data[$resource]['Datastore.AllocateSpace'] = $propagation;
             }
         } elseif (preg_match('~^/nodes/[^/]+/tasks$~', $path)) {
             $data = array_values(array_filter($this->activeJobs, static fn (array $job): bool => !isset($query['vmid'], $job['id']) || (string) $job['id'] === $query['vmid']));
@@ -92,7 +109,11 @@ final class ProxmoxFixture
         } elseif (preg_match('~^/nodes/[^/]+/network$~', $path)) {
             $data = [['iface' => 'vmbr0', 'type' => 'bridge', 'active' => 1]];
         } elseif (preg_match('~^/nodes/[^/]+/storage/([^/]+)/content$~', $path, $match)) {
-            $data = ($query['content'] ?? '') === 'iso' ? [['volid' => $match[1].':iso/debian.iso', 'content' => 'iso']] : [['volid' => $match[1].':backup/vzdump-qemu-101-2026_11_12.vma.zst', 'vmid' => 101, 'content' => 'backup'], ['volid' => $match[1].':backup/vzdump-lxc-102-2026_11_12.tar.zst', 'vmid' => 102, 'content' => 'backup'], ['volid' => $match[1].':backup/vzdump-qemu-999-2026_11_12.vma.zst', 'vmid' => 999, 'content' => 'backup']];
+            $data = match ($query['content'] ?? '') {
+                'iso' => [['volid' => $match[1].':iso/debian.iso', 'content' => 'iso']],
+                'images' => array_map(static fn (string $volume): array => ['volid' => $volume, 'content' => 'images'], $this->imageVolumes),
+                default => [['volid' => $match[1].':backup/vzdump-qemu-101-2026_11_12.vma.zst', 'vmid' => 101, 'content' => 'backup'], ['volid' => $match[1].':backup/vzdump-lxc-102-2026_11_12.tar.zst', 'vmid' => 102, 'content' => 'backup'], ['volid' => $match[1].':backup/vzdump-qemu-999-2026_11_12.vma.zst', 'vmid' => 999, 'content' => 'backup']],
+            };
         } elseif (preg_match('~^/nodes/[^/]+/vzdump/extractconfig$~', $path)) {
             $data = $this->backupConfigurations[$query['volume'] ?? ''] ?? null;
         } elseif (preg_match('~^/nodes/[^/]+/tasks/.+/status$~', $path)) {
@@ -112,6 +133,14 @@ final class ProxmoxFixture
             }
             unset($guest);
             $data = 'UPID:pve-a:reinstalled-start';
+        } elseif ('POST' === $method && preg_match('~^/nodes/[^/]+/qemu/(\d+)/status/shutdown$~', $path, $match) && isset($this->configs[(int) $match[1]]['unused0'])) {
+            foreach ($this->guests as &$guest) {
+                if ((int) $guest['vmid'] === (int) $match[1]) {
+                    $guest['status'] = 'stopped';
+                }
+            }
+            unset($guest);
+            $data = 'UPID:pve-a:reinstall-rollback-shutdown';
         } elseif (preg_match('~^/nodes/[^/]+/qemu/\d+/pending$~', $path)) {
             $data = $this->pendingConfiguration;
         } elseif (preg_match('~^/nodes/[^/]+/(qemu|lxc)/(\d+)/snapshot$~', $path, $match)) {
@@ -124,9 +153,12 @@ final class ProxmoxFixture
         } elseif (preg_match('~^/nodes/[^/]+/(qemu|lxc)/(\d+)/vncproxy$~', $path)) {
             $data = ['port' => '5900', 'ticket' => 'synthetic-proxmox-vnc-ticket'];
         } elseif (preg_match('~^/nodes/[^/]+/qemu/\d+/agent/file-read$~', $path)) {
-            $data = ['content' => $this->cloudInitMarker ?? ($this->cloudInitFinished ? 'cloud-init completed' : '')];
+            $data = ['content' => $this->cloudInitMarker ?? ($this->cloudInitFinished ? '3.45 - '.gmdate(DATE_RFC2822).' - v. 25.1' : '')];
         } elseif ('POST' === $method && preg_match('~^/nodes/[^/]+/qemu/\d+/agent/set-user-password$~', $path)) {
-            $data = ['result' => []];
+            if (null !== $this->rejectedRootPasswordStatus) {
+                return new MockResponse('{"data":null}', ['http_code' => $this->rejectedRootPasswordStatus]);
+            }
+            $data = $this->malformedRootPasswordResponse ? ['status' => 'ok'] : ['result' => new \stdClass()];
         } elseif (preg_match('~^/nodes/[^/]+/qemu/(\d+)/agent/(info|get-host-name|get-osinfo|network-get-interfaces|get-fsinfo)$~', $path, $match)) {
             if ($this->guestFilesystemError && 'get-fsinfo' === $match[2]) {
                 return new MockResponse('{"data":null,"message":"private disk failure"}', ['http_code' => 500]);
@@ -159,13 +191,32 @@ final class ProxmoxFixture
                 $this->configs[(int) $match[2]] = array_replace($this->configs[(int) $match[2]] ?? [], $accepted);
                 if (isset($body['delete']) && preg_match('/^unused\d+$/D', $body['delete'])) {
                     unset($this->configs[(int) $match[2]][$body['delete']]);
+                    if ($this->loseDiskRemovalResponse) {
+                        throw new \Symfony\Component\HttpClient\Exception\TransportException('Synthetic lost disk removal response');
+                    }
                 }
                 foreach ($body as $device => $value) {
+                    if ('POST' === $method && 'scsi0' === $device && preg_match('~^(local-lvm:vm-'.$match[2].'-disk-[01])(,.*)?$~D', (string) $value, $disk)) {
+                        $existing = explode(',', $this->configs[(int) $match[2]][$device] ?? '');
+                        if ($disk[1] === $existing[0]) {
+                            $size = array_find($existing, static fn (string $part): bool => str_starts_with($part, 'size='));
+                            $this->configs[(int) $match[2]][$device] = $disk[1].','.$size.($disk[2] ?? '');
+                        } elseif ($disk[1] === ($this->configs[(int) $match[2]]['unused0'] ?? null)) {
+                            $this->configs[(int) $match[2]]['unused0'] = $existing[0];
+                            $this->configs[(int) $match[2]][$device] = $disk[1].',size=32G'.($disk[2] ?? '');
+                            if ($this->loseDiskReattachResponse) {
+                                throw new \Symfony\Component\HttpClient\Exception\TransportException('Synthetic lost reattachment response');
+                            }
+                        }
+                    }
                     if (\App\Module\Nodes\Application\Proxmox\ProxmoxDisks::validDevice($match[1], $device)
                         && preg_match('~^([A-Za-z][A-Za-z0-9_.-]*):0,import-from=[^,]+(.*)$~D', (string) $value, $import)) {
                         $existing = $this->configs[(int) $match[2]][$device];
                         $this->configs[(int) $match[2]]['unused0'] = explode(',', $existing, 2)[0];
                         $this->configs[(int) $match[2]][$device] = $import[1].':vm-'.$match[2].'-disk-1,size=8G'.$import[2];
+                        if ($this->loseDiskImportResponse) {
+                            throw new \Symfony\Component\HttpClient\Exception\TransportException('Synthetic lost import response');
+                        }
                     }
                     if (\App\Module\Nodes\Application\Proxmox\ProxmoxDisks::validDevice($match[1], $device) && preg_match('~^([A-Za-z][A-Za-z0-9_-]*):(\d+)(,backup=1(?:,mp=/[^,]+)?)$~D', (string) $value, $disk)) {
                         $this->configs[(int) $match[2]][$device] = $disk[1].':vm-'.$match[2].'-disk-1,size='.$disk[2].'G'.$disk[3];
@@ -186,6 +237,10 @@ final class ProxmoxFixture
             $data = 'UPID:pve-a:'.count($this->requests);
         } else {
             throw new \LogicException('Unexpected PVE fixture request: '.$method.' '.$path);
+        }
+
+        if ('GET' !== $method && $this->loseResponseAfterWrite === $path) {
+            throw new \Symfony\Component\HttpClient\Exception\TransportException('Synthetic lost response after write');
         }
 
         return new MockResponse(json_encode(['data' => $data], JSON_THROW_ON_ERROR));

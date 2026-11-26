@@ -24,6 +24,7 @@ use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
 use App\Repository\SharedStorageTemplateLocatorInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
 final class InstanceInstallServiceTest extends TestCase
@@ -74,6 +75,36 @@ final class InstanceInstallServiceTest extends TestCase
         $custom = $builder->buildRuntimePayload($instance);
         self::assertArrayNotHasKey('seven_days_to_die_managed_ports', $custom);
         self::assertSame(['game', 'query', 'rcon'], array_column($custom['port_reservations'], 'role'));
+    }
+
+    #[TestWith(['cs2', '{{INSTANCE_DIR}}/game/cs2.sh', '+host_workshop_map'])]
+    #[TestWith(['csgo_legacy', '{{INSTANCE_DIR}}/srcds_run -game csgo', '+workshop_start_map'])]
+    public function testSourceInstallationOnlyPassesConfiguredWorkshopArguments(string $game, string $command, string $mapFlag): void
+    {
+        $instance = $this->buildInstance([], ['linux'], 'linux', startParams: $command.' +map de_dust2 +host_workshop_collection {{ WORKSHOP_COLLECTION }} +host_workshop_map {{ WORKSHOP_MAP }}');
+        $instance->getTemplate()->setGameKey($game);
+        $instance->setInstanceBaseDir('/srv/games');
+        $instance->setInstallPath('/srv/games/gs342/counter-strike');
+        $service = $this->buildService();
+
+        $result = $service->prepareInstall($instance);
+        self::assertTrue($result['ok']);
+        self::assertSame('/srv/games', $result['payload']['base_dir']);
+        self::assertSame('/srv/games/gs342/counter-strike', $result['payload']['install_path']);
+        self::assertStringNotContainsString('workshop_', $result['payload']['start_params']);
+        self::assertStringNotContainsString('WORKSHOP_', $result['payload']['start_params']);
+        self::assertStringContainsString('+map {{MAP}}', $result['payload']['start_params']);
+        self::assertStringContainsString('+exec server.cfg', $result['payload']['start_params']);
+        self::assertSame('de_dust2', array_column($result['payload']['env_vars'], 'value', 'key')['MAP']);
+
+        $instance->setSetupVars(['WORKSHOP_COLLECTION' => '123456', 'WORKSHOP_MAP' => '234567']);
+        $result = $service->prepareInstall($instance);
+        self::assertTrue($result['ok']);
+        self::assertStringContainsString('+host_workshop_collection {{WORKSHOP_COLLECTION}}', $result['payload']['start_params']);
+        self::assertStringContainsString($mapFlag.' {{WORKSHOP_MAP}}', $result['payload']['start_params']);
+        $vars = array_column($result['payload']['env_vars'], 'value', 'key');
+        self::assertSame('123456', $vars['WORKSHOP_COLLECTION']);
+        self::assertSame('234567', $vars['WORKSHOP_MAP']);
     }
 
     public function testInstallStatusRequiresSetupCompletion(): void

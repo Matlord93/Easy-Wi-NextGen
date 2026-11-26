@@ -7,6 +7,40 @@ import (
 	"strings"
 )
 
+func (e *kvmEngine) installNetworkReady(g kvmGuest) bool {
+	if len(g.StaticAddresses) == 0 {
+		return true
+	}
+	raw, err := e.readGuestAgent(g.ID, "guest-network-get-interfaces")
+	if err != nil {
+		return false
+	}
+	interfaces, _ := kvmGuestNetwork(raw)["interfaces"].([]any)
+	primaryMAC := kvmGuestMAC(g.ID)
+	observed := make(map[netip.Prefix]bool)
+	for _, value := range interfaces {
+		iface, _ := value.(map[string]any)
+		if iface["mac"] != primaryMAC {
+			continue
+		}
+		addresses, _ := iface["addresses"].([]any)
+		for _, value := range addresses {
+			address, _ := value.(map[string]any)
+			text, _ := address["address"].(string)
+			prefix, _ := address["prefix"].(int)
+			if ip, err := netip.ParseAddr(text); err == nil {
+				observed[netip.PrefixFrom(ip, prefix)] = true
+			}
+		}
+	}
+	for _, reservation := range g.StaticAddresses {
+		if !observed[reservation.Address] {
+			return false
+		}
+	}
+	return true
+}
+
 func kvmEmptyGuestNetwork(state string) map[string]any {
 	return map[string]any{"state": state, "interfaces": []any{}, "limited": false}
 }

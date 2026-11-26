@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
@@ -293,6 +294,11 @@ func (e *kvmEngine) validateSnapshot(g kvmGuest, name string) error {
 
 func (e *kvmEngine) createGuest(p map[string]any) (map[string]any, error) {
 	id := payloadValue(p, "operation_id")
+	start := payloadValue(p, "start_after_install") == "1"
+	installPassword := payloadValue(p, "install_password_hash")
+	if installPassword != "" && (!start || !kvmRootPasswordHash.MatchString(installPassword)) {
+		return nil, errors.New("invalid installation access configuration")
+	}
 	label := strings.TrimSpace(payloadValue(p, "label"))
 	host := payloadValue(p, "hostname")
 	user := payloadValue(p, "username")
@@ -403,7 +409,20 @@ func (e *kvmEngine) createGuest(p map[string]any) (map[string]any, error) {
 	if err := e.define(g); err != nil {
 		return nil, err
 	}
-	return map[string]any{"vm_id": id}, nil
+	result := map[string]any{"vm_id": id}
+	if start {
+		started := time.Now()
+		if _, err = e.virsh("start", g.ID); err != nil {
+			return result, fmt.Errorf("%w: failed to confirm first boot", errKVMUnconfirmed)
+		}
+		if installPassword != "" {
+			if err := e.confirmInstallation(g, installPassword, started); err != nil {
+				return result, err
+			}
+			result["root_access_configured"] = true
+		}
+	}
+	return result, nil
 }
 
 func (e *kvmEngine) cloudInit(g kvmGuest, keys []string) error {

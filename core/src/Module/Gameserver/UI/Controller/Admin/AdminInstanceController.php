@@ -1368,9 +1368,6 @@ final class AdminInstanceController
 
         return array_map(function (Instance $instance) use ($sftpCredentials, $portBlockIndex, $latestLifecycleJobs): array {
             $instanceId = EntityIdentifier::require($instance->getId());
-            $diskLimitBytes = $instance->getDiskLimitBytes();
-            $diskUsedBytes = $instance->getDiskUsedBytes();
-            $diskPercent = $diskLimitBytes > 0 ? ((float) $diskUsedBytes / (float) $diskLimitBytes) * 100.0 : 0.0;
             $credential = $sftpCredentials[$instanceId] ?? null;
             $installStatus = $this->instanceInstallService->getInstallStatus($instance);
             $portBlock = $portBlockIndex[$instanceId] ?? null;
@@ -1401,14 +1398,8 @@ final class AdminInstanceController
                 'booked_ram_bytes' => $bookedRamBytes,
                 'booked_ram_mb' => $instance->getRamLimit(),
                 'disk_limit' => $instance->getDiskLimit(),
-                'disk_limit_bytes' => $diskLimitBytes,
-                'disk_used_bytes' => $diskUsedBytes,
-                'disk_limit_human' => $this->diskUsageFormatter->formatBytes($diskLimitBytes),
-                'disk_used_human' => $this->diskUsageFormatter->formatBytes($diskUsedBytes),
-                'disk_percent' => $diskPercent,
+                ...$this->diskUsageFormatter->describeInstance($instance),
                 'disk_state' => $instance->getDiskState()->value,
-                'disk_last_scanned_at' => $instance->getDiskLastScannedAt(),
-                'disk_scan_error' => $instance->getDiskScanError(),
                 'status' => $instance->getStatus()->value,
                 'display_status' => $displayStatus,
                 'runtime_status' => $runtimeStatus,

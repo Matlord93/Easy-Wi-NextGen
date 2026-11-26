@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"testing"
 )
 
@@ -15,6 +16,35 @@ import (
 //
 //go:embed testdata/vm-guest-network.json
 var kvmGuestNetworkProtocolCases []byte
+
+func TestKVMInstallationRequiresAllReservedPrefixesOnThePrimaryInterface(t *testing.T) {
+	g := kvmGuest{ID: kvmTestVM, StaticAddresses: []kvmStaticAddress{
+		{Address: netip.MustParsePrefix("192.0.2.5/24")},
+		{Address: netip.MustParsePrefix("2001:db8::5/64")},
+	}}
+	e := kvmEngine{ctx: context.Background()}
+	mac := kvmGuestMAC(g.ID)
+	ipv4 := `{"ip-address-type":"ipv4","ip-address":"192.0.2.5","prefix":24}`
+	ipv6 := `{"ip-address-type":"ipv6","ip-address":"2001:0db8:0:0::5","prefix":64}`
+	for _, tc := range []struct {
+		name, mac, addresses string
+		ready                bool
+	}{
+		{"both reservations", mac, ipv4 + "," + ipv6, true},
+		{"wrong interface", "02:00:00:00:00:01", ipv4 + "," + ipv6, false},
+		{"missing IPv6", mac, ipv4, false},
+		{"wrong subnet mask", mac, `{"ip-address-type":"ipv4","ip-address":"192.0.2.5","prefix":32},` + ipv6, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			kvmAgentFixture(t, func(_ context.Context, _ ...string) ([]byte, error) {
+				return fmt.Appendf(nil, `{"return":[{"name":"eth0","hardware-address":%q,"ip-addresses":[%s]}]}`, tc.mac, tc.addresses), nil
+			})
+			if ready := e.installNetworkReady(g); ready != tc.ready {
+				t.Fatalf("install network readiness = %t, want %t", ready, tc.ready)
+			}
+		})
+	}
+}
 
 func TestKVMGuestNetworkSharedProtocolContract(t *testing.T) {
 	var cases []struct {

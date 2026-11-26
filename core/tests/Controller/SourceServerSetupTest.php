@@ -10,14 +10,20 @@ use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Application\GameTemplateSeedCatalog;
 use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\InstanceSchedule;
+use App\Module\Core\Domain\Enum\InstanceScheduleAction;
+use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Gameserver\Application\Configuration\GameConfigDocument;
 use App\Module\Gameserver\Application\Configuration\StructuredGameConfiguration;
 use App\Module\Gameserver\Application\GameServerPathResolver;
+use App\Module\Gameserver\Application\GameserverInstanceScheduleRunner;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerGameConfigurationController;
 use App\Repository\InstanceRepositoryInterface;
+use App\Repository\JobRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -46,6 +52,62 @@ final class SourceServerSetupTest extends AbstractWebTestCase
         self::getContainer()->get(EntityManagerInterface::class)->flush();
 
         return $instance;
+    }
+
+    #[TestWith(['start', 'instance.start', false])]
+    #[TestWith(['restart', 'instance.restart', true])]
+    #[TestWith(['reinstall', 'instance.reinstall', true])]
+    public function testLegacyActionsUseTheSavedSourceStartupConfiguration(string $action, string $jobType, bool $workshop): void
+    {
+        $instance = $this->seedSource(iterator_to_array(self::sourceTemplates())['cs2'][0]);
+        $instance->setSetupVars(['MAP' => 'de_nuke', 'WORKSHOP_COLLECTION' => $workshop ? '123456' : '']);
+        $instance->setCurrentSlots(12);
+        self::getContainer()->get(EntityManagerInterface::class)->flush();
+        $id = $instance->getId();
+        self::ensureKernelShutdown();
+        $client = static::createClient();
+        $client->request('GET', '/');
+        $client->request('POST', '/login', ['email' => 'instance-customer@example.test', 'password' => 'P@ssw0rd!']);
+        $client->jsonRequest('POST', '/api/v1/customer/instances/'.$id.'/actions', ['action' => $action, 'payload' => ['backup_old' => 'true']]);
+        self::assertResponseStatusCodeSame(202);
+        $job = self::getContainer()->get(JobRepositoryInterface::class)->findLatestByTypeAndInstanceId($jobType, $id);
+        self::assertNotNull($job);
+        $payload = $job->getPayload();
+        $values = array_column($payload['env_vars'], 'value', 'key');
+        self::assertSame('de_nuke', $values['MAP']);
+        self::assertSame('12', $values['MAX_PLAYERS']);
+        self::assertStringContainsString('+exec server.cfg', $payload['start_params']);
+        self::assertSame($workshop, str_contains($payload['start_params'], '+host_workshop_collection {{WORKSHOP_COLLECTION}}'));
+        if ($workshop) {
+            self::assertSame('123456', $values['WORKSHOP_COLLECTION']);
+        }
+        if ('reinstall' === $action) {
+            self::assertSame('true', $payload['backup_old']);
+        }
+    }
+
+    public function testScheduledRestartUsesTheLatestSourceSetup(): void
+    {
+        $instance = $this->seedSource(iterator_to_array(self::sourceTemplates())['cs2'][0]);
+        $instance->setStatus(InstanceStatus::Running);
+        $instance->getNode()->recordHeartbeat([], 'test', '192.0.2.1', [], ['capabilities' => ['instance.restart']], 'active');
+        $instance->setSetupVars(['MAP' => 'de_nuke', 'WORKSHOP_COLLECTION' => '123456']);
+        $schedule = new InstanceSchedule($instance, $instance->getCustomer(), InstanceScheduleAction::Restart, '* * * * *', 'UTC', true);
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $em->persist($schedule);
+        $em->flush();
+
+        $runner = self::getContainer()->get(GameserverInstanceScheduleRunner::class);
+        self::assertSame(1, $runner->runScheduleNow($schedule));
+        $job = self::getContainer()->get(JobRepositoryInterface::class)->find($runner->getLastCreatedJobIds()[0]);
+        self::assertNotNull($job);
+        $payload = $job->getPayload();
+        self::assertSame((string) $schedule->getId(), $payload['schedule_id']);
+        self::assertSame($instance->getInstallPath(), $payload['install_path']);
+        self::assertStringContainsString('+host_workshop_collection {{WORKSHOP_COLLECTION}}', $payload['start_params']);
+        $vars = array_column($payload['env_vars'], 'value', 'key');
+        self::assertSame('de_nuke', $vars['MAP']);
+        self::assertSame('123456', $vars['WORKSHOP_COLLECTION']);
     }
 
     #[DataProvider('sourceTemplates')]

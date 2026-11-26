@@ -72,8 +72,8 @@ final readonly class CustomerKvmService
             $safe['has_snapshots'] = [] !== $snapshots;
             $safe['snapshots'] = array_values(array_filter($snapshots, static fn ($name): bool => is_string($name) && 1 === preg_match('/^[a-z][a-z0-9-]{0,47}$/D', $name)));
             $reinstallTemplates = [];
-            if (($row['state'] ?? null) === 'shut off' && !$safe['network_boot_first'] && [] === $safe['snapshots'] && null !== $safe['cloud_init']
-                && 1 === ($assignment->getNode()->getMetadata()['kvm_managed']['reinstall_version'] ?? null)) {
+            if (($row['state'] ?? null) === 'shut off' && !$safe['network_boot_first'] && !$safe['has_snapshots'] && null !== $safe['cloud_init']
+                && $safe['guest_agent_enabled'] && KvmPanelService::REINSTALL_VERSION === ($assignment->getNode()->getMetadata()['kvm_managed']['reinstall_version'] ?? null)) {
                 $approved = [(string) ($row['template'] ?? '')];
                 foreach ($this->em->getRepository(ShopProduct::class)->findBy(['kind' => ShopProductKind::Kvm, 'node' => $assignment->getNode(), 'isActive' => true, 'isPublicActive' => true]) as $product) {
                     $approved[] = (string) ($product->getProvisioningOptions()['kvm_template'] ?? '');
@@ -113,7 +113,7 @@ final readonly class CustomerKvmService
         return null;
     }
 
-    public function submit(KvmGuestAssignment $assignment, User $actor, string $action, array $input): AgentJob
+    public function submit(KvmGuestAssignment $assignment, User $actor, string $action, array $input, ?string $installPasswordHash = null): AgentJob
     {
         $this->assertOwner($assignment, $actor);
         if (!in_array($action, self::ACTIONS, true)) {
@@ -152,6 +152,12 @@ final readonly class CustomerKvmService
             }
             $payload['template'] = $template;
             $payload['confirm'] = '1';
+            if ($installPasswordHash !== null) {
+                if (!$guest['guest_agent_enabled']) {
+                    throw new \InvalidArgumentException('vm_config.root_password_unavailable');
+                }
+                $payload['install_password_hash'] = $installPasswordHash;
+            }
         } elseif ('vm.address_switch' === $action) {
             $address = $input['expected_address'] ?? '';
             if (($guest['state'] ?? null) !== 'shut off' || null === $guest['cloud_init'] || $guest['network_boot_first'] || !in_array($address, $guest['static_addresses'], true) || ($input['confirm'] ?? '') !== '1') {
@@ -200,8 +206,9 @@ final readonly class CustomerKvmService
         $result = [];
         foreach ($rows as $job) {
             $payload = JsonMap::strings($job->getPayload());
-            if (($payload['vm_id'] ?? '') === $assignment->getVmUuid() && isset($payload['action']) && in_array($payload['action'], self::ACTIONS, true)) {
-                $restoreError = 'backup.restore' === $payload['action'] && AgentJobStatus::Failed === $job->getStatus()
+            $action = $payload['action'] ?? '';
+            if ($this->ownsJob($assignment, $job)) {
+                $restoreError = 'backup.restore' === $action && AgentJobStatus::Failed === $job->getStatus()
                     ? match ($job->getErrorText()) {
                         'VM must be shut off for this operation' => 'kvm.customer_stopped',
                         'delete VM snapshots before restoring a backup' => 'kvm.customer_restore_snapshots',
@@ -210,7 +217,7 @@ final readonly class CustomerKvmService
                         default => 'kvm.customer_restore_failed',
                     }
                     : null;
-                $result[] = ['id' => $job->getId(), 'action' => $payload['action'], 'status' => $job->getStatus()->value, 'created_at' => $job->getCreatedAt()->format(DATE_ATOM), 'restore_error' => $restoreError];
+                $result[] = ['id' => $job->getId(), 'action' => $action, 'status' => $job->getStatus()->value, 'created_at' => $job->getCreatedAt()->format(DATE_ATOM), 'restore_error' => $restoreError];
                 if (20 === count($result)) {
                     break;
                 }
@@ -218,6 +225,20 @@ final readonly class CustomerKvmService
         }
 
         return $result;
+    }
+
+    public function ownsJob(KvmGuestAssignment $assignment, AgentJob $job): bool
+    {
+        if ('kvm.managed' !== $job->getType() || $job->getNode()->getId() !== $assignment->getNode()->getId()) {
+            return false;
+        }
+        $payload = JsonMap::strings($job->getPayload());
+        $action = $payload['action'] ?? '';
+        if ('vm.create' === $action) {
+            return ($payload['operation_id'] ?? null) === $assignment->getVmUuid();
+        }
+
+        return ($payload['vm_id'] ?? null) === $assignment->getVmUuid() && in_array($action, self::ACTIONS, true);
     }
 
     public function jobView(AgentJob $job): array
@@ -228,6 +249,36 @@ final readonly class CustomerKvmService
         }
 
         return $view;
+    }
+
+    public function passwordState(KvmGuestAssignment $assignment, User $actor, string $operation): string
+    {
+        $this->assertOwner($assignment, $actor);
+        $job = $this->em->find(AgentJob::class, $operation);
+        if (null === $job || !$this->ownsJob($assignment, $job)) {
+            return 'failed';
+        }
+        $action = JsonMap::strings($job->getPayload())['action'] ?? '';
+        if (!in_array($action, ['vm.root_password', 'vm.reinstall', 'vm.create'], true)) {
+            return 'failed';
+        }
+        $created = $job->getCreatedAt()->format(DATE_ATOM);
+        $recent = $this->recent($assignment, $actor);
+        if (!in_array($operation, array_column($recent, 'id'), true)) {
+            return 'failed';
+        }
+        foreach ($recent as $other) {
+            if ($other['id'] !== $operation && $other['created_at'] >= $created
+                && in_array($other['action'], ['vm.root_password', 'vm.reinstall', 'snapshot.revert', 'backup.restore'], true)) {
+                return 'failed';
+            }
+        }
+
+        return match ($job->getStatus()) {
+            AgentJobStatus::Queued, AgentJobStatus::Running => 'pending',
+            AgentJobStatus::Success => 'vm.root_password' === $action || true === ($job->getResultPayload()['root_access_configured'] ?? false) ? 'ready' : 'failed',
+            default => 'failed',
+        };
     }
 
     private static function backupSize(mixed $value): ?int

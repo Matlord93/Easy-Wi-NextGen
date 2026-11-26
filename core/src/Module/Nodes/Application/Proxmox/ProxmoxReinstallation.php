@@ -9,14 +9,17 @@ use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Module\Core\Application\AuditLoggerInterface;
 use App\Module\Core\Application\SecretsCryptoInterface;
 use App\Module\Core\Domain\Entity\ShopProduct;
+use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\ShopProductKind;
 use App\Module\Nodes\Application\VmGuestNetworkReport;
 use App\Module\Nodes\Application\VmProvisioningSettings;
+use App\Module\Nodes\Application\VmRootPassword;
 use App\Module\Nodes\Domain\Entity\ProxmoxCluster;
 use App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment;
 use App\Module\Nodes\Domain\Entity\ProxmoxTask;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxApiException;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Lock\LockFactory;
 
@@ -24,12 +27,15 @@ use Symfony\Component\Lock\LockFactory;
 final readonly class ProxmoxReinstallation
 {
     private const GIB = 1073741824;
+    private const SUBMISSION_CONFIRMATION_SECONDS = 300;
+    private const PASSWORD_RETRY_SECONDS = 15;
+    private const OBSERVABLE_STEPS = ['restoring_options', 'resizing', 'starting', 'removing'];
 
     public function __construct(private ProxmoxApiClient $api, private SecretsCryptoInterface $crypto, private EntityManagerInterface $em, private LockFactory $locks, private AuditLoggerInterface $audit)
     {
     }
 
-    /** @return array{digest: string, images: array<int, string>}|null */
+    /** @return array{digest: string, images: array<int, string>, original: bool}|null */
     public function choices(ProxmoxGuestAssignment $assignment, string $node, int $siteId): ?array
     {
         $cluster = $assignment->getCluster();
@@ -39,21 +45,33 @@ final readonly class ProxmoxReinstallation
                 $images[EntityIdentifier::require($product->getId())] = $product->getName();
             }
         }
-        if ([] === $images) {
+        $original = $this->originalTemplate($assignment);
+        if ([] === $images && 0 === $original) {
             return null;
         }
         try {
-            $config = $this->targetConfiguration($assignment, $node, $cluster->connection($this->crypto));
-            self::eligibleTargetDisk($config, $assignment->getVmId());
+            $connection = $cluster->connection($this->crypto);
+            $config = $this->targetConfiguration($assignment, $node, $connection);
+            $disk = self::eligibleTargetDisk($config, $assignment->getVmId());
         } catch (\InvalidArgumentException) {
             return null;
         }
 
-        return ['digest' => $config['digest'], 'images' => $images];
+        $originalAvailable = false;
+        if ($original > 0) {
+            try {
+                $this->source($assignment, $connection, $node, 0, 0, $config, $disk);
+                $originalAvailable = true;
+            } catch (\InvalidArgumentException|ProxmoxApiException) {
+                // The original template may have been removed or moved to another node.
+            }
+        }
+
+        return [] === $images && !$originalAvailable ? null : ['digest' => $config['digest'], 'images' => $images, 'original' => $originalAvailable];
     }
 
     /** @return Reinstallation */
-    public function plan(ProxmoxGuestAssignment $assignment, string $node, int $siteId, int $productId, string $expectedDigest): array
+    public function plan(ProxmoxGuestAssignment $assignment, string $node, int $siteId, int $productId, string $expectedDigest, ?string $installPasswordHash = null): array
     {
         $cluster = $assignment->getCluster();
         $connection = $cluster->connection($this->crypto);
@@ -64,7 +82,13 @@ final readonly class ProxmoxReinstallation
         $disk = self::eligibleTargetDisk($config, $assignment->getVmId());
         $this->assertIdle($connection, $node, $assignment->getVmId());
         $this->assertDiskPermissions($connection, $assignment->getVmId(), explode(':', $disk['volume'], 2)[0]);
-        $source = $this->source($cluster, $connection, $node, $siteId, $productId, $config, $disk);
+        if ($installPasswordHash !== null) {
+            if (!preg_match(VmRootPassword::HASH_PATTERN, $installPasswordHash)
+                || !$this->api->hasRootPasswordPermission($connection, $assignment->getVmId())) {
+                throw new \InvalidArgumentException('pve.error.permissions');
+            }
+        }
+        $source = $this->source($assignment, $connection, $node, $siteId, $productId, $config, $disk);
 
         return [
             'phase' => 'queued', 'assignment_id' => EntityIdentifier::require($assignment->getId()),
@@ -72,7 +96,7 @@ final readonly class ProxmoxReinstallation
             'configuration' => self::configurationFingerprint($config, $disk['device']),
             'original_volume' => $disk['volume'], 'device' => $disk['device'], 'device_options' => $disk['options'], 'disk_gib' => intdiv($disk['size_bytes'], self::GIB),
             'source_volume' => $source['volume'], 'source_digest' => $source['digest'],
-        ];
+        ] + ($installPasswordHash === null ? [] : ['install_password_hash' => $installPasswordHash]);
     }
 
     public function advance(ProxmoxTask $task): void
@@ -88,23 +112,22 @@ final readonly class ProxmoxReinstallation
                 return;
             }
             if ('submitting' === $task->getState()) {
-                $task->uncertain();
-                $this->em->flush();
+                if ('setting_password' === $plan['phase']) {
+                    $this->retryPassword($task, $plan);
+                } elseif (in_array($plan['phase'], self::OBSERVABLE_STEPS, true)) {
+                    $this->reconcileSubmission($task, $plan);
+                } else {
+                    $this->failed($task, 'dispatch_unknown');
+                }
 
                 return;
             }
-            if ($task->getCreatedAt() < new \DateTimeImmutable('-60 minutes')) {
+            if (($plan['rollback_requested_at'] ?? $task->getCreatedAt()->getTimestamp()) < time() - 3600) {
                 $this->failed($task, 'reinstall_timeout');
 
                 return;
             }
-            $assignment = $this->em->find(ProxmoxGuestAssignment::class, $plan['assignment_id']);
-            if (null === $assignment || $assignment->getCustomer()->getId() !== $task->getActorId() || $assignment->getIdentityTag() !== $plan['tag']
-                || $assignment->getCluster()->getId() !== $task->getCluster()->getId() || 'qemu' !== $assignment->getKind() || $assignment->getVmId() !== $task->getVmId()) {
-                $this->failed($task, 'identity_mismatch');
-
-                return;
-            }
+            $assignment = $this->checkedAssignment($task, $plan);
             $connection = $task->getCluster()->connection($this->crypto);
             $node = $task->getNode();
             if (null !== ($upid = $task->getUpid())) {
@@ -118,7 +141,11 @@ final readonly class ProxmoxReinstallation
                     return;
                 }
             }
-            $this->advanceStep($task, $assignment, $connection, $plan);
+            if (isset($plan['rollback_requested_at'])) {
+                $this->advanceRollback($task, $assignment, $connection, $plan);
+            } else {
+                $this->advanceStep($task, $assignment, $connection, $plan);
+            }
         } catch (\InvalidArgumentException $exception) {
             $this->failed($task, match ($exception->getMessage()) {
                 'pve.error.identity' => 'identity_mismatch',
@@ -126,7 +153,8 @@ final readonly class ProxmoxReinstallation
                 default => 'reinstall_configuration_changed',
             });
         } catch (ProxmoxApiException $exception) {
-            if ('submitting' === $task->getState()) {
+            $phase = $task->getReinstallation()['phase'] ?? null;
+            if ('submitting' === $task->getState() && 'setting_password' !== $phase && !in_array($phase, self::OBSERVABLE_STEPS, true)) {
                 $this->failed($task, 'dispatch_unknown');
             } elseif (in_array($exception->statusCode, [401, 403], true)) {
                 $this->failed($task, 'permission_denied');
@@ -134,6 +162,155 @@ final readonly class ProxmoxReinstallation
         } finally {
             $lock->release();
         }
+    }
+
+    public function canConfirmRemoval(ProxmoxTask $task): bool
+    {
+        $plan = $task->getReinstallation();
+
+        return 'uncertain' === $task->getState() && 'removing' === ($plan['phase'] ?? null) && isset($plan['replacement_volume'], $plan['started_at']);
+    }
+
+    public function confirmRemoval(ProxmoxTask $task, User $actor, string $note): void
+    {
+        if (!$actor->isAdmin() || !$this->canConfirmRemoval($task)) {
+            throw new \InvalidArgumentException('pve.error.review_reinstallation');
+        }
+        $lock = $this->locks->createLock('proxmox.reinstallation.'.EntityIdentifier::require($task->getId()), 90);
+        if (!$lock->acquire()) {
+            throw new \InvalidArgumentException('pve.error.task_active');
+        }
+        try {
+            $this->em->refresh($task);
+            $plan = $task->getReinstallation();
+            if (!$this->canConfirmRemoval($task) || null === $plan || !$this->isRemovalConfirmed($task, $plan)) {
+                throw new \InvalidArgumentException('pve.error.reinstall_removal_unconfirmed');
+            }
+            $this->em->getConnection()->transactional(function () use ($task, $actor, $note): void {
+                $this->em->refresh($task, LockMode::PESSIMISTIC_WRITE);
+                if (!$this->canConfirmRemoval($task)) {
+                    throw new \InvalidArgumentException('pve.error.review_reinstallation');
+                }
+                $this->finishReinstallation($task, $actor, $note);
+            });
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function canRequestRollback(ProxmoxTask $task): bool
+    {
+        $plan = $task->getReinstallation();
+
+        return 'reinstall' === $task->getAction() && 'uncertain' === $task->getState() && null !== $plan
+            && (isset($plan['replacement_volume']) || ('importing' === $plan['phase'] && isset($plan['import_serial'])));
+    }
+
+    public function requestRollback(ProxmoxTask $task, User $actor): void
+    {
+        if (!$actor->isAdmin() || !$this->canRequestRollback($task)) {
+            throw new \InvalidArgumentException('pve.error.reinstall_rollback');
+        }
+        $taskId = EntityIdentifier::require($task->getId());
+        $lock = $this->locks->createLock('proxmox.reinstallation.'.$taskId, 90);
+        if (!$lock->acquire()) {
+            throw new \InvalidArgumentException('pve.error.task_active');
+        }
+        try {
+            $this->em->refresh($task);
+            $plan = $task->getReinstallation();
+            if (!$this->canRequestRollback($task) || null === $plan) {
+                throw new \InvalidArgumentException('pve.error.reinstall_rollback');
+            }
+            $assignment = $this->checkedAssignment($task, $plan);
+            $state = $this->rollbackConfiguration($assignment, $task->getCluster()->connection($this->crypto), $task->getNode(), $plan);
+            $plan['replacement_volume'] = $state['replacement'];
+            $this->em->getConnection()->transactional(function () use ($task, $taskId, $actor, $plan): void {
+                $this->em->refresh($task, LockMode::PESSIMISTIC_WRITE);
+                if (!$this->canRequestRollback($task)) {
+                    throw new \InvalidArgumentException('pve.error.reinstall_rollback');
+                }
+                $plan['phase'] = 'rollback_queued';
+                $plan['rollback_requested_at'] = time();
+                unset($plan['install_password_hash']);
+                $task->queueReinstallationRollback($plan);
+                $this->audit->log($actor, 'proxmox.reinstallation_rollback_requested', ['cluster_id' => $task->getCluster()->getId(), 'vm_id' => $task->getVmId(), 'task_id' => $taskId]);
+                $this->em->flush();
+            });
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /** @param Reinstallation $plan */
+    private function checkedAssignment(ProxmoxTask $task, array $plan): ProxmoxGuestAssignment
+    {
+        $assignment = $this->em->find(ProxmoxGuestAssignment::class, $plan['assignment_id']);
+        if (null === $assignment || $assignment->getCustomer()->getId() !== $task->getActorId() || $assignment->getIdentityTag() !== $plan['tag']
+            || $assignment->getCluster()->getId() !== $task->getCluster()->getId() || 'qemu' !== $assignment->getKind() || $assignment->getVmId() !== $task->getVmId()) {
+            throw new \InvalidArgumentException('pve.error.identity');
+        }
+
+        return $assignment;
+    }
+
+    /** @param Reinstallation $plan */
+    private function advanceRollback(ProxmoxTask $task, ProxmoxGuestAssignment $assignment, ProxmoxConnection $connection, array $plan): void
+    {
+        $node = $task->getNode();
+        $vmId = $task->getVmId();
+        $state = $this->rollbackConfiguration($assignment, $connection, $node, $plan);
+        if ($state['restored']) {
+            $task->finish(false, 'reinstall_rolled_back');
+            $this->audit->log(null, 'proxmox.reinstallation_rolled_back', ['cluster_id' => $task->getCluster()->getId(), 'vm_id' => $vmId, 'task_id' => $task->getId()]);
+            $this->em->flush();
+
+            return;
+        }
+        if ('rollback_attaching' === $plan['phase']) {
+            throw new \InvalidArgumentException('pve.error.reinstall_rollback');
+        }
+        if ('running' === $state['power']) {
+            if ('rollback_queued' === $plan['phase']) {
+                $plan['phase'] = 'rollback_stopping';
+                $this->submit($task, $plan, fn (): array => $this->api->changePowerState($connection, $node, $vmId, 'shutdown'));
+            }
+
+            return;
+        }
+        $plan['phase'] = 'rollback_attaching';
+        $this->submit($task, $plan, fn (): array => $this->api->attachSystemDisk($connection, $node, $vmId, $plan['device'], $plan['original_volume'], $plan['device_options'], $state['digest']));
+    }
+
+    /**
+     * @param Reinstallation $plan
+     * @return array{digest: string, replacement: string, restored: bool, power: 'running'|'stopped'}
+     */
+    private function rollbackConfiguration(ProxmoxGuestAssignment $assignment, ProxmoxConnection $connection, string $node, array $plan): array
+    {
+        $vmId = $assignment->getVmId();
+        $config = $this->targetConfiguration($assignment, $node, $connection);
+        $disk = self::systemDisk($config, $vmId);
+        $replacement = $plan['replacement_volume'] ?? '';
+        $restored = $disk['volume'] === $plan['original_volume'];
+        $matchesImport = self::matchesImportedDisk($config, $disk, $plan);
+        if ('' === $replacement && 'importing' === $plan['phase'] && $matchesImport) {
+            $replacement = $disk['volume'];
+        }
+        $unusedVolume = $restored ? $replacement : $plan['original_volume'];
+        if ('' === $replacement || $replacement === $plan['original_volume'] || $disk['device'] !== $plan['device'] || ($disk['options'] !== $plan['device_options'] && !$matchesImport)
+            || (!$restored && $disk['volume'] !== $replacement) || ($restored && $disk['size_bytes'] !== $plan['disk_gib'] * self::GIB)
+            || self::configurationFingerprint($config, $plan['device']) !== $plan['configuration'] || null === self::unusedDevice($config, $unusedVolume)) {
+            throw new \InvalidArgumentException('pve.error.reinstall_rollback');
+        }
+        $this->assertIdle($connection, $node, $vmId);
+        $this->assertDiskPermissions($connection, $vmId, explode(':', $plan['original_volume'], 2)[0], false);
+        $power = $this->api->status($connection, $node, $vmId)['status'] ?? null;
+        if ('stopped' !== $power && 'running' !== $power) {
+            throw new \InvalidArgumentException('pve.error.reinstall_rollback');
+        }
+
+        return ['digest' => $config['digest'], 'replacement' => $replacement, 'restored' => $restored, 'power' => $power];
     }
 
     /** @param Reinstallation $plan */
@@ -150,18 +327,31 @@ final readonly class ProxmoxReinstallation
         $power = $this->api->status($connection, $node, $vmId)['status'] ?? null;
         $this->assertIdle($connection, $node, $vmId);
         if ('queued' === $phase) {
-            $product = $this->em->find(ShopProduct::class, $plan['product_id']);
-            if (null === $product || 'stopped' !== $power || $config['digest'] !== $plan['digest'] || $disk['volume'] !== $plan['original_volume']) {
+            $product = 0 === $plan['product_id'] ? null : $this->em->find(ShopProduct::class, $plan['product_id']);
+            if ((0 !== $plan['product_id'] && null === $product) || 'stopped' !== $power || $config['digest'] !== $plan['digest'] || $disk['volume'] !== $plan['original_volume']) {
                 throw new \InvalidArgumentException('pve.error.reinstall_changed');
             }
-            $source = $this->source($task->getCluster(), $connection, $node, $product->getSiteId(), $plan['product_id'], $config, $disk);
+            $source = $this->source($assignment, $connection, $node, $product?->getSiteId() ?? 0, $plan['product_id'], $config, $disk);
             if ($source['volume'] !== $plan['source_volume'] || $source['digest'] !== $plan['source_digest']) {
                 throw new \InvalidArgumentException('pve.error.reinstall_changed');
             }
             $storage = explode(':', $disk['volume'], 2)[0];
             $this->assertDiskPermissions($connection, $vmId, $storage);
             $plan['phase'] = 'importing';
-            $this->submit($task, $plan, fn (): array => $this->api->importSystemDisk($connection, $node, $vmId, $disk['device'], $storage, $source['volume'], $disk['options'], $config['digest']));
+            // Proxmox writes this serial as part of the imported drive itself.
+            $plan['import_serial'] = bin2hex(random_bytes(10));
+            $options = self::importOptions($plan['device_options'], $plan['import_serial']);
+            $this->submit($task, $plan, fn (): array => $this->api->importSystemDisk($connection, $node, $vmId, $disk['device'], $storage, $source['volume'], $options, $config['digest']));
+
+            return;
+        }
+        if ('importing' === $phase && isset($plan['import_serial'])) {
+            if ('stopped' !== $power || !self::matchesImportedDisk($config, $disk, $plan)) {
+                throw new \InvalidArgumentException('pve.error.reinstall_changed');
+            }
+            $plan['replacement_volume'] = $disk['volume'];
+            $plan['phase'] = 'restoring_options';
+            $this->submit($task, $plan, fn (): array => $this->api->attachSystemDisk($connection, $node, $vmId, $disk['device'], $disk['volume'], $plan['device_options'], $config['digest']));
 
             return;
         }
@@ -172,9 +362,7 @@ final readonly class ProxmoxReinstallation
             throw new \InvalidArgumentException('pve.error.reinstall_changed');
         }
         if ('removing' === $phase && null === $oldDevice && $targetSize === $disk['size_bytes']) {
-            $task->finish(true, 'OK');
-            $this->audit->log(null, 'proxmox.reinstallation_ready', ['cluster_id' => $task->getCluster()->getId(), 'vm_id' => $vmId, 'task_id' => $task->getId()]);
-            $this->em->flush();
+            $this->finishReinstallation($task);
 
             return;
         }
@@ -182,7 +370,7 @@ final readonly class ProxmoxReinstallation
             throw new \InvalidArgumentException('pve.error.reinstall_changed');
         }
         $plan['replacement_volume'] = $disk['volume'];
-        if (in_array($phase, ['importing', 'resizing'], true)) {
+        if (in_array($phase, ['importing', 'restoring_options', 'resizing'], true)) {
             if ('stopped' !== $power || ('resizing' === $phase && $disk['size_bytes'] !== $targetSize)) {
                 throw new \InvalidArgumentException('pve.error.reinstall_changed');
             }
@@ -198,11 +386,200 @@ final readonly class ProxmoxReinstallation
 
             return;
         }
-        if ('starting' === $phase && 'running' === $power && isset($plan['started_at']) && $disk['size_bytes'] === $targetSize
-            && $this->api->cloudInitBootFinished($connection, $node, $vmId, $plan['started_at']) && $this->networkReady($connection, $node, $vmId, $config)) {
+        if (in_array($phase, ['starting', 'setting_password'], true) && 'running' === $power && $disk['size_bytes'] === $targetSize
+            && $this->bootReady($task, $connection, $config, $plan)) {
+            if ('starting' === $phase && isset($plan['install_password_hash'])) {
+                $plan['phase'] = 'setting_password';
+                $plan['password_requested_at'] = time();
+                $this->submitPassword($task, $connection, $plan, $plan['install_password_hash']);
+
+                return;
+            }
             $plan['phase'] = 'removing';
+            $plan['removal_requested_at'] = time();
             $this->submit($task, $plan, fn (): array => $this->api->removeUnusedDisk($connection, $node, $vmId, $oldDevice, $config['digest']));
         }
+    }
+
+    /** @param Reinstallation $plan */
+    private function retryPassword(ProxmoxTask $task, #[\SensitiveParameter] array $plan): void
+    {
+        $now = time();
+        if (($plan['password_requested_at'] ?? $task->getCreatedAt()->getTimestamp()) <= $now - self::SUBMISSION_CONFIRMATION_SECONDS) {
+            $this->failed($task, 'reinstall_password_unconfirmed');
+
+            return;
+        }
+        if (($plan['step_submitted_at'] ?? 0) > $now - self::PASSWORD_RETRY_SECONDS) {
+            return;
+        }
+        if (!isset($plan['replacement_volume'], $plan['install_password_hash'])) {
+            throw new \InvalidArgumentException('pve.error.reinstall_changed');
+        }
+        try {
+            [$connection, $config, $disk] = $this->observedReplacement($task, $plan, $plan['replacement_volume']);
+        } catch (\InvalidArgumentException $exception) {
+            if ('pve.error.task_active' === $exception->getMessage()) {
+                return;
+            }
+            throw $exception;
+        }
+        if ($disk['options'] !== $plan['device_options'] || $disk['size_bytes'] !== $plan['disk_gib'] * self::GIB
+            || null === self::unusedDevice($config, $plan['original_volume'])) {
+            throw new \InvalidArgumentException('pve.error.reinstall_changed');
+        }
+        if ('running' === ($this->api->status($connection, $task->getNode(), $task->getVmId())['status'] ?? null)
+            && $this->bootReady($task, $connection, $config, $plan)) {
+            $this->submitPassword($task, $connection, $plan, $plan['install_password_hash']);
+        }
+    }
+
+    /** @param Reinstallation $plan */
+    private function submitPassword(ProxmoxTask $task, ProxmoxConnection $connection, #[\SensitiveParameter] array $plan, #[\SensitiveParameter] string $hash): void
+    {
+        if (!preg_match(VmRootPassword::HASH_PATTERN, $hash)) {
+            throw new \InvalidArgumentException('pve.error.reinstall_changed');
+        }
+        try {
+            // Resubmission applies the exact hash already assigned to this reinstallation.
+            $this->submit($task, $plan, fn (): array => $this->api->setRootPasswordHash($connection, $task->getNode(), $task->getVmId(), $hash));
+        } catch (ProxmoxApiException $exception) {
+            $status = $exception->statusCode;
+            if ($status >= 400 && $status < 500 && !in_array($status, [408, 429], true)) {
+                $this->failed($task, in_array($status, [401, 403], true) ? 'permission_denied' : 'reinstall_password_rejected');
+            }
+        }
+    }
+
+    /**
+     * @param array<string, string> $config
+     * @param Reinstallation $plan
+     */
+    private function bootReady(ProxmoxTask $task, ProxmoxConnection $connection, array $config, array $plan): bool
+    {
+        $node = $task->getNode();
+        $vmId = $task->getVmId();
+
+        return isset($plan['started_at']) && $this->api->cloudInitBootFinished($connection, $node, $vmId, $plan['started_at'])
+            && $this->networkReady($connection, $node, $vmId, $config);
+    }
+
+    /** @param Reinstallation $plan */
+    private function reconcileSubmission(ProxmoxTask $task, array $plan): void
+    {
+        $removing = 'removing' === $plan['phase'];
+        try {
+            if ($removing && $this->isRemovalConfirmed($task, $plan)) {
+                $this->finishReinstallation($task);
+
+                return;
+            }
+            if (!$removing && $this->isStepConfirmed($task, $plan)) {
+                // Persist the observation before the next poll can dispatch a different step.
+                $task->reinstallationStepDispatched(null);
+                $this->em->flush();
+
+                return;
+            }
+        } catch (\InvalidArgumentException $exception) {
+            if ('pve.error.task_active' !== $exception->getMessage()) {
+                throw $exception;
+            }
+        } catch (ProxmoxApiException $exception) {
+            if (in_array($exception->statusCode, [401, 403], true)) {
+                throw $exception;
+            }
+        }
+        $requestedAt = ($removing ? ($plan['removal_requested_at'] ?? null) : ($plan['step_submitted_at'] ?? null)) ?? $task->getCreatedAt()->getTimestamp();
+        if ($requestedAt <= time() - self::SUBMISSION_CONFIRMATION_SECONDS) {
+            $this->failed($task, $removing ? 'reinstall_removal_unconfirmed' : 'reinstall_step_unconfirmed');
+        }
+    }
+
+    /** @param Reinstallation $plan */
+    private function isStepConfirmed(ProxmoxTask $task, array $plan): bool
+    {
+        if (!isset($plan['replacement_volume'])) {
+            return false;
+        }
+        [$connection, $config, $disk] = $this->observedReplacement($task, $plan, $plan['replacement_volume']);
+        if (null === self::unusedDevice($config, $plan['original_volume'])) {
+            throw new \InvalidArgumentException('pve.error.reinstall_changed');
+        }
+        $phase = $plan['phase'];
+        if ($disk['options'] !== $plan['device_options']) {
+            if ('restoring_options' === $phase && self::matchesImportedDisk($config, $disk, $plan)) {
+                return false;
+            }
+            throw new \InvalidArgumentException('pve.error.reinstall_changed');
+        }
+
+        $power = $this->api->status($connection, $task->getNode(), $task->getVmId())['status'] ?? null;
+        $fullSize = $disk['size_bytes'] === $plan['disk_gib'] * self::GIB;
+        if ('starting' === $phase) {
+            if (!$fullSize || !isset($plan['started_at'])) {
+                throw new \InvalidArgumentException('pve.error.reinstall_changed');
+            }
+
+            return 'running' === $power;
+        }
+        if ('stopped' !== $power) {
+            throw new \InvalidArgumentException('pve.error.reinstall_changed');
+        }
+
+        return 'restoring_options' === $phase || $fullSize;
+    }
+
+    /** @param Reinstallation $plan */
+    private function isRemovalConfirmed(ProxmoxTask $task, array $plan): bool
+    {
+        if (!isset($plan['replacement_volume'], $plan['started_at'])) {
+            return false;
+        }
+        [$connection, $config, $disk] = $this->observedReplacement($task, $plan, $plan['replacement_volume']);
+        if ($disk['options'] !== $plan['device_options'] || $disk['size_bytes'] !== $plan['disk_gib'] * self::GIB) {
+            throw new \InvalidArgumentException('pve.error.reinstall_changed');
+        }
+        if (null !== self::unusedDevice($config, $plan['original_volume'])) {
+            return false;
+        }
+
+        // Require the replacement to be visible on the same storage. A filtered or empty list is not proof of deletion.
+        $storage = explode(':', $plan['original_volume'], 2)[0];
+        $volumes = array_column($this->api->storageContent($connection, $task->getNode(), $storage, 'images', $task->getVmId()), 'volid');
+
+        return in_array($plan['replacement_volume'], $volumes, true) && !in_array($plan['original_volume'], $volumes, true);
+    }
+
+    /**
+     * @param Reinstallation $plan
+     * @return array{ProxmoxConnection, array<string, string>, array{device: string, size_bytes: int, volume: string, options: string}}
+     */
+    private function observedReplacement(ProxmoxTask $task, array $plan, string $replacement): array
+    {
+        $assignment = $this->checkedAssignment($task, $plan);
+        $connection = $task->getCluster()->connection($this->crypto);
+        $node = $task->getNode();
+        $vmId = $task->getVmId();
+        $this->assertIdle($connection, $node, $vmId);
+        $config = $this->targetConfiguration($assignment, $node, $connection);
+        $disk = self::systemDisk($config, $vmId);
+        if ($disk['device'] !== $plan['device'] || $disk['volume'] !== $replacement || $replacement === $plan['original_volume']
+            || explode(':', $replacement, 2)[0] !== explode(':', $plan['original_volume'], 2)[0]
+            || $disk['size_bytes'] > $plan['disk_gib'] * self::GIB || self::configurationFingerprint($config, $plan['device']) !== $plan['configuration']) {
+            throw new \InvalidArgumentException('pve.error.reinstall_changed');
+        }
+
+        return [$connection, $config, $disk];
+    }
+
+    private function finishReinstallation(ProxmoxTask $task, ?User $actor = null, ?string $note = null): void
+    {
+        $task->finish(true, 'OK');
+        $this->audit->log($actor, 'proxmox.reinstallation_ready', [
+            'cluster_id' => $task->getCluster()->getId(), 'vm_id' => $task->getVmId(), 'task_id' => $task->getId(),
+        ] + (null === $note ? [] : ['operator_note' => $note]));
+        $this->em->flush();
     }
 
     /**
@@ -211,6 +588,7 @@ final readonly class ProxmoxReinstallation
      */
     private function submit(ProxmoxTask $task, array $plan, \Closure $write): void
     {
+        $plan['step_submitted_at'] = time();
         $task->beginReinstallationStep($plan);
         $this->em->flush();
         $task->reinstallationStepDispatched(JsonMap::strings($write())['task'] ?? null);
@@ -266,8 +644,7 @@ final readonly class ProxmoxReinstallation
 
     private function assertIdle(ProxmoxConnection $connection, string $node, int $vmId): void
     {
-        $path = '/nodes/'.$node;
-        if (empty($this->api->permissions($connection, $path)[$path]['Sys.Audit'])) {
+        if (!$this->api->hasPrivilege($connection, '/nodes/'.$node, 'Sys.Audit')) {
             throw new \InvalidArgumentException('pve.error.permissions');
         }
         if ([] !== $this->api->activeTasks($connection, $node, $vmId) || $this->api->hasPendingGuestConfiguration($connection, $node, $vmId)) {
@@ -278,20 +655,16 @@ final readonly class ProxmoxReinstallation
         }
     }
 
-    private function assertDiskPermissions(ProxmoxConnection $connection, int $vmId, string $storage): void
+    private function assertDiskPermissions(ProxmoxConnection $connection, int $vmId, string $storage, bool $guestAgentRequired = true): void
     {
-        $path = '/vms/'.$vmId;
-        $permissions = JsonMap::fromValue($this->api->permissions($connection, $path)[$path] ?? null) ?? [];
-        foreach (['VM.Config.Disk', 'VM.PowerMgmt'] as $permission) {
-            if (empty($permissions[$permission])) {
-                throw new \InvalidArgumentException('pve.error.permissions');
-            }
-        }
-        if (empty($permissions['VM.GuestAgent.Unrestricted']) && (empty($permissions['VM.GuestAgent.Audit']) || empty($permissions['VM.GuestAgent.FileRead']))) {
+        $permissions = $this->api->privilegesAt($connection, '/vms/'.$vmId);
+        if (!isset($permissions['VM.Config.Disk'], $permissions['VM.PowerMgmt'])) {
             throw new \InvalidArgumentException('pve.error.permissions');
         }
-        $path = '/storage/'.$storage;
-        if (empty($this->api->permissions($connection, $path)[$path]['Datastore.AllocateSpace'])) {
+        if ($guestAgentRequired && !isset($permissions['VM.GuestAgent.Unrestricted']) && !isset($permissions['VM.GuestAgent.Audit'], $permissions['VM.GuestAgent.FileRead'])) {
+            throw new \InvalidArgumentException('pve.error.permissions');
+        }
+        if (!$this->api->hasPrivilege($connection, '/storage/'.$storage, 'Datastore.AllocateSpace')) {
             throw new \InvalidArgumentException('pve.error.permissions');
         }
     }
@@ -301,16 +674,19 @@ final readonly class ProxmoxReinstallation
      * @param array{device: string, size_bytes: int, volume: string, options: string} $disk
      * @return array{volume: string, digest: string}
      */
-    private function source(ProxmoxCluster $cluster, ProxmoxConnection $connection, string $node, int $siteId, int $productId, array $target, array $disk): array
+    private function source(ProxmoxGuestAssignment $assignment, ProxmoxConnection $connection, string $node, int $siteId, int $productId, array $target, array $disk): array
     {
-        $product = $this->em->find(ShopProduct::class, $productId);
-        $templateId = null !== $product && $product->getSiteId() === $siteId ? self::templateId($product, $cluster, $node) : 0;
+        if (0 === $productId) {
+            $templateId = $this->originalTemplate($assignment);
+        } else {
+            $product = $this->em->find(ShopProduct::class, $productId);
+            $templateId = null !== $product && $product->getSiteId() === $siteId ? self::templateId($product, $assignment->getCluster(), $node) : 0;
+        }
         $source = $templateId > 0 ? array_find($this->api->clusterResources($connection, 'vm'), static fn (array $row): bool => (int) ($row['vmid'] ?? 0) === $templateId) : null;
         if (($source['type'] ?? null) !== 'qemu' || ($source['node'] ?? null) !== $node || empty($source['template'])) {
             throw new \InvalidArgumentException('pve.error.install_template');
         }
-        $path = '/vms/'.$templateId;
-        if (empty($this->api->permissions($connection, $path)[$path]['VM.Clone'])) {
+        if (!$this->api->hasPrivilege($connection, '/vms/'.$templateId, 'VM.Clone')) {
             throw new \InvalidArgumentException('pve.error.permissions');
         }
         $config = $this->configuration($connection, $node, $templateId);
@@ -322,6 +698,20 @@ final readonly class ProxmoxReinstallation
         }
 
         return ['volume' => $sourceDisk['volume'], 'digest' => $config['digest']];
+    }
+
+    private function originalTemplate(ProxmoxGuestAssignment $assignment): int
+    {
+        $task = $this->em->getRepository(ProxmoxTask::class)->findOneBy([
+            'cluster' => $assignment->getCluster(), 'kind' => 'qemu', 'action' => 'install-template',
+            'targetVmId' => $assignment->getVmId(), 'state' => 'succeeded',
+        ], ['id' => 'DESC']);
+        if (null === $task || $assignment->getIdentityTag() !== 'easywi-owned-'.substr($task->getRequestKey(), 0, 16)
+            || ($task->getInstallation()['customer_id'] ?? null) !== $assignment->getCustomer()->getId()) {
+            return 0;
+        }
+
+        return $task->getVmId();
     }
 
     private static function templateId(ShopProduct $product, ProxmoxCluster $cluster, string $node): int
@@ -344,7 +734,7 @@ final readonly class ProxmoxReinstallation
         $disk = self::systemDisk($config, $vmId);
         $agent = explode(',', $config['agent'] ?? '');
         if ('' === ($config['sshkeys'] ?? '') || '' === ($config['ciuser'] ?? '') || (!in_array('1', $agent, true) && !in_array('enabled=1', $agent, true))
-            || 0 !== $disk['size_bytes'] % self::GIB || null !== self::unusedDevice($config)) {
+            || 0 !== $disk['size_bytes'] % self::GIB || !ProxmoxDisks::validOptions($disk['options']) || null !== self::unusedDevice($config)) {
             throw new \InvalidArgumentException('pve.error.reinstall_unavailable');
         }
 
@@ -389,6 +779,32 @@ final readonly class ProxmoxReinstallation
         ksort($config, SORT_STRING);
 
         return hash('sha256', json_encode($config, JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * @param array<string, string> $config
+     * @param array{device: string, size_bytes: int, volume: string, options: string} $disk
+     * @param Reinstallation $plan
+     */
+    private static function matchesImportedDisk(array $config, array $disk, array $plan): bool
+    {
+        // Preflight required an empty list of unused disks. A second new entry
+        // can indicate an unrelated change or a partial import.
+        $unused = array_filter($config, static fn (string $device): bool => 1 === preg_match('/^unused\d+$/D', $device), ARRAY_FILTER_USE_KEY);
+
+        return isset($plan['import_serial']) && $disk['device'] === $plan['device']
+            && $disk['volume'] !== $plan['original_volume'] && explode(':', $disk['volume'], 2)[0] === explode(':', $plan['original_volume'], 2)[0]
+            && $disk['size_bytes'] <= $plan['disk_gib'] * self::GIB && $disk['options'] === self::importOptions($plan['device_options'], $plan['import_serial'])
+            && 1 === count($unused) && null !== self::unusedDevice($unused, $plan['original_volume']);
+    }
+
+    private static function importOptions(string $options, string $serial): string
+    {
+        $parts = array_filter(explode(',', ltrim($options, ',')), static fn (string $part): bool => '' !== $part && !str_starts_with($part, 'serial='));
+        $parts[] = 'serial='.$serial;
+        sort($parts, SORT_STRING);
+
+        return ','.implode(',', $parts);
     }
 
     /** @param array<string, string> $config */

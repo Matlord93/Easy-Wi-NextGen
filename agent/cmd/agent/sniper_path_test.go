@@ -83,23 +83,39 @@ func TestSniperStartValidationAllowsProvisionedMinecraftJava(t *testing.T) {
 	}
 }
 
-func TestResolveSniperUserHomeAndGameDir(t *testing.T) {
+func TestResolveGameserverDirectories(t *testing.T) {
 	t.Run("home path", func(t *testing.T) {
-		home, instance, err := resolveSniperUserHomeAndGameDir("/home/gs225", "gs225")
+		base := t.TempDir()
+		expected := filepath.Join(base, "gs225")
+		home, instance, err := resolveGameserverDirectories(base, "", "gs225")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if home != "/home/gs225" || instance != "/home/gs225" {
+		if home != expected || instance != expected {
 			t.Fatalf("got %s %s", home, instance)
 		}
 	})
-	t.Run("game path", func(t *testing.T) {
-		home, instance, err := resolveSniperUserHomeAndGameDir("/home/gs225/game", "gs225")
-		if err != nil {
-			t.Fatal(err)
+	if runtime.GOOS != "windows" {
+		t.Run("legacy game path", func(t *testing.T) {
+			home, instance, err := resolveGameserverDirectories("/var/lib/games", "/home/gs225/game", "gs225")
+			if err != nil || home != "/home/gs225" || instance != "/home/gs225/game" {
+				t.Fatalf("unexpected legacy path: %q %q (%v)", home, instance, err)
+			}
+		})
+	}
+	t.Run("configured storage", func(t *testing.T) {
+		base := t.TempDir()
+		expectedHome := filepath.Join(base, "gs225")
+		for _, expected := range []string{expectedHome, filepath.Join(expectedHome, "game", "cs2")} {
+			home, instance, err := resolveGameserverDirectories(base, expected, "gs225")
+			if err != nil || home != expectedHome || instance != expected {
+				t.Fatalf("unexpected path selection: %q %q (%v)", home, instance, err)
+			}
 		}
-		if home != "/home/gs225" || instance != "/home/gs225/game" {
-			t.Fatalf("got %s %s", home, instance)
+		for _, unsafe := range []string{"game", base, filepath.Join(base, "gs226", "game")} {
+			if _, _, err := resolveGameserverDirectories(base, unsafe, "gs225"); err == nil {
+				t.Fatalf("accepted invalid install path %q", unsafe)
+			}
 		}
 	})
 }

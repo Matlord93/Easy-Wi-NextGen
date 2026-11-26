@@ -91,6 +91,7 @@ final class CoreTelemetryStabilityTest extends KernelTestCase
     public function testReconcileDoesNotDuplicatePendingDiskJobsAndRetriesFailedJobs(): void
     {
         $agent = $this->agent('disk-queue');
+        $agent->recordHeartbeat(['os' => 'linux'], 'test', null, status: Agent::STATUS_ACTIVE);
         $this->entities->flush();
         $command = new CommandTester(self::getContainer()->get(DiskScanReconcileCommand::class));
         self::assertSame(0, $command->execute([]));

@@ -12,6 +12,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Nodes\Application\InfrastructureUsage;
 use App\Module\Nodes\Application\Proxmox\ProxmoxManager;
+use App\Module\Nodes\Application\Proxmox\ProxmoxReinstallation;
 use App\Module\Nodes\Domain\Entity\ProxmoxCluster;
 use App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment;
 use App\Module\Nodes\Domain\Entity\ProxmoxTask;
@@ -183,7 +184,11 @@ final class AdminProxmoxController extends AbstractController
                 ? $this->manager->queueInstallation($cluster, $vmId, $request->request->all(), $request->request->getString('request_key'), $actor)
                 : $this->manager->perform($cluster, $kind, $vmId, $action, $request->request->all(), $request->request->getString('request_key'), $actor);
             if (in_array($task->getState(), ['failed', 'uncertain'], true)) {
-                throw new \InvalidArgumentException('permission_denied' === $task->getResult() ? 'pve.error.permissions' : 'pve.error.unavailable');
+                throw new \InvalidArgumentException(match ($task->getResult()) {
+                    'permission_denied' => 'pve.error.permissions',
+                    'install_password_permission' => 'pve.error.install_password_permission',
+                    default => 'pve.error.unavailable',
+                });
             }
         } catch (\Throwable $exception) {
             $this->addFlash('proxmox_error', $this->error($exception));
@@ -381,7 +386,7 @@ final class AdminProxmoxController extends AbstractController
     }
 
     #[Route('/{id<\d+>}/tasks/{taskId<\d+>}/review', name: 'admin_proxmox_task_review', methods: ['GET', 'POST'])]
-    public function reviewTask(Request $request, int $id, int $taskId): Response
+    public function reviewTask(Request $request, int $id, int $taskId, ProxmoxReinstallation $reinstallation): Response
     {
         $actor = $this->actor($request);
         $task = $this->em->find(ProxmoxTask::class, $taskId);
@@ -393,10 +398,14 @@ final class AdminProxmoxController extends AbstractController
             $this->csrf($request, 'proxmox-task-review-'.$taskId);
             try {
                 $outcome = $request->request->get('outcome');
-                if ('1' !== $request->request->get('confirm') || !in_array($outcome, ['success', 'failure'], true)) {
+                if ('1' !== $request->request->get('confirm') || !in_array($outcome, ['success', 'failure', 'rollback'], true)) {
                     throw new \InvalidArgumentException('pve.error.review');
                 }
-                $this->manager->reviewTask($task, $actor, 'success' === $outcome, (string) $request->request->get('note'));
+                if ('rollback' === $outcome) {
+                    $reinstallation->requestRollback($task, $actor);
+                } else {
+                    $this->manager->reviewTask($task, $actor, 'success' === $outcome, (string) $request->request->get('note'));
+                }
 
                 return $this->redirectToRoute('admin_proxmox_task_review', ['id' => $id, 'taskId' => $taskId], 303);
             } catch (\Throwable $exception) {
@@ -404,7 +413,10 @@ final class AdminProxmoxController extends AbstractController
             }
         }
 
-        return $this->render('admin/proxmox/task-review.html.twig', ['task' => $task, 'error' => $error, 'activeNav' => 'proxmox'], new Response(status: null !== $error ? 422 : 200, headers: ['Cache-Control' => 'private, no-store']));
+        return $this->render('admin/proxmox/task-review.html.twig', [
+            'task' => $task, 'error' => $error, 'rollbackAvailable' => $reinstallation->canRequestRollback($task),
+            'removalConfirmationAvailable' => $reinstallation->canConfirmRemoval($task), 'activeNav' => 'proxmox',
+        ], new Response(status: null !== $error ? 422 : 200, headers: ['Cache-Control' => 'private, no-store']));
     }
 
     private function actor(Request $request): User

@@ -134,7 +134,7 @@ func TestBuildInstanceInstallShellCommandBootstrapsSteamCmd(t *testing.T) {
 	for _, expected := range []string{
 		"STEAMCMD_EXEC=",
 		"steamcmd_linux.tar.gz",
-		"cd " + instanceDir + " && $STEAMCMD_EXEC +force_install_dir " + instanceDir,
+		"cd '" + instanceDir + `' && "$STEAMCMD_EXEC" +force_install_dir ` + instanceDir,
 		instanceDir + "/.steam/sdk32/steamclient.so",
 	} {
 		if !strings.Contains(shellCmd, expected) {

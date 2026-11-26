@@ -76,7 +76,7 @@ final class CustomerDashboardController
 
         $latestInstanceMetrics = $this->instanceMetricSampleRepository->findLatestByInstances($instances);
         $resourceUsage = $this->calculateResourceUsage($instances, $webspaces, $latestInstanceMetrics);
-        $resourceUsage['disk_used_human'] = $this->diskUsageFormatter->formatBytes($resourceUsage['disk_used_bytes']);
+        $resourceUsage['disk_used_human'] = $resourceUsage['disk_measurement_state'] === 'unknown' ? '—' : $this->diskUsageFormatter->formatBytes($resourceUsage['disk_used_bytes']);
         $resourceUsage['disk_limit_human'] = $resourceUsage['disk_limit_bytes'] > 0
             ? $this->diskUsageFormatter->formatBytes($resourceUsage['disk_limit_bytes'])
             : null;
@@ -146,9 +146,7 @@ final class CustomerDashboardController
             $latencyMs = isset($queryCache['latency_ms']) && is_numeric($queryCache['latency_ms'])
                 ? (int) $queryCache['latency_ms']
                 : null;
-            $diskLimitBytes = max(0, $instance->getDiskLimitBytes());
-            $diskUsedBytes = max(0, $instance->getDiskUsedBytes());
-            $diskUsagePercent = $diskLimitBytes > 0 ? round(((float) $diskUsedBytes / (float) $diskLimitBytes) * 100.0, 1) : null;
+            $disk = $this->diskUsageFormatter->describeInstance($instance);
 
             return [
                 'id' => $instance->getId(),
@@ -161,11 +159,8 @@ final class CustomerDashboardController
                 'ram_limit' => $instance->getRamLimit(),
                 'booked_cpu_cores' => (float) $instance->getCpuLimit(),
                 'booked_ram_bytes' => $instance->getRamLimit() * 1024 * 1024,
-                'disk_limit_bytes' => $diskLimitBytes,
-                'disk_used_bytes' => $diskUsedBytes,
-                'disk_limit_human' => $diskLimitBytes > 0 ? $this->diskUsageFormatter->formatBytes($diskLimitBytes) : null,
-                'disk_used_human' => $this->diskUsageFormatter->formatBytes($diskUsedBytes),
-                'disk_usage_percent' => $diskUsagePercent,
+                ...$disk,
+                'disk_usage_percent' => $disk['disk_limit_bytes'] > 0 && $disk['disk_measurement_state'] !== 'unknown' ? round($disk['disk_percent'], 1) : null,
                 'cpu_percent' => $metrics['cpu_percent'] ?? null,
                 'mem_used_bytes' => $metrics['mem_used_bytes'] ?? null,
                 'metrics_reason' => $metrics['error_code'] ?? null,
@@ -228,7 +223,7 @@ final class CustomerDashboardController
      * @param Instance[] $instances
      * @param Webspace[] $webspaces
      * @param array<int, array{cpu_percent: ?float, mem_used_bytes: ?int, tasks_current: ?int, collected_at: \DateTimeImmutable, error_code: ?string}> $latestInstanceMetrics
-     * @return array{cpu: int|null, ram: int|null, disk: float, disk_used_bytes:int, disk_limit_bytes:int,
+     * @return array{cpu: int|null, ram: int|null, disk: ?float, disk_used_bytes:int, disk_limit_bytes:int,disk_measurement_state:string,
      * total_booked_cpu_cores:?float, total_used_cpu_cores:?float, total_cpu_percent:?float,
      * total_booked_ram_bytes:?int, total_used_ram_bytes:?int, total_ram_percent:?float}
      */
@@ -236,11 +231,16 @@ final class CustomerDashboardController
     {
         $diskLimitBytes = 0.0;
         $diskUsedBytes = 0.0;
+        $diskState = 'current';
         $rows = [];
 
         foreach ($instances as $instance) {
             $diskLimitBytes += (float) $instance->getDiskLimitBytes();
-            $diskUsedBytes += (float) $instance->getDiskUsedBytes();
+            $disk = $this->diskUsageFormatter->describeInstance($instance);
+            $diskUsedBytes += (float) $disk['disk_used_bytes'];
+            if ($disk['disk_measurement_state'] === 'unknown' || $diskState === 'current') {
+                $diskState = $disk['disk_measurement_state'];
+            }
 
             $instanceId = $instance->getId();
             $metrics = $instanceId === null ? null : ($latestInstanceMetrics[$instanceId] ?? null);
@@ -253,7 +253,10 @@ final class CustomerDashboardController
         }
 
         foreach ($webspaces as $webspace) {
-            $diskLimitBytes += max(0.0, (float) $webspace->getDiskLimitBytes());
+            if ($webspace->getDiskLimitBytes() > 0) {
+                $diskLimitBytes += (float) $webspace->getDiskLimitBytes();
+                $diskState = 'unknown';
+            }
         }
 
         $totals = $this->bookedResourceUsageAggregator->aggregate($rows);
@@ -261,7 +264,8 @@ final class CustomerDashboardController
         return [
             'cpu' => isset($totals['total_cpu_percent']) ? (int) round($totals['total_cpu_percent']) : null,
             'ram' => isset($totals['total_ram_percent']) ? (int) round($totals['total_ram_percent']) : null,
-            'disk' => $this->formatUsagePercent($diskUsedBytes, $diskLimitBytes),
+            'disk' => $diskState === 'unknown' ? null : $this->formatUsagePercent($diskUsedBytes, $diskLimitBytes),
+            'disk_measurement_state' => $diskState,
             'disk_used_bytes' => (int) $diskUsedBytes,
             'disk_limit_bytes' => (int) $diskLimitBytes,
             'total_booked_cpu_cores' => $totals['total_booked_cpu_cores'],

@@ -8,11 +8,36 @@ use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use DoctrineMigrations\Version20261121090000;
 use DoctrineMigrations\Version20261121110000;
+use DoctrineMigrations\Version20261123120000;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
 final class ProxmoxInstallationMigrationTest extends TestCase
 {
+    public function testPasswordHandoffUpgradeKeepsExistingVmOwners(): void
+    {
+        require_once __DIR__.'/../../migrations/Version20261123120000.php';
+        $db = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        try {
+            foreach (['kvm_guest_assignments', 'proxmox_guest_assignments'] as $table) {
+                $db->executeStatement('CREATE TABLE '.$table.' (id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL)');
+                $db->insert($table, ['id' => 15, 'customer_id' => 25]);
+            }
+            $schema = $db->createSchemaManager();
+            $before = $schema->introspectSchema();
+            $after = clone $before;
+            (new Version20261123120000($db, new NullLogger()))->up($after);
+            foreach ($db->getDatabasePlatform()->getAlterSchemaSQL($schema->createComparator()->compareSchemas($before, $after)) as $sql) {
+                $db->executeStatement($sql);
+            }
+            foreach (['kvm_guest_assignments', 'proxmox_guest_assignments'] as $table) {
+                self::assertSame(['customer_id' => 25, 'root_password_handoff' => null], $db->fetchAssociative('SELECT customer_id, root_password_handoff FROM '.$table.' WHERE id = 15'));
+            }
+        } finally {
+            $db->close();
+        }
+    }
+
     public function testAddressPoolUpgradeKeepsExistingTasksAndForbidsDuplicateLeases(): void
     {
         require_once __DIR__.'/../../migrations/Version20261121110000.php';

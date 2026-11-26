@@ -18,6 +18,7 @@ use App\Module\Nodes\Domain\Entity\ProxmoxTask;
 use App\Module\Nodes\Domain\Proxmox\ProxmoxConnection;
 use App\Tests\Support\ProxmoxFixture;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -99,10 +100,15 @@ final class ProxmoxHttpTest extends AbstractWebTestCase
         }
     }
 
-    public function testCustomerReinstallPreservesTheOldDiskUntilFreshBootAndNetworkAreConfirmed(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCustomerReinstallPreservesTheOldDiskUntilFreshBootAndNetworkAreConfirmed(bool $preparePassword): void
     {
         $client = $this->client(false);
+        $this->fixture->rootPasswordPermission = $preparePassword;
         [$productId, $hiddenId] = $this->prepareReinstall();
+        $originalSerial = $preparePassword ? ',serial=existing%20id' : '';
+        $this->fixture->configs[101]['scsi0'] .= $originalSerial;
         $url = '/customer/proxmox/'.$this->ownId;
         $crawler = $client->request('GET', $url.'?lang=en');
         self::assertResponseIsSuccessful();
@@ -131,8 +137,8 @@ final class ProxmoxHttpTest extends AbstractWebTestCase
         self::assertResponseRedirects($url.'#pve-access', 303);
         $this->fixture->pendingConfiguration = [];
         for ($i = 0; $i < 2; ++$i) {
-            $client->request('POST', $url.'/reinstall', $body + ['confirm' => '1']);
-            self::assertResponseRedirects($url.'#pve-activity', 303);
+            $client->request('POST', $url.'/reinstall', $body + ['confirm' => '1', 'prepare_root_password' => $preparePassword ? '1' : '0']);
+            self::assertResponseRedirects($url.($preparePassword && 1 === $i ? '#pve-access' : '#pve-activity'), 303);
         }
         self::assertSame([], $this->fixture->writes());
         $task = $this->reinstallTask($body['request_key']);
@@ -140,34 +146,170 @@ final class ProxmoxHttpTest extends AbstractWebTestCase
         $taskUrl = $url.'/tasks/'.$task->getId();
         $client->request('GET', $taskUrl);
         self::assertResponseIsSuccessful();
-        self::assertSame('local-lvm:0,import-from=local-lvm:base-900-disk-0,backup=1', $this->fixture->writes()[0]['body']['scsi0']);
+        self::assertMatchesRegularExpression('/^local-lvm:0,import-from=local-lvm:base-900-disk-0,backup=1,serial=[0-9a-f]{20}$/D', $this->fixture->writes()[0]['body']['scsi0']);
         self::assertSame('local-lvm:vm-101-disk-0', $this->fixture->configs[101]['unused0']);
         $client->request('GET', $taskUrl);
         self::assertCount(1, $this->fixture->writes());
 
         $this->fixture->complete = true;
         $client->request('GET', $taskUrl);
-        self::assertSame('32G', $this->fixture->writes()[1]['body']['size']);
+        self::assertSame('local-lvm:vm-101-disk-1,backup=1'.$originalSerial, $this->fixture->writes()[1]['body']['scsi0']);
         $client->request('GET', $taskUrl);
-        self::assertStringEndsWith('/qemu/101/status/start', $this->fixture->writes()[2]['path']);
+        self::assertSame('32G', $this->fixture->writes()[2]['body']['size']);
+        $client->request('GET', $taskUrl);
+        self::assertStringEndsWith('/qemu/101/status/start', $this->fixture->writes()[3]['path']);
         $this->fixture->cloudInitMarker = '3.45 - '.gmdate(DATE_RFC2822, time() - 3600).' - v. 25.1';
         $client->request('GET', $taskUrl);
-        self::assertCount(3, $this->fixture->writes());
+        self::assertCount(4, $this->fixture->writes());
         $this->fixture->cloudInitMarker = '3.45 - '.gmdate(DATE_RFC2822, time() + 1).' - v. 25.1';
         $network = $this->fixture->guestInterfaces;
         $this->fixture->guestInterfaces = [];
         $client->request('GET', $taskUrl);
-        self::assertCount(3, $this->fixture->writes());
+        self::assertCount(4, $this->fixture->writes());
         $this->fixture->guestInterfaces = $network;
         $client->request('GET', $taskUrl);
-        self::assertSame(['delete' => 'unused0', 'digest' => 'fixture-digest'], $this->fixture->writes()[3]['body']);
+        if ($preparePassword) {
+            self::assertSame('setting_password', $this->reinstallTask($body['request_key'])->getReinstallation()['phase']);
+            self::assertSame('local-lvm:vm-101-disk-0', $this->fixture->configs[101]['unused0']);
+            $client->request('GET', $taskUrl);
+        }
+        self::assertSame(['delete' => 'unused0', 'digest' => 'fixture-digest'], $this->fixture->writes()[$preparePassword ? 5 : 4]['body']);
         $client->request('GET', $taskUrl);
         self::assertResponseIsSuccessful();
         self::assertSame(['state' => 'succeeded', 'result' => 'OK', 'active' => false, 'poll' => true], json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR));
-        self::assertSame('local-lvm:vm-101-disk-1,size=32G,backup=1', $this->fixture->configs[101]['scsi0']);
+        self::assertSame('local-lvm:vm-101-disk-1,size=32G,backup=1'.$originalSerial, $this->fixture->configs[101]['scsi0']);
         self::assertArrayNotHasKey('unused0', $this->fixture->configs[101]);
         self::assertSame('ip=192.0.2.10/24,gw=192.0.2.1', $this->fixture->configs[101]['ipconfig0']);
         self::assertSame('easywi', $this->fixture->configs[101]['ciuser']);
+        if ($preparePassword) {
+            self::assertStringEndsWith('/agent/set-user-password', $this->fixture->writes()[4]['path']);
+            $response = $client->request('POST', $url.'/root-password/reveal', ['_token' => $body['_token']]);
+            self::assertResponseIsSuccessful();
+            $password = $response->filterXPath('//input[@type="text" and @readonly]')->attr('value');
+            $hash = $this->fixture->writes()[4]['body']['password'];
+            self::assertSame($hash, crypt($password, $hash));
+        }
+    }
+
+    public function testCustomerReinstallRollsBackIfStoringThePasswordFails(): void
+    {
+        $client = $this->client(false);
+        $this->fixture->rootPasswordPermission = true;
+        [$productId] = $this->prepareReinstall();
+        $url = '/customer/proxmox/'.$this->ownId;
+        $form = $client->request('GET', $url)->filterXPath('//form[@action="'.$url.'/reinstall"]');
+        $key = $form->filterXPath('.//input[@name="request_key"]')->attr('value');
+        $db = self::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $db->executeStatement("CREATE TEMP TRIGGER fail_password_handoff BEFORE UPDATE OF root_password_handoff ON proxmox_guest_assignments BEGIN SELECT RAISE(ABORT, 'test handoff storage failure'); END");
+        try {
+            $client->request('POST', $url.'/reinstall', [
+                '_token' => $form->filterXPath('.//input[@name="_token"]')->attr('value'),
+                'request_key' => $key,
+                'expected_digest' => $form->filterXPath('.//input[@name="expected_digest"]')->attr('value'),
+                'product_id' => (string) $productId,
+                'confirm' => '1',
+                'prepare_root_password' => '1',
+            ]);
+            self::assertResponseStatusCodeSame(500);
+            self::assertFalse($db->fetchOne('SELECT id FROM proxmox_tasks WHERE request_key = ?', [$key]));
+            self::assertNull($db->fetchOne('SELECT root_password_handoff FROM proxmox_guest_assignments WHERE id = ?', [$this->ownId]));
+            self::assertSame([], $this->fixture->writes());
+        } finally {
+            $db->executeStatement('DROP TRIGGER fail_password_handoff');
+        }
+    }
+
+    #[TestWith(['lost-reply'])]
+    #[TestWith(['malformed'])]
+    #[TestWith(['panel-interruption'])]
+    #[TestWith(['timeout'])]
+    #[TestWith(['rejected'])]
+    #[TestWith(['changed-config'])]
+    public function testReinstallWaitsForTheConfirmedRootPasswordBeforeRemovingThePreviousDisk(string $scenario): void
+    {
+        $client = $this->client(false);
+        $this->fixture->rootPasswordPermission = true;
+        [$productId] = $this->prepareReinstall();
+        $url = '/customer/proxmox/'.$this->ownId;
+        $page = $client->request('GET', $url);
+        $form = $page->filterXPath('//form[@action="'.$url.'/reinstall"]');
+        $requestKey = $form->filterXPath('.//input[@name="request_key"]')->attr('value');
+        $token = $form->filterXPath('.//input[@name="_token"]')->attr('value');
+        $client->submit($form->form(['confirm' => '1', 'product_id' => (string) $productId, 'prepare_root_password' => '1']));
+        self::assertResponseRedirects($url.'#pve-activity', 303);
+        $taskId = $this->reinstallTask($requestKey)->getId();
+        $taskUrl = $url.'/tasks/'.$taskId;
+        $this->fixture->complete = true;
+        for ($i = 0; $i < 4; ++$i) {
+            $client->request('GET', $taskUrl);
+            self::assertResponseIsSuccessful();
+        }
+        $this->fixture->cloudInitMarker = '3.45 - '.gmdate(DATE_RFC2822, time() + 1).' - v. 25.1';
+        $passwordPath = '/nodes/pve-a/qemu/101/agent/set-user-password';
+        $this->fixture->loseResponseAfterWrite = in_array($scenario, ['lost-reply', 'timeout', 'changed-config'], true) ? $passwordPath : null;
+        $this->fixture->malformedRootPasswordResponse = 'malformed' === $scenario;
+        $this->fixture->failWrites = 'rejected' === $scenario;
+        $this->fixture->writeFailureStatus = 400;
+        $client->request('GET', $taskUrl);
+        self::assertResponseIsSuccessful();
+        self::assertCount(5, $this->fixture->writes());
+        self::assertSame($passwordPath, $this->fixture->writes()[4]['path']);
+        $passwordRequest = $this->fixture->writes()[4]['body'];
+        self::assertSame('local-lvm:vm-101-disk-0', $this->fixture->configs[101]['unused0']);
+        $this->fixture->malformedRootPasswordResponse = $this->fixture->failWrites = false;
+        $this->fixture->loseResponseAfterWrite = null;
+
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        if ('panel-interruption' === $scenario) {
+            $em->getConnection()->update('proxmox_tasks', ['state' => 'submitting'], ['id' => $taskId]);
+        }
+        $reveal = $url.'/root-password/reveal';
+        $client->request('POST', $reveal, ['_token' => $token]);
+        self::assertResponseRedirects($url.'#pve-access', 303);
+        $client->request('GET', $taskUrl);
+        self::assertCount(5, $this->fixture->writes());
+        if ('rejected' === $scenario) {
+            self::assertSame('reinstall_password_rejected', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['result']);
+            self::assertSame('local-lvm:vm-101-disk-0', $this->fixture->configs[101]['unused0']);
+
+            return;
+        }
+        self::assertSame('submitting', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['state']);
+
+        $plan = $this->reinstallTask($requestKey)->getReinstallation();
+        $plan['step_submitted_at'] = time() - 30;
+        if ('timeout' === $scenario) {
+            $plan['password_requested_at'] = time() - 301;
+        } elseif ('changed-config' === $scenario) {
+            $this->fixture->configs[101]['ipconfig0'] = 'ip=192.0.2.11/24';
+        }
+        $em->getConnection()->update('proxmox_tasks', ['installation' => json_encode(['reinstall' => $plan], JSON_THROW_ON_ERROR)], ['id' => $taskId]);
+        $client->request('GET', $taskUrl);
+        $progress = json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        if (in_array($scenario, ['timeout', 'changed-config'], true)) {
+            self::assertSame('uncertain', $progress['state']);
+            self::assertSame('timeout' === $scenario ? 'reinstall_password_unconfirmed' : 'reinstall_configuration_changed', $progress['result']);
+            self::assertCount(5, $this->fixture->writes());
+            self::assertSame('local-lvm:vm-101-disk-0', $this->fixture->configs[101]['unused0']);
+
+            return;
+        }
+
+        self::assertSame('running', $progress['state']);
+        self::assertCount(6, $this->fixture->writes());
+        self::assertSame($passwordPath, $this->fixture->writes()[5]['path']);
+        self::assertSame($passwordRequest, $this->fixture->writes()[5]['body']);
+        self::assertSame('local-lvm:vm-101-disk-0', $this->fixture->configs[101]['unused0']);
+        $client->request('GET', $taskUrl);
+        self::assertSame(['delete' => 'unused0', 'digest' => 'fixture-digest'], $this->fixture->writes()[6]['body']);
+        $client->request('GET', $taskUrl);
+        self::assertSame('succeeded', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['state']);
+        $page = $client->request('POST', $reveal, ['_token' => $token]);
+        self::assertResponseIsSuccessful();
+        $password = $page->filterXPath('//input[@type="text" and @readonly]')->attr('value');
+        self::assertSame($passwordRequest['password'], crypt($password, $passwordRequest['password']));
+        $client->request('POST', $reveal, ['_token' => $token]);
+        self::assertResponseRedirects($url.'#pve-access', 303);
     }
 
     public function testCustomerReinstallStopsWhenTheVmConfigChangesAfterImport(): void
@@ -193,6 +335,330 @@ final class ProxmoxHttpTest extends AbstractWebTestCase
         self::assertSame(['state' => 'uncertain', 'result' => 'reinstall_configuration_changed', 'active' => true, 'poll' => false], json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR));
         self::assertCount(1, $this->fixture->writes());
         self::assertSame('local-lvm:vm-101-disk-0', $this->fixture->configs[101]['unused0']);
+    }
+
+    public function testCustomerCanReinstallFromTheOriginalTemplateWithoutShopProducts(): void
+    {
+        $client = $this->client(false);
+        [$product, $hidden] = $this->prepareReinstall();
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $em->getConnection()->executeStatement('DELETE FROM shop_products WHERE id IN (?, ?)', [$product, $hidden]);
+        $em->getConnection()->insert('proxmox_tasks', [
+            'cluster_id' => $this->clusterId, 'node' => 'pve-a', 'kind' => 'qemu', 'vm_id' => 900, 'target_vm_id' => 101,
+            'action' => 'install-template', 'request_key' => '0123456789abcdef0123456789abcdef', 'state' => 'succeeded',
+            'result' => 'OK', 'created_at' => '2026-11-20 12:00:00',
+            'installation' => json_encode(['customer_id' => $this->customerId], JSON_THROW_ON_ERROR),
+        ]);
+        $url = '/customer/proxmox/'.$this->ownId;
+        $page = $client->request('GET', $url);
+        $form = $page->filterXPath('//form[@action="'.$url.'/reinstall"]');
+        self::assertCount(1, $form->filterXPath('.//option[@value="0"]'));
+        $requestKey = $form->filterXPath('.//input[@name="request_key"]')->attr('value');
+        $client->submit($form->form(['confirm' => '1', 'product_id' => '0']));
+        self::assertResponseRedirects($url.'#pve-activity', 303);
+        $task = $this->reinstallTask($requestKey);
+        $client->request('GET', $url.'/tasks/'.$task->getId());
+        self::assertResponseIsSuccessful();
+        self::assertStringStartsWith('local-lvm:0,import-from=local-lvm:base-900-disk-0,backup=1,serial=', $this->fixture->writes()[0]['body']['scsi0']);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAdminReinstallRollbackReattachesThePreviousDiskAndRetainsTheReplacement(bool $lostResponse): void
+    {
+        $this->fixture->propagatePermissions = false;
+        $client = $this->client(false);
+        [$productId] = $this->prepareReinstall();
+        $customerUrl = '/customer/proxmox/'.$this->ownId;
+        $page = $client->request('GET', $customerUrl);
+        $form = $page->filterXPath('//form[@action="'.$customerUrl.'/reinstall"]');
+        $requestKey = $form->filterXPath('.//input[@name="request_key"]')->attr('value');
+        $client->submit($form->form(['confirm' => '1', 'product_id' => (string) $productId]));
+        self::assertResponseRedirects($customerUrl.'#pve-activity', 303);
+        $taskId = $this->reinstallTask($requestKey)->getId();
+        $customerTask = $customerUrl.'/tasks/'.$taskId;
+        $this->fixture->complete = true;
+        for ($i = 0; $i < 4; ++$i) {
+            $client->request('GET', $customerTask);
+            self::assertResponseIsSuccessful();
+        }
+        self::assertStringEndsWith('/qemu/101/status/start', $this->fixture->writes()[3]['path']);
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $em->getConnection()->update('proxmox_tasks', ['created_at' => date('Y-m-d H:i:s', time() - 3700)], ['id' => $taskId]);
+        $client->request('GET', $customerTask);
+        self::assertSame('reinstall_timeout', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['result']);
+        self::assertCount(4, $this->fixture->writes());
+
+        $adminTask = '/admin/proxmox/'.$this->clusterId.'/tasks/'.$taskId;
+        $review = $adminTask.'/review';
+        $client->request('POST', $review, ['outcome' => 'rollback', 'confirm' => '1']);
+        self::assertContains($client->getResponse()->getStatusCode(), [401, 403]);
+        $this->loginAsRole($client, 'admin');
+        $page = $client->request('GET', $review);
+        self::assertResponseIsSuccessful();
+        $rollback = $page->filterXPath('//form[@data-pve-restore-system-disk]');
+        self::assertCount(1, $rollback);
+        $fields = ['_token' => $rollback->filterXPath('.//input[@name="_token"]')->attr('value'), 'outcome' => 'rollback'];
+        $client->request('POST', $review, $fields);
+        self::assertResponseStatusCodeSame(422);
+
+        $originalVolume = $this->fixture->configs[101]['unused0'];
+        $this->fixture->configs[101]['unused0'] = 'local-lvm:vm-101-other-volume';
+        $client->request('POST', $review, $fields + ['confirm' => '1']);
+        self::assertResponseStatusCodeSame(422);
+        self::assertCount(4, $this->fixture->writes());
+        $this->fixture->configs[101]['unused0'] = $originalVolume;
+
+        $this->fixture->auditPermission = false;
+        $client->request('POST', $review, $fields + ['confirm' => '1']);
+        self::assertResponseStatusCodeSame(422);
+        self::assertCount(4, $this->fixture->writes());
+        $this->fixture->auditPermission = true;
+
+        $client->request('POST', $review, $fields + ['confirm' => '1']);
+        self::assertResponseRedirects($review, 303);
+        self::assertCount(4, $this->fixture->writes());
+        $this->fixture->complete = false;
+        $client->request('GET', $adminTask);
+        self::assertStringEndsWith('/qemu/101/status/shutdown', $this->fixture->writes()[4]['path']);
+        self::assertSame([], $this->fixture->writes()[4]['body']);
+        $client->request('GET', $adminTask);
+        self::assertCount(5, $this->fixture->writes());
+
+        $this->fixture->complete = true;
+        $this->fixture->loseDiskReattachResponse = $lostResponse;
+        $client->request('GET', $adminTask);
+        self::assertSame(['scsi0' => 'local-lvm:vm-101-disk-0,backup=1', 'digest' => 'fixture-digest'], $this->fixture->writes()[5]['body']);
+        if ($lostResponse) {
+            self::assertSame('uncertain', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['state']);
+            $client->request('POST', $review, $fields + ['confirm' => '1']);
+            self::assertResponseRedirects($review, 303);
+        }
+        $client->request('GET', $adminTask);
+        self::assertSame(['state' => 'failed', 'result' => 'reinstall_rolled_back', 'active' => false, 'poll' => true], json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR));
+        self::assertCount(6, $this->fixture->writes());
+        self::assertSame('local-lvm:vm-101-disk-0,size=32G,backup=1', $this->fixture->configs[101]['scsi0']);
+        self::assertSame('local-lvm:vm-101-disk-1', $this->fixture->configs[101]['unused0']);
+        self::assertSame('stopped', $this->fixture->guests[0]['status']);
+    }
+
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testAdminCanRecoverAnImportedSystemDiskBeforeThePanelRecordsTheReplacement(bool $lostResponse): void
+    {
+        $client = $this->client(false);
+        [$productId] = $this->prepareReinstall();
+        $customerUrl = '/customer/proxmox/'.$this->ownId;
+        $page = $client->request('GET', $customerUrl);
+        $form = $page->filterXPath('//form[@action="'.$customerUrl.'/reinstall"]');
+        $requestKey = $form->filterXPath('.//input[@name="request_key"]')->attr('value');
+        $client->submit($form->form(['confirm' => '1', 'product_id' => (string) $productId]));
+        self::assertResponseRedirects($customerUrl.'#pve-activity', 303);
+        $taskId = $this->reinstallTask($requestKey)->getId();
+        $this->fixture->loseDiskImportResponse = $lostResponse;
+        $client->request('GET', $customerUrl.'/tasks/'.$taskId);
+        if (!$lostResponse) {
+            // Simulate termination after Proxmox accepted the write and before the UPID was committed.
+            $em = self::getContainer()->get(EntityManagerInterface::class);
+            $em->getConnection()->update('proxmox_tasks', ['state' => 'submitting', 'upid' => null], ['id' => $taskId]);
+            $client->request('GET', $customerUrl.'/tasks/'.$taskId);
+        }
+        self::assertSame('uncertain', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['state']);
+        self::assertArrayNotHasKey('replacement_volume', $this->reinstallTask($requestKey)->getReinstallation());
+        self::assertCount(1, $this->fixture->writes());
+
+        $this->loginAsRole($client, 'admin');
+        $taskUrl = '/admin/proxmox/'.$this->clusterId.'/tasks/'.$taskId;
+        $review = $taskUrl.'/review';
+        $page = $client->request('GET', $review);
+        $rollback = $page->filterXPath('//form[@data-pve-restore-system-disk]');
+        self::assertCount(1, $rollback);
+        $fields = ['_token' => $rollback->filterXPath('.//input[@name="_token"]')->attr('value'), 'outcome' => 'rollback', 'confirm' => '1'];
+
+        $markedDisk = $this->fixture->configs[101]['scsi0'];
+        $this->fixture->configs[101]['scsi0'] = 'local-lvm:vm-101-disk-1,size=8G,backup=1,serial=other-import';
+        $client->request('POST', $review, $fields);
+        self::assertResponseStatusCodeSame(422);
+        $this->fixture->configs[101]['scsi0'] = $markedDisk;
+        $this->fixture->configs[101]['unused1'] = 'local-lvm:vm-101-unrelated-disk';
+        $client->request('POST', $review, $fields);
+        self::assertResponseStatusCodeSame(422);
+        unset($this->fixture->configs[101]['unused1']);
+        $this->fixture->activeJobs = [['id' => '101', 'type' => 'qmconfig']];
+        $client->request('POST', $review, $fields);
+        self::assertResponseStatusCodeSame(422);
+        self::assertCount(1, $this->fixture->writes());
+
+        $this->fixture->activeJobs = [];
+        $this->fixture->complete = true;
+        $client->request('POST', $review, $fields);
+        self::assertResponseRedirects($review, 303);
+        self::assertCount(1, $this->fixture->writes());
+        $client->request('GET', $taskUrl);
+        $client->request('GET', $taskUrl);
+        self::assertSame('reinstall_rolled_back', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['result']);
+        self::assertCount(2, $this->fixture->writes());
+        self::assertSame(['scsi0' => 'local-lvm:vm-101-disk-0,backup=1', 'digest' => 'fixture-digest'], $this->fixture->writes()[1]['body']);
+        self::assertSame('local-lvm:vm-101-disk-0,size=32G,backup=1', $this->fixture->configs[101]['scsi0']);
+        self::assertSame('local-lvm:vm-101-disk-1', $this->fixture->configs[101]['unused0']);
+    }
+
+    #[TestWith(['lost-reply'])]
+    #[TestWith(['panel-interruption'])]
+    #[TestWith(['admin-recheck'])]
+    public function testReinstallCanConfirmAnUnacknowledgedRemovalWithoutDeletingAgain(string $scenario): void
+    {
+        $client = $this->client(false);
+        [$productId] = $this->prepareReinstall();
+        $customerUrl = '/customer/proxmox/'.$this->ownId;
+        $page = $client->request('GET', $customerUrl);
+        $form = $page->filterXPath('//form[@action="'.$customerUrl.'/reinstall"]');
+        $requestKey = $form->filterXPath('.//input[@name="request_key"]')->attr('value');
+        $client->submit($form->form(['confirm' => '1', 'product_id' => (string) $productId]));
+        self::assertResponseRedirects($customerUrl.'#pve-activity', 303);
+        $taskId = $this->reinstallTask($requestKey)->getId();
+        $taskUrl = $customerUrl.'/tasks/'.$taskId;
+        $this->fixture->complete = true;
+        for ($i = 0; $i < 4; ++$i) {
+            $client->request('GET', $taskUrl);
+            self::assertResponseIsSuccessful();
+        }
+        $this->fixture->cloudInitMarker = '3.45 - '.gmdate(DATE_RFC2822, time() + 1).' - v. 25.1';
+        $this->fixture->loseDiskRemovalResponse = 'panel-interruption' !== $scenario;
+        $client->request('GET', $taskUrl);
+        self::assertResponseIsSuccessful();
+        self::assertSame(['delete' => 'unused0', 'digest' => 'fixture-digest'], $this->fixture->writes()[4]['body']);
+        self::assertArrayNotHasKey('unused0', $this->fixture->configs[101]);
+
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        if ('panel-interruption' === $scenario) {
+            $em->getConnection()->update('proxmox_tasks', ['state' => 'submitting', 'upid' => null], ['id' => $taskId]);
+        }
+        $client->request('GET', $taskUrl);
+        self::assertSame('submitting', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['state']);
+
+        $original = 'local-lvm:vm-101-disk-0';
+        $replacement = 'local-lvm:vm-101-disk-1';
+        $this->fixture->imageVolumes = [$original, $replacement];
+        $client->request('GET', $taskUrl);
+        self::assertSame('submitting', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['state']);
+
+        if ('admin-recheck' === $scenario) {
+            $plan = $this->reinstallTask($requestKey)->getReinstallation();
+            $plan['removal_requested_at'] = time() - 301;
+            $em->getConnection()->update('proxmox_tasks', ['installation' => json_encode(['reinstall' => $plan], JSON_THROW_ON_ERROR)], ['id' => $taskId]);
+            $client->request('GET', $taskUrl);
+            self::assertSame(['state' => 'uncertain', 'result' => 'reinstall_removal_unconfirmed', 'active' => true, 'poll' => false], json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR));
+
+            $review = '/admin/proxmox/'.$this->clusterId.'/tasks/'.$taskId.'/review';
+            $this->loginAsRole($client, 'admin');
+            $page = $client->request('GET', $review);
+            $form = $page->filterXPath('//form[.//select[@name="outcome"]]');
+            self::assertCount(1, $form->filterXPath('.//option[@value="success"]'));
+            $fields = ['_token' => $form->filterXPath('.//input[@name="_token"]')->attr('value'), 'outcome' => 'success', 'confirm' => '1', 'note' => 'Storage und VM im Cluster geprüft.'];
+            $client->request('POST', $review, array_replace($fields, ['_token' => 'invalid']));
+            self::assertResponseStatusCodeSame(403);
+            $client->request('POST', $review, $fields);
+            self::assertResponseStatusCodeSame(422);
+            $this->fixture->imageVolumes = [$replacement];
+            $this->fixture->activeJobs = [['id' => '101', 'type' => 'qmconfig']];
+            $client->request('POST', $review, $fields);
+            self::assertResponseStatusCodeSame(422);
+            $this->fixture->activeJobs = [];
+            $client->request('POST', $review, $fields);
+            self::assertResponseRedirects($review, 303);
+            $taskUrl = '/admin/proxmox/'.$this->clusterId.'/tasks/'.$taskId;
+        }
+
+        $this->fixture->imageVolumes = [$replacement];
+        $client->request('GET', $taskUrl);
+        self::assertSame(['state' => 'succeeded', 'result' => 'OK', 'active' => false, 'poll' => true], json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR));
+        self::assertCount(5, $this->fixture->writes());
+        self::assertNull($em->getConnection()->fetchOne('SELECT guest_lock FROM proxmox_tasks WHERE id = ?', [$taskId]));
+    }
+
+    #[TestWith(['restoring_options', 1, 'lost-reply'])]
+    #[TestWith(['resizing', 2, 'lost-reply'])]
+    #[TestWith(['starting', 3, 'lost-reply'])]
+    #[TestWith(['starting', 3, 'panel-interruption'])]
+    #[TestWith(['restoring_options', 1, 'never-applied'])]
+    public function testReinstallReconcilesIntermediateStepsWithoutRepeatingWrites(string $phase, int $writesBefore, string $scenario): void
+    {
+        $client = $this->client(false);
+        [$productId] = $this->prepareReinstall();
+        $customerUrl = '/customer/proxmox/'.$this->ownId;
+        $page = $client->request('GET', $customerUrl);
+        $form = $page->filterXPath('//form[@action="'.$customerUrl.'/reinstall"]');
+        $requestKey = $form->filterXPath('.//input[@name="request_key"]')->attr('value');
+        $client->submit($form->form(['confirm' => '1', 'product_id' => (string) $productId]));
+        self::assertResponseRedirects($customerUrl.'#pve-activity', 303);
+        $taskId = $this->reinstallTask($requestKey)->getId();
+        $taskUrl = $customerUrl.'/tasks/'.$taskId;
+        $this->fixture->complete = true;
+        for ($i = 0; $i < $writesBefore; ++$i) {
+            $client->request('GET', $taskUrl);
+            self::assertResponseIsSuccessful();
+        }
+        $operation = match ($phase) {
+            'restoring_options' => '/config',
+            'resizing' => '/resize',
+            'starting' => '/status/start',
+        };
+        $path = '/nodes/pve-a/qemu/101'.$operation;
+        if ('lost-reply' === $scenario) {
+            $this->fixture->loseResponseAfterWrite = $path;
+        } elseif ('never-applied' === $scenario) {
+            $this->fixture->lostWritePath = $path;
+        }
+        $client->request('GET', $taskUrl);
+        self::assertResponseIsSuccessful();
+        self::assertSame($path, $this->fixture->writes()[$writesBefore]['path']);
+        self::assertSame($phase, $this->reinstallTask($requestKey)->getReinstallation()['phase']);
+        $this->fixture->loseResponseAfterWrite = $this->fixture->lostWritePath = null;
+
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        if ('panel-interruption' === $scenario) {
+            $em->getConnection()->update('proxmox_tasks', ['state' => 'submitting', 'upid' => null], ['id' => $taskId]);
+        }
+        $this->fixture->activeJobs = [['id' => '101', 'type' => 'qmconfig']];
+        $client->request('GET', $taskUrl);
+        self::assertSame('submitting', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['state']);
+        self::assertCount($writesBefore + 1, $this->fixture->writes());
+        $this->fixture->activeJobs = [];
+        $client->request('GET', $taskUrl);
+        self::assertCount($writesBefore + 1, $this->fixture->writes());
+
+        if ('never-applied' === $scenario) {
+            self::assertSame('submitting', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['state']);
+            $plan = $this->reinstallTask($requestKey)->getReinstallation();
+            $plan['step_submitted_at'] = time() - 301;
+            $em->getConnection()->update('proxmox_tasks', ['installation' => json_encode(['reinstall' => $plan], JSON_THROW_ON_ERROR)], ['id' => $taskId]);
+            $client->request('GET', $taskUrl);
+            self::assertSame(['state' => 'uncertain', 'result' => 'reinstall_step_unconfirmed', 'active' => true, 'poll' => false], json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR));
+            self::assertCount($writesBefore + 1, $this->fixture->writes());
+            self::assertSame('local-lvm:vm-101-disk-0', $this->fixture->configs[101]['unused0']);
+            $this->loginAsRole($client, 'admin');
+            $page = $client->request('GET', '/admin/proxmox/'.$this->clusterId.'/tasks/'.$taskId.'/review');
+            self::assertCount(1, $page->filterXPath('//form[@data-pve-restore-system-disk]'));
+
+            return;
+        }
+
+        self::assertSame('running', json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['state']);
+        for ($i = $writesBefore + 1; $i < 4; ++$i) {
+            $client->request('GET', $taskUrl);
+            self::assertResponseIsSuccessful();
+        }
+        $this->fixture->cloudInitMarker = '3.45 - '.gmdate(DATE_RFC2822, time() - 3600).' - v. 25.1';
+        $client->request('GET', $taskUrl);
+        self::assertCount(4, $this->fixture->writes());
+        self::assertSame('local-lvm:vm-101-disk-0', $this->fixture->configs[101]['unused0']);
+        $this->fixture->cloudInitMarker = '3.45 - '.gmdate(DATE_RFC2822, time() + 1).' - v. 25.1';
+        $client->request('GET', $taskUrl);
+        $client->request('GET', $taskUrl);
+        self::assertSame(['state' => 'succeeded', 'result' => 'OK', 'active' => false, 'poll' => true], json_decode($client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR));
+        self::assertCount(5, $this->fixture->writes());
+        self::assertArrayNotHasKey('unused0', $this->fixture->configs[101]);
     }
 
     /** @return array{int, int} */
@@ -250,6 +716,28 @@ final class ProxmoxHttpTest extends AbstractWebTestCase
         self::assertStringContainsString('debian.iso', $html);
         self::assertStringNotContainsString('vzdump-qemu-999', $html);
         self::assertStringNotContainsString('synthetic-pve-secret', $html);
+    }
+
+    public function testAdminInstallationChecksRootPasswordPrivilegeOnTheTargetBeforeReservingIt(): void
+    {
+        $client = $this->client();
+        $this->fixture->configs[900] = ['ide2' => 'local-lvm:vm-900-cloudinit,media=cdrom', 'net0' => 'virtio=52:54:00:12:34:56,bridge=vmbr0'];
+        $url = '/admin/proxmox/'.$this->clusterId.'/guests/qemu/900';
+        $page = $client->request('GET', $url.'?lang=en');
+        self::assertResponseIsSuccessful();
+        $form = $page->filterXPath('//form[input[@name="action" and @value="install-template"]]');
+        $requestKey = $form->filterXPath('.//input[@name="request_key"]')->attr('value');
+        $client->submit($form->form([
+            'name' => 'root-access-test', 'target_vm_id' => '1001',
+            'ssh_keys' => \phpseclib3\Crypt\EC::createKey('Ed25519')->getPublicKey()->toString('OpenSSH'),
+            'customer_id' => (string) $this->customerId, 'prepare_root_password' => '1', 'address_mode' => 'dhcp',
+        ]));
+        self::assertResponseRedirects($url.'#pve-activity', 303);
+        $page = $client->followRedirect();
+        self::assertStringContainsString('Password handoff requires VM.GuestAgent.Unrestricted on the target VM.', $page->filterXPath('//*[@role="alert"]')->text());
+        self::assertContains('/vms/1001', array_column(array_column($this->fixture->requests, 'query'), 'path'));
+        self::assertSame([], $this->fixture->writes());
+        self::assertNull(self::getContainer()->get(EntityManagerInterface::class)->getRepository(ProxmoxTask::class)->findOneBy(['requestKey' => $requestKey]));
     }
 
     public function testAdminCanConfigureAddressPoolAndSelectItForInstallation(): void
@@ -377,11 +865,23 @@ final class ProxmoxHttpTest extends AbstractWebTestCase
         $client->request('POST', $url, ['_token' => $token]);
         self::assertResponseStatusCodeSame(403);
         self::assertSame([], $this->fixture->writes());
-        $result = $client->request('POST', $url, ['_token' => $token, 'confirm' => '1', 'username' => 'other', 'vm_id' => '999']);
+        $password = 'Customer-approved_2026!';
+        $guestUrl = '/customer/proxmox/'.$this->ownId;
+        $client->request('POST', $url, ['_token' => $token, 'confirm' => '1', 'password' => $password, 'password_confirm' => 'mismatch']);
+        self::assertResponseRedirects($guestUrl.'#pve-access', 303);
+        self::assertSame([], $this->fixture->writes());
+        $client->request('POST', $url, ['_token' => $token, 'confirm' => '1', 'username' => 'other', 'vm_id' => '999', 'password' => $password, 'password_confirm' => $password]);
+        self::assertResponseRedirects($guestUrl.'#pve-access', 303);
+        self::assertStringNotContainsString($password, (string) $client->getResponse()->getContent());
+        $reveal = $url.'/reveal';
+        $client->request('POST', '/customer/proxmox/'.$this->otherId.'/root-password/reveal', ['_token' => $token]);
+        self::assertResponseStatusCodeSame(404);
+        $result = $client->request('POST', $reveal, ['_token' => $token]);
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('no-store', $client->getResponse()->headers->get('Cache-Control'));
-        $password = $result->filterXPath('//input[@type="text" and @readonly]')->attr('value');
-        self::assertMatchesRegularExpression('/^[a-f0-9]{48}$/D', $password);
+        self::assertSame($password, $result->filterXPath('//input[@type="text" and @readonly]')->attr('value'));
+        $client->request('POST', $reveal, ['_token' => $token]);
+        self::assertResponseRedirects($guestUrl.'#pve-access', 303);
         $writes = $this->fixture->writes();
         self::assertCount(1, $writes);
         self::assertSame('/nodes/pve-a/qemu/101/agent/set-user-password', $writes[0]['path']);

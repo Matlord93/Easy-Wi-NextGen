@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -141,6 +142,9 @@ func (c *Client) StartAgentJob(ctx context.Context, agentID, jobID string) error
 	return err
 }
 
+// ErrAgentJobNotFound indicates the panel no longer has the orchestrator job.
+var ErrAgentJobNotFound = errors.New("agent job not found")
+
 // FinishAgentJob submits a result for an orchestrator job.
 func (c *Client) FinishAgentJob(ctx context.Context, agentID, jobID, status string, logText string, errorText string, resultPayload map[string]any) error {
 	path := fmt.Sprintf("/agent/%s/jobs/%s/finish", url.PathEscape(agentID), url.PathEscape(jobID))
@@ -150,7 +154,20 @@ func (c *Client) FinishAgentJob(ctx context.Context, agentID, jobID, status stri
 		"error_text":     errorText,
 		"result_payload": resultPayload,
 	}
-	_, err := c.doSignedJSON(ctx, http.MethodPost, path, payload, nil)
+	var acknowledgement struct {
+		Status string `json:"status"`
+	}
+	var output any
+	if resultPayload["action"] == "vm.reinstall" {
+		output = &acknowledgement
+	}
+	resp, err := c.doSignedJSON(ctx, http.MethodPost, path, payload, output)
+	if err != nil && resp != nil && resp.StatusCode == http.StatusNotFound && strings.HasSuffix(strings.TrimSpace(err.Error()), `{"error":"Job not found."}`) {
+		return ErrAgentJobNotFound
+	}
+	if err == nil && output != nil && (resp.StatusCode >= http.StatusMultipleChoices || acknowledgement.Status != "ok") {
+		return errors.New("panel did not acknowledge the KVM reinstallation result")
+	}
 	return err
 }
 

@@ -11,6 +11,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Nodes\Domain\Entity\KvmGuestAssignment;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Component\Uid\Uuid;
 
@@ -104,28 +105,44 @@ final class CustomerKvmManagementHttpTest extends AbstractWebTestCase
         self::assertResponseStatusCodeSame(403);
         self::assertSame([], $this->mutations());
 
-        $result = $client->request('POST', $url, ['_token' => $token, 'confirm' => '1', 'vm_id' => self::OTHER]);
-        self::assertResponseIsSuccessful();
-        self::assertStringContainsString('no-store', $client->getResponse()->headers->get('Cache-Control'));
-        $password = $result->filterXPath('//input[@type="text" and @readonly]')->attr('value');
-        self::assertMatchesRegularExpression('/^[a-f0-9]{48}$/D', $password);
+        $client->request('POST', $url, ['_token' => $token, 'confirm' => '1', 'vm_id' => self::OTHER]);
+        self::assertResponseRedirects($this->url().'#kvm-access', 303);
         $jobs = $this->mutations();
         self::assertCount(1, $jobs);
         $payload = $jobs[0]->getPayload();
         self::assertSame('vm.root_password', $payload['action']);
         self::assertSame(self::VM, $payload['vm_id']);
+        $reveal = $url.'/reveal';
+        $client->request('POST', $reveal, ['_token' => $token]);
+        self::assertResponseRedirects($this->url().'#kvm-access', 303);
+        $job = $this->em()->find(AgentJob::class, $jobs[0]->getId());
+        $job->setResultPayload(['root_password_reset' => true]);
+        $job->markFinished(AgentJobStatus::Success);
+        $this->em()->flush();
+        $page = $client->request('GET', $this->url());
+        self::assertSame(1, $page->filterXPath('//form[@action="'.$reveal.'"]')->count());
+        $result = $client->request('POST', $reveal, ['_token' => $token]);
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('no-store', $client->getResponse()->headers->get('Cache-Control'));
+        $password = $result->filterXPath('//input[@type="text" and @readonly]')->attr('value');
+        self::assertMatchesRegularExpression('/^[a-f0-9]{48}$/D', $password);
         self::assertSame($payload['password_hash'], crypt($password, $payload['password_hash']));
+        $client->request('POST', $reveal, ['_token' => $token]);
+        self::assertResponseRedirects($this->url().'#kvm-access', 303);
         $client->request('GET', $this->url().'/jobs/'.$jobs[0]->getId());
         self::assertResponseIsSuccessful();
         self::assertStringNotContainsString($password, (string) $client->getResponse()->getContent());
         self::assertStringNotContainsString($payload['password_hash'], (string) $client->getResponse()->getContent());
     }
 
-    public function testReinstallRequiresConfirmationAndAnApprovedOperatingSystem(): void
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([true, true])]
+    public function testReinstallRequiresConfirmationAndAnApprovedOperatingSystem(bool $preparePassword, bool $failPasswordStorage): void
     {
         $client = $this->client();
         $reference = 'ubuntu--24.04-v1';
-        $this->updateInventory(['template' => $reference, 'snapshots' => [], 'cloud_init' => ['hostname' => 'customer-vm', 'username' => 'easywi']]);
+        $this->updateInventory(['template' => $reference, 'snapshots' => [], 'guest_agent_enabled' => true, 'cloud_init' => ['hostname' => 'customer-vm', 'username' => 'easywi']]);
         $inspection = $this->em()->find(AgentJob::class, $this->inspectionId);
         $payload = $inspection->getResultPayload();
         $payload['inventory']['templates'] = [
@@ -136,24 +153,63 @@ final class CustomerKvmManagementHttpTest extends AbstractWebTestCase
         $node = $inspection->getNode();
         $metadata = $node->getMetadata();
         $metadata['kvm_managed']['reinstall_version'] = 1;
+        $metadata['kvm_managed']['install_access_version'] = 1;
         $node->setMetadata($metadata);
         $this->em()->flush();
+        $body = $this->body('vm.reinstall');
+        $confirmed = $body + ['template' => $reference, 'confirm' => '1'];
+        $client->xmlHttpRequest('POST', $this->url().'/action', $confirmed);
+        self::assertResponseStatusCodeSame(422);
+
+        $metadata['kvm_managed']['reinstall_version'] = 2;
+        $this->em()->find(AgentJob::class, $this->inspectionId)->getNode()->setMetadata($metadata);
+        $this->em()->flush();
+        $this->updateInventory(['guest_agent_enabled' => false]);
+        $client->xmlHttpRequest('POST', $this->url().'/action', $confirmed);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame([], $this->mutations());
+
+        $this->updateInventory(['guest_agent_enabled' => true]);
         $page = $client->request('GET', $this->url());
         self::assertResponseIsSuccessful();
         self::assertCount(1, $page->filterXPath('//option[@value="'.$reference.'"]'));
         self::assertCount(0, $page->filterXPath('//option[@value="private--1"]'));
-        $body = $this->body('vm.reinstall');
         foreach ([['template' => $reference], ['template' => 'private--1', 'confirm' => '1']] as $invalid) {
             $client->xmlHttpRequest('POST', $this->url().'/action', $body + $invalid);
             self::assertResponseStatusCodeSame(422);
         }
         self::assertSame([], $this->mutations());
-        $client->xmlHttpRequest('POST', $this->url().'/action', $body + ['template' => $reference, 'confirm' => '1', 'vm_id' => self::OTHER]);
+        $request = $confirmed + ['vm_id' => self::OTHER, 'prepare_root_password' => $preparePassword ? '1' : '0'];
+        $db = $this->em()->getConnection();
+        if ($failPasswordStorage) {
+            $db->executeStatement("CREATE TEMP TRIGGER fail_password_handoff BEFORE UPDATE OF root_password_handoff ON kvm_guest_assignments BEGIN SELECT RAISE(ABORT, 'test handoff storage failure'); END");
+            try {
+                $client->xmlHttpRequest('POST', $this->url().'/action', $request);
+                self::assertResponseStatusCodeSame(500);
+                self::assertSame([$this->inspectionId], $db->fetchFirstColumn("SELECT id FROM agent_jobs WHERE type = 'kvm.managed'"));
+                self::assertNull($db->fetchOne('SELECT root_password_handoff FROM kvm_guest_assignments WHERE id = ?', [$this->ownId]));
+            } finally {
+                $db->executeStatement('DROP TRIGGER fail_password_handoff');
+            }
+
+            return;
+        }
+
+        $client->xmlHttpRequest('POST', $this->url().'/action', $request);
         self::assertResponseStatusCodeSame(202);
         $jobs = $this->mutations();
         self::assertCount(1, $jobs);
         self::assertSame(self::VM, $jobs[0]->getPayload()['vm_id']);
         self::assertSame($reference, $jobs[0]->getPayload()['template']);
+        $handoff = $this->em()->find(KvmGuestAssignment::class, $this->ownId)->getRootPasswordHandoff();
+        if ($preparePassword) {
+            self::assertNotNull($handoff);
+            self::assertSame($jobs[0]->getId(), $handoff['operation']);
+            self::assertMatchesRegularExpression('/^\$6\$/', $jobs[0]->getPayload()['install_password_hash']);
+        } else {
+            self::assertNull($handoff);
+            self::assertArrayNotHasKey('install_password_hash', $jobs[0]->getPayload());
+        }
     }
 
     public function testAddressSwitchAcceptsOnlyAConfirmedCurrentAddressForTheAssignedVm(): void
@@ -221,7 +277,7 @@ final class CustomerKvmManagementHttpTest extends AbstractWebTestCase
         self::assertResponseStatusCodeSame(404);
         $client->request('POST', $this->url().'/action', array_replace($body, ['_token' => 'invalid']));
         self::assertResponseStatusCodeSame(403);
-        foreach (['vm.disk_grow', 'vm.network', 'vm.create', 'vm.limits', 'vm.console.configure', 'vm.guest_agent', 'host.address_pool', 'network.create', 'template.import', 'inspect'] as $action) {
+        foreach (['vm.disk_grow', 'vm.network', 'vm.create', 'vm.limits', 'vm.console.configure', 'vm.guest_agent', 'vm.reinstall_rollback', 'host.address_pool', 'network.create', 'template.import', 'inspect'] as $action) {
             $client->request('POST', $this->url().'/action', array_replace($body, ['action' => $action]));
             self::assertResponseStatusCodeSame(303);
         }

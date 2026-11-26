@@ -12,6 +12,9 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\AuditLog;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\JobStatus;
+use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Nodes\Application\VmRootPassword;
+use App\Module\Nodes\Domain\Entity\KvmGuestAssignment;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\WithEnvironmentVariable;
@@ -328,6 +331,44 @@ final class KvmHttpTest extends AbstractWebTestCase
         yield 'insecure download' => ['template.import', ['template_id' => 'ubuntu', 'version' => '24.04', 'sha256' => str_repeat('a', 64), 'url' => 'http://example.org/image.qcow2']];
     }
 
+    public function testRollbackIsOnlyQueuedForTheAffectedVmAfterConfirmation(): void
+    {
+        $client = $this->client();
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $node = $em->find(Agent::class, self::NODE);
+        $metadata = $node->getMetadata();
+        $metadata['kvm_managed']['reinstall_rollback_version'] = 1;
+        $node->setMetadata($metadata);
+        $origin = Uuid::v4()->toRfc4122();
+        $failed = new AgentJob(Uuid::v4()->toRfc4122(), $node, 'kvm.managed', ['action' => 'vm.reinstall', 'vm_id' => self::VM, 'operation_id' => $origin]);
+        $failed->setResultPayload(['inventory' => $this->inventory() + [
+            'pending_operations' => [$origin],
+            'reinstall_rollback' => ['vm_id' => self::VM, 'operation_id' => $origin],
+        ]]);
+        $failed->markFinished(AgentJobStatus::Failed);
+        $em->persist($failed);
+        $em->flush();
+
+        $page = $client->request('GET', $this->nodeUrl().'/guests/'.self::VM);
+        self::assertResponseIsSuccessful();
+        self::assertSame($origin, $page->filterXPath('//input[@name="reinstall_operation_id"]')->attr('value'));
+
+        $body = $this->body($client, 'vm.reinstall_rollback') + ['vm_id' => self::VM, 'reinstall_operation_id' => $origin];
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $body);
+        self::assertResponseStatusCodeSame(422);
+        $client->xmlHttpRequest('POST', $this->actionUrl(), array_replace($body, ['vm_id' => Uuid::v4()->toRfc4122(), 'confirm' => '1']));
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(1, $this->countJobs());
+
+        $fields = $body + ['confirm' => '1', 'disk_path' => '/private/disk'];
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $fields);
+        self::assertResponseStatusCodeSame(202);
+        $response = json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        $job = self::getContainer()->get(EntityManagerInterface::class)->find(AgentJob::class, $response['job_id']);
+        self::assertNotNull($job);
+        self::assertSame(['action' => 'vm.reinstall_rollback', 'operation_id' => $body['operation_id'], 'vm_id' => self::VM, 'reinstall_operation_id' => $origin, 'confirm' => '1'], $job->getPayload());
+    }
+
     public function testCreateBuildsStructuredCloudInitPayloadAndIgnoresArbitraryPaths(): void
     {
         $client = $this->client();
@@ -341,6 +382,45 @@ final class KvmHttpTest extends AbstractWebTestCase
         self::assertIsArray($payload['ssh_keys']);
         self::assertArrayNotHasKey('disk_path', $payload);
         self::assertArrayNotHasKey('user_data', $payload);
+    }
+
+    #[WithEnvironmentVariable('APP_ENCRYPTION_KEYS', 'v1:dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHQ=')]
+    #[WithEnvironmentVariable('ACTIVE_ENCRYPTION_KEY_ID', 'v1')]
+    public function testAdminInstallationPreparesRootAccessOnlyForTheAssignedCustomer(): void
+    {
+        $client = $this->client();
+        $customer = $this->createUser('kvm-install@example.test', UserType::Customer);
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $customer->setCustomerAccessEnabled(false);
+        $em->flush();
+        $body = $this->body($client, 'vm.create') + [
+            'customer_id' => $customer->getId(), 'prepare_root_password' => '1', 'label' => 'Test VM',
+            'template' => 'ubuntu--24.04-v1', 'hostname' => 'test-vm', 'username' => 'easywi',
+            'network_choice' => 'network:default', 'disk_gib' => 20, 'vcpus' => 2, 'memory_mib' => 2048,
+            'ssh_keys' => 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakePublicKeyOnly',
+        ];
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $body);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(0, $this->countJobs());
+
+        $node = $em->find(Agent::class, self::NODE);
+        self::assertNotNull($node);
+        $metadata = $node->getMetadata();
+        $metadata['kvm_managed']['install_access_version'] = 1;
+        $node->setMetadata($metadata);
+        $em->flush();
+        $client->xmlHttpRequest('POST', $this->actionUrl(), $body);
+        self::assertResponseStatusCodeSame(202);
+
+        $job = $this->latest();
+        self::assertSame('1', $job->getPayload()['start_after_install']);
+        self::assertMatchesRegularExpression(VmRootPassword::HASH_PATTERN, $job->getPayload()['install_password_hash']);
+        $assignment = $em->getRepository(KvmGuestAssignment::class)->findOneBy(['node' => $node, 'vmUuid' => $body['operation_id']]);
+        self::assertNotNull($assignment);
+        self::assertSame($customer->getId(), $assignment->getCustomer()->getId());
+        self::assertTrue($assignment->getCustomer()->isCustomerAccessEnabled());
+        self::assertSame($job->getId(), $assignment->getRootPasswordHandoff()['operation'] ?? null);
+        self::assertNotEmpty($assignment->getRootPasswordHandoff()['ciphertext'] ?? null);
     }
 
     public function testStaticAddressPoolsRequireAgentSupportAndAppearInVmCreation(): void
@@ -381,13 +461,61 @@ final class KvmHttpTest extends AbstractWebTestCase
         self::assertArrayNotHasKey('gateway', $createJob->getPayload());
     }
 
+    #[WithEnvironmentVariable('APP_ENCRYPTION_KEYS', 'v1:dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHQ=')]
+    #[WithEnvironmentVariable('ACTIVE_ENCRYPTION_KEY_ID', 'v1')]
+    public function testDelayedKvmReinstallationResultRepairsTimeoutAndDuplicateDoesNotOverwriteSuccess(): void
+    {
+        $client = $this->client();
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $node = $em->find(Agent::class, self::NODE);
+        self::assertNotNull($node);
+        $secret = 'kvm-finish-test-secret';
+        $node->setSecretPayload(self::getContainer()->get(EncryptionServiceInterface::class)->encrypt($secret));
+        $operation = Uuid::v4()->toRfc4122();
+        $job = new AgentJob(Uuid::v4()->toRfc4122(), $node, 'kvm.managed', ['action' => 'vm.reinstall', 'vm_id' => self::VM, 'operation_id' => $operation]);
+        $job->markRunning(new \DateTimeImmutable('-1 day'));
+        $em->persist($job);
+        $em->flush();
+        $jobId = $job->getId();
+
+        $base = '/agent/'.self::NODE.'/jobs';
+        $client->request('GET', $base, server: $this->agentHeaders($secret, 'GET', $base));
+        self::assertResponseIsSuccessful();
+        $job = $em->find(AgentJob::class, $jobId);
+        self::assertNotNull($job);
+        self::assertSame(AgentJobStatus::Failed, $job->getStatus());
+        self::assertSame('Job timed out.', $job->getErrorText());
+        self::assertNull($job->getResultPayload());
+
+        $finish = $base.'/'.$jobId.'/finish';
+        $result = ['action' => 'vm.reinstall', 'vm_id' => self::VM, 'operation_id' => $operation, 'root_access_configured' => true, 'disk_replaced' => true];
+        $body = json_encode(['status' => 'success', 'result_payload' => $result], JSON_THROW_ON_ERROR);
+        $client->request('POST', $finish, server: $this->agentHeaders($secret, 'POST', $finish, $body) + ['CONTENT_TYPE' => 'application/json'], content: $body);
+        self::assertResponseIsSuccessful();
+        $job = $em->find(AgentJob::class, $jobId);
+        self::assertNotNull($job);
+        self::assertSame(AgentJobStatus::Success, $job->getStatus());
+        self::assertSame($result, $job->getResultPayload());
+        self::assertNull($job->getErrorText());
+
+        $finishedAt = new \DateTimeImmutable('2026-11-23T00:00:00');
+        $job->markFinished(AgentJobStatus::Success, $finishedAt);
+        $em->flush();
+        $client->request('POST', $finish, server: $this->agentHeaders($secret, 'POST', $finish, $body) + ['CONTENT_TYPE' => 'application/json'], content: $body);
+        self::assertResponseIsSuccessful();
+        $job = $em->find(AgentJob::class, $jobId);
+        self::assertNotNull($job);
+        self::assertSame($finishedAt->getTimestamp(), $job->getFinishedAt()?->getTimestamp());
+        self::assertSame($result, $job->getResultPayload());
+    }
+
     /** @return array<string, string> */
-    private function agentHeaders(string $secret, string $method, string $path): array
+    private function agentHeaders(string $secret, string $method, string $path, string $body = ''): array
     {
         $nonce = bin2hex(random_bytes(16));
         $now = time();
         $timestamp = gmdate(DATE_RFC3339, $now);
-        $signature = hash_hmac('sha256', AgentSignatureVerifier::buildSignaturePayload(self::NODE, $method, $path, $timestamp, $nonce, ''), $secret);
+        $signature = hash_hmac('sha256', AgentSignatureVerifier::buildSignaturePayload(self::NODE, $method, $path, $timestamp, $nonce, $body), $secret);
         $base64 = static fn (string $data): string => rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
         $container = self::getContainer();
         $claims = ['iss' => $container->getParameter('app.agent_jwt_issuer'), 'aud' => $container->getParameter('app.agent_jwt_audience'), 'sub' => self::NODE, 'iat' => $now, 'exp' => $now + 60, 'jti' => $nonce];

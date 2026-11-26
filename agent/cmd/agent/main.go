@@ -103,6 +103,9 @@ func main() {
 	defer func() { _ = lock.Release() }()
 
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+		if err := system.EnsureInstalledAgentExecutable(agentExecutablePath); err != nil {
+			logger.Error(context.Background(), "agent.binary_permissions_repair_failed", "AGENT_BINARY_PERMISSIONS", err.Error(), nil)
+		}
 		if err := ensureConsoleRuntimeParents("/run/easywi"); err != nil {
 			logger.Error(context.Background(), "agent.runtime_init_failed", "RUNTIME_INIT_FAILED", err.Error(), nil)
 			os.Exit(1)
@@ -194,6 +197,10 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 	metadata := collectMetadata(cfg)
 	globalJournalStreams = newJournalStreamManager(cfg.MaxJournalStreams, cfg.StreamTTL)
 	runner := newJobRunner(maxConcurrency, cfg.MaxJournalStreams)
+	agentID := cfg.AgentID
+	reinstallReports := newKVMReinstallReports(client.BaseURL.String(), agentID, func(ctx context.Context, jobID string, result orchestratorResult) error {
+		return client.FinishAgentJob(ctx, agentID, jobID, result.status, result.logText, result.errorText, result.resultPayload)
+	})
 	globalInstanceLocks = runner.locks
 	lastCredentialRefresh := time.Time{}
 	credentialRefreshCooldown := 2 * time.Minute
@@ -300,6 +307,11 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 			}
 			maxConcurrency = resolveMaxConcurrency(cfg.MaxConcurrency, reportedAgentConcurrency)
 			runner.SetLimit(maxConcurrency)
+			reportCtx, cancelReport := context.WithTimeout(ctx, 4*time.Second)
+			if err := reinstallReports.retry(reportCtx); err != nil {
+				logger.Error(ctx, "agent.replay_kvm_reinstall_result_failed", "REPLAY_KVM_REINSTALL_RESULT_FAILED", fmt.Sprintf("KVM reinstallation result delivery failed: %v", err), nil)
+			}
+			cancelReport()
 			for _, job := range orchestratorJobs {
 				jobCopy := job
 				runner.Submit(jobTask{
@@ -315,7 +327,13 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 							logger.Error(jobCtx, "agent.start_orchestrator_job_failed", "START_ORCHESTRATOR_JOB_FAILED", fmt.Sprintf("start orchestrator job failed: %v", err), map[string]any{"job_id": job.ID})
 							return
 						}
-						result := handleOrchestratorJob(job)
+						report, reportErr := reinstallReports.track(job)
+						var result orchestratorResult
+						if reportErr != nil {
+							result = kvmFailure(fmt.Sprintf("KVM reinstallation result tracking unavailable: %v", reportErr))
+						} else {
+							result = handleOrchestratorJob(job)
+						}
 						snapshotLength := 0
 						snapshotPresent := false
 						resultPayloadKeys := ""
@@ -340,7 +358,7 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 							"snapshot_length":     snapshotLength,
 							"error_text":          result.errorText,
 						})
-						if err := client.FinishAgentJob(jobCtx, cfg.AgentID, job.ID, result.status, result.logText, result.errorText, result.resultPayload); err != nil {
+						if err := reinstallReports.finish(jobCtx, report, job.ID, result); err != nil {
 							logger.Error(jobCtx, "agent.finish_orchestrator_job_failed", "FINISH_ORCHESTRATOR_JOB_FAILED", fmt.Sprintf("finish orchestrator job failed: %v", err), map[string]any{"job_id": job.ID})
 						}
 					},

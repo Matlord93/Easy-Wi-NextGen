@@ -33,11 +33,11 @@
             </div></header>
     <div class="pm-stats pm-stats--four">
 {% include 'components/panel/_stat.html.twig' with {value:instances|length,label:t('customer_dashboard_servers_title',page_locale())} only %}
-{% include 'components/panel/_stat.html.twig' with {value:storagePercent|number_format(0) ~ '%',label:t('customer_dashboard_usage_title',page_locale())} only %}
+{% include 'components/panel/_stat.html.twig' with {value:storagePercent is null ? '—' : storagePercent|number_format(0) ~ '%',label:t('customer_dashboard_usage_title',page_locale())} only %}
 {% include 'components/panel/_stat.html.twig' with {value:summary.tickets_open,label:t('customer_dashboard_ticket_title',page_locale())} only %}
 {% include 'components/panel/_stat.html.twig' with {value:billingEnabled and activePlan ? activePlan.name : '—',label:t('customer_dashboard_contract_title',page_locale())} only %}
     </div>
-    <p class="pm-music-usage">{{ customerEmail }} · {% if resourceUsage.disk_limit_human %}{{ resourceUsage.disk_used_human }} / {{ resourceUsage.disk_limit_human }}{% else %}{{ t('customer_dashboard_storage_hint',page_locale()) }}{% endif %} · {{ summary.tickets_pending }} {{ t('customer_dashboard_ticket_pending',page_locale()) }}{% if billingEnabled and activePlan %} · {{ t('customer_dashboard_next_payment_label',page_locale()) }} {{ nextPaymentAmount }}{% endif %}</p>
+    <p class="pm-music-usage">{{ customerEmail }} · {% if resourceUsage.disk_limit_human %}{{ resourceUsage.disk_used_human }} / {{ resourceUsage.disk_limit_human }}{% if resourceUsage.disk_measurement_state != 'current' %} · {{ ('workspace_disk_' ~ resourceUsage.disk_measurement_state)|trans({}, 'panel_modules') }}{% endif %}{% else %}{{ t('customer_dashboard_storage_hint',page_locale()) }}{% endif %} · {{ summary.tickets_pending }} {{ t('customer_dashboard_ticket_pending',page_locale()) }}{% if billingEnabled and activePlan %} · {{ t('customer_dashboard_next_payment_label',page_locale()) }} {{ nextPaymentAmount }}{% endif %}</p>
     {% set dashboardTabs = {overview:'overview'} %}
     {% if billingEnabled %}{% set dashboardTabs = dashboardTabs|merge({billing:'workspace_billing'}) %}{% endif %}
     {% if panelNews is not empty %}{% set dashboardTabs = dashboardTabs|merge({news:'workspace_news'}) %}{% endif %}
@@ -208,7 +208,7 @@
                                 </div>
                                 <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ng-text-muted);margin-top:3px;">
                                     <span>Disk</span>
-                                    <strong style="color:var(--ng-text);">{% if instance.disk_limit_human %}{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}{% else %}{{ instance.disk_used_human }}{% endif %}</strong>
+                                    <strong style="color:var(--ng-text);">{{ instance.disk_used_human }}{% if instance.disk_limit_bytes > 0 %} / {{ instance.disk_limit_human }}{% endif %}{% if instance.disk_measurement_state != 'current' %} · {{ ('workspace_disk_' ~ instance.disk_measurement_state)|trans({}, 'panel_modules') }}{% endif %}</strong>
                                 </div>
                             </div>
                         </div>

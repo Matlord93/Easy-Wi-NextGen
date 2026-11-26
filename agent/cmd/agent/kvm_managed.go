@@ -66,11 +66,12 @@ type kvmBackup struct {
 	CreatedAt string `json:"created_at"`
 }
 type kvmOperation struct {
-	Hash    string         `json:"hash"`
-	Pending bool           `json:"pending"`
-	Status  string         `json:"status"`
-	Error   string         `json:"error,omitempty"`
-	Result  map[string]any `json:"result,omitempty"`
+	Hash          string         `json:"hash"`
+	Pending       bool           `json:"pending"`
+	Status        string         `json:"status"`
+	Error         string         `json:"error,omitempty"`
+	Result        map[string]any `json:"result,omitempty"`
+	ReinstallVMID string         `json:"reinstall_vm_id,omitempty"`
 }
 
 var kvmAccelerationAvailable = func() bool { _, err := os.Stat("/dev/kvm"); return err == nil }
@@ -82,29 +83,16 @@ func kvmCapabilities() map[string]any {
 			missing = append(missing, b)
 		}
 	}
-	return map[string]any{"version": 1, "host_setup_version": 1, "vm_number_version": 1, "address_pool_version": 1, "address_switch_version": 1, "console_version": 1, "config_version": 1, "guest_agent_status_version": 1, "guest_network_info_version": 1, "guest_filesystem_usage_version": 1, "disk_grow_version": 1, "network_config_version": 1, "retirement_version": 1, "root_password_version": 1, "reinstall_version": 1, "supported": runtime.GOOS == "linux" && runtime.GOARCH == "amd64", "missing_tools": missing, "acceleration": kvmAccelerationAvailable()}
+	return map[string]any{"version": 1, "host_setup_version": 1, "vm_number_version": 1, "address_pool_version": 1, "address_switch_version": 1, "console_version": 1, "config_version": 1, "guest_agent_status_version": 1, "guest_network_info_version": 1, "guest_filesystem_usage_version": 1, "disk_grow_version": 1, "network_config_version": 1, "retirement_version": 1, "root_password_version": 1, "install_access_version": 1, "reinstall_version": 2, "reinstall_rollback_version": 1, "supported": runtime.GOOS == "linux" && runtime.GOARCH == "amd64", "missing_tools": missing, "acceleration": kvmAccelerationAvailable()}
 }
 
 func newKVMEngine(ctx context.Context) (*kvmEngine, error) {
 	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
 		return nil, errors.New("KVM requires a Linux x86_64 agent")
 	}
-	root := os.Getenv("EASYWI_KVM_ROOT")
-	if root == "" {
-		root = "/var/lib/easywi/kvm"
-	}
-	if !filepath.IsAbs(root) || filepath.Clean(root) != root || root == "/" {
-		return nil, errors.New("invalid KVM storage root")
-	}
-	// Reject symlinks in every existing path component, including the root itself.
-	for p := root; p != "/"; p = filepath.Dir(p) {
-		i, e := os.Lstat(p)
-		if e == nil && i.Mode()&os.ModeSymlink != 0 {
-			return nil, errors.New("KVM storage must not contain symlinks")
-		}
-		if e != nil && !os.IsNotExist(e) {
-			return nil, e
-		}
+	root, err := kvmStorageRoot()
+	if err != nil {
+		return nil, err
 	}
 	if err := os.MkdirAll(root, 0755); err != nil {
 		return nil, err
@@ -126,6 +114,36 @@ func newKVMEngine(ctx context.Context) (*kvmEngine, error) {
 	return e, nil
 }
 
+func kvmStorageRoot() (string, error) {
+	root := os.Getenv("EASYWI_KVM_ROOT")
+	if root == "" {
+		root = "/var/lib/easywi/kvm"
+	}
+	if !filepath.IsAbs(root) || filepath.Clean(root) != root || root == "/" {
+		return "", errors.New("invalid KVM storage root")
+	}
+	// Reject symlinks in every existing path component, including the root itself.
+	for p := root; p != "/"; p = filepath.Dir(p) {
+		i, e := os.Lstat(p)
+		if e == nil && i.Mode()&os.ModeSymlink != 0 {
+			return "", errors.New("KVM storage must not contain symlinks")
+		}
+		if e != nil && !os.IsNotExist(e) {
+			return "", e
+		}
+	}
+	return root, nil
+}
+
+func kvmPayloadHash(payload map[string]any) (string, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
+}
+
 func handleKVMManaged(job jobs.Job) orchestratorResult {
 	if payloadValue(job.Payload, "action") == "vm.agent_status" {
 		return handleKVMGuestAgentStatus(job)
@@ -143,7 +161,7 @@ func handleKVMManaged(job jobs.Job) orchestratorResult {
 	defer unlock()
 	action := payloadValue(job.Payload, "action")
 	if action == "inspect" {
-		v, err := e.inventory()
+		v, err := e.inventory(true)
 		if err != nil {
 			return kvmFailure(err.Error())
 		}
@@ -153,14 +171,21 @@ func handleKVMManaged(job jobs.Job) orchestratorResult {
 	if !kvmUUID.MatchString(id) {
 		return kvmFailure("invalid KVM operation UUID")
 	}
-	data, _ := json.Marshal(job.Payload)
-	sum := sha256.Sum256(data)
-	hash := hex.EncodeToString(sum[:])
+	hash, err := kvmPayloadHash(job.Payload)
+	if err != nil {
+		return kvmFailure("invalid KVM operation payload")
+	}
 	path := filepath.Join(e.root, "operations", id+".json")
 	var old kvmOperation
 	if err := kvmReadJSON(path, &old); err == nil {
 		if old.Hash != hash {
 			return kvmFailure("KVM operation UUID already used with different parameters")
+		}
+		if _, ready := e.completedReinstallRecord(id, old); action == "vm.reinstall" && ready {
+			err := e.confirmInterruptedReinstall(id, &old)
+			if old.Pending {
+				return deferredKVMReinstallResult(err)
+			}
 		}
 		if old.Pending {
 			return kvmFailure("KVM_OPERATION_UNCONFIRMED: inspect the host before submitting another operation")
@@ -169,15 +194,31 @@ func handleKVMManaged(job jobs.Job) orchestratorResult {
 	} else if !os.IsNotExist(err) {
 		return kvmFailure(err.Error())
 	}
+	rollback := action == "vm.reinstall_rollback"
 	if pending, err := e.pendingOperations(); err != nil {
 		return kvmFailure(err.Error())
-	} else if len(pending) > 0 {
+	} else if len(pending) > 0 && (!rollback || len(pending) != 1 || pending[0] != payloadValue(job.Payload, "reinstall_operation_id")) {
 		return kvmFailure("KVM_OPERATION_UNCONFIRMED: resolve interrupted operation on this host before continuing")
 	}
-	if err := kvmWriteJSON(path, kvmOperation{Hash: hash, Pending: true}); err != nil {
-		return kvmFailure(err.Error())
+	// The original installation journal stays pending throughout recovery. Reuse
+	// that lock so an interrupted rollback can be submitted again.
+	journal := kvmOperation{Hash: hash, Pending: true}
+	if action == "vm.reinstall" {
+		journal.ReinstallVMID = payloadValue(job.Payload, "vm_id")
+	}
+	if !rollback {
+		if err := kvmWriteJSON(path, journal); err != nil {
+			return kvmFailure(err.Error())
+		}
 	}
 	result, err := e.perform(action, job.Payload)
+	var reinstallStage string
+	if action == "vm.reinstall" && err == nil {
+		reinstallStage = e.guestFile(journal.ReinstallVMID, ".reinstall-"+id)
+		if err := kvmSyncDirectory(reinstallStage); err != nil {
+			return deferredKVMReinstallResult(err)
+		}
+	}
 	if err != nil && e.ctx.Err() != nil {
 		err = fmt.Errorf("%w: operation deadline exceeded; inspect host state", errKVMUnconfirmed)
 	}
@@ -192,7 +233,7 @@ func handleKVMManaged(job jobs.Job) orchestratorResult {
 	}
 	result["operation_id"] = id
 	result["action"] = action
-	if inventory, inventoryErr := e.inventory(); inventoryErr == nil {
+	if inventory, inventoryErr := e.inventory(false); inventoryErr == nil {
 		if !errors.Is(err, errKVMUnconfirmed) {
 			pending, _ := inventory["pending_operations"].([]string)
 			filtered := []string{}
@@ -203,14 +244,35 @@ func handleKVMManaged(job jobs.Job) orchestratorResult {
 			}
 			inventory["pending_operations"] = filtered
 		}
+		if status == "failed" {
+			if recovery := kvmReinstallRecoverySummary(id, result); recovery != nil {
+				inventory["reinstall_rollback"] = recovery
+			}
+		}
 		result["inventory"] = inventory
 	} else {
 		result["inventory_error"] = "Inventory refresh failed; request a new inspection."
 	}
-	if err := kvmWriteJSON(path, kvmOperation{Hash: hash, Pending: errors.Is(err, errKVMUnconfirmed), Status: status, Error: message, Result: result}); err != nil {
+	journal.Pending = !rollback && errors.Is(err, errKVMUnconfirmed)
+	journal.Status, journal.Error, journal.Result = status, message, result
+	if err := kvmWriteJSON(path, journal); err != nil {
+		if reinstallStage != "" {
+			return deferredKVMReinstallResult(err)
+		}
 		return kvmFailure("KVM_OPERATION_UNCONFIRMED: cannot persist operation result")
 	}
+	if reinstallStage != "" {
+		_ = kvmDiscardReinstallStage(e.guestFile(journal.ReinstallVMID, "disk.qcow2"), reinstallStage)
+	}
 	return orchestratorResult{status: status, errorText: message, resultPayload: result}
+}
+
+func deferredKVMReinstallResult(err error) orchestratorResult {
+	message := "KVM reinstallation completion needs confirmation"
+	if err != nil {
+		message += ": " + err.Error()
+	}
+	return orchestratorResult{status: "pending", errorText: message, deferDelivery: true}
 }
 
 func (e *kvmEngine) perform(action string, p map[string]any) (map[string]any, error) {
@@ -263,6 +325,9 @@ func (e *kvmEngine) perform(action string, p map[string]any) (map[string]any, er
 	}
 	if action == "vm.root_password" {
 		return e.resetRootPassword(g, p)
+	}
+	if action == "vm.reinstall_rollback" {
+		return e.rollbackReinstallation(g, p)
 	}
 	if strings.HasPrefix(action, "vm.") {
 		verb := strings.TrimPrefix(action, "vm.")
@@ -482,7 +547,11 @@ func kvmAtomicWrite(path string, data []byte, mode os.FileMode) error {
 	if err = os.Rename(f.Name(), path); err != nil {
 		return err
 	}
-	d, err := os.Open(filepath.Dir(path))
+	return kvmSyncDirectory(filepath.Dir(path))
+}
+
+func kvmSyncDirectory(path string) error {
+	d, err := os.Open(path)
 	if err != nil {
 		return err
 	}

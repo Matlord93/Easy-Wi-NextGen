@@ -142,11 +142,17 @@ kvm.action.host.vm_number_range: 'Save VM number range'
 
 kvm.action.vm.root_password: "Change root password"
 kvm.action.vm.reinstall: "Reinstall system"
+kvm.action.vm.reinstall_rollback: "Restore previous system disk"
+kvm.reinstall_rollback_hint: "The agent shuts down the VM gracefully if needed and restores the previous system disk. The disk from the failed attempt is kept on the host. You can then start the VM."
+kvm.reinstall_rollback_confirm: "I confirm restoring the previous system disk and shutting down the VM if it is still running."
+kvm.reinstall_rollback_unavailable: "The selected reinstallation job is unavailable for recovery on this guest. Refresh the host inventory and check the job."
 kvm.reinstall: "Reinstall system"
 kvm.reinstall_template: "Choose an operating system"
-kvm.reinstall_hint: "The VM starts as soon as its system disk has been replaced. Its hostname, SSH keys and network settings are retained."
+kvm.reinstall_hint: "The VM starts as soon as its system disk has been replaced. The QEMU guest agent confirms cloud-init completion and the reserved IP addresses before the previous disk is deleted. The hostname, SSH keys and network settings are retained."
 kvm.reinstall_confirm: "I confirm that the data on the existing system disk may be erased."
-kvm.customer_reinstall_unavailable: "Reinstallation requires a powered-off VM that boots from disk, a compatible template and an updated host agent. Existing snapshots block disk replacement."
+kvm.customer_reinstall_unavailable: "Reinstallation requires a powered-off VM that boots from its system disk, a compatible template, an updated host agent and an enabled QEMU guest agent. Existing snapshots block disk replacement."
 kvm.role_required: 'Assign the KVM role to this agent to set up the host.'
 kvm.assign_role: 'Open agent roles'
 kvm.action.vm.address_switch: 'Switch reserved IP'
+kvm.start_after_install: "Start the VM after installation"
+kvm.install_customer_required: "Select a customer so the prepared root password can be assigned securely."

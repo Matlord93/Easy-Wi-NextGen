@@ -16,6 +16,7 @@ use App\Module\Core\Application\EncryptionServiceInterface;
 use App\Repository\AgentJobRepository;
 use App\Repository\AgentRepositoryInterface;
 use DateInterval;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -120,7 +121,27 @@ final class AgentJobController
         if ($job === null || $job->getNode()->getId() !== $nodeId) {
             return new JsonResponse(['error' => 'Job not found.'], JsonResponse::HTTP_NOT_FOUND);
         }
+        if (self::isKvmReinstallation($job)) {
+            return $this->entityManager->getConnection()->transactional(function () use ($job, $request): JsonResponse {
+                $this->entityManager->refresh($job, LockMode::PESSIMISTIC_WRITE);
+                if (AgentJobStatus::Success === $job->getStatus() || (AgentJobStatus::Failed === $job->getStatus() && null !== $job->getResultPayload())) {
+                    return new JsonResponse(['status' => 'ok']);
+                }
 
+                return $this->recordFinishedJob($request, $job);
+            });
+        }
+
+        return $this->recordFinishedJob($request, $job);
+    }
+
+    private static function isKvmReinstallation(AgentJob $job): bool
+    {
+        return 'kvm.managed' === $job->getType() && 'vm.reinstall' === ($job->getPayload()['action'] ?? null);
+    }
+
+    private function recordFinishedJob(Request $request, AgentJob $job): JsonResponse
+    {
         $payload = $request->toArray();
         $statusRaw = strtolower((string) ($payload['status'] ?? ''));
         $status = match ($statusRaw) {
@@ -229,6 +250,18 @@ final class AgentJobController
 
         foreach ($staleJobs as $job) {
             if ($job->getStatus() !== AgentJobStatus::Running) {
+                continue;
+            }
+            if (self::isKvmReinstallation($job)) {
+                $this->entityManager->getConnection()->transactional(function () use ($job, $cutoff, $now): void {
+                    $this->entityManager->refresh($job, LockMode::PESSIMISTIC_WRITE);
+                    if (AgentJobStatus::Running === $job->getStatus() && (null === $job->getStartedAt() || $job->getStartedAt() < $cutoff)) {
+                        $job->setErrorText('Job timed out.');
+                        $job->markFinished(AgentJobStatus::Failed, $now);
+                        $this->entityManager->flush();
+                    }
+                });
+
                 continue;
             }
             $job->setErrorText('Job timed out.');

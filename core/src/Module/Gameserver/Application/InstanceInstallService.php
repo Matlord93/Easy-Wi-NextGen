@@ -9,6 +9,7 @@ use App\Infrastructure\Config\ScalarValue;
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Gameserver\Application\Configuration\SourceServerSetup;
 use App\Module\Ports\Application\PortLeaseManagerInterface;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepositoryInterface;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepositoryInterface;
@@ -159,7 +160,7 @@ final class InstanceInstallService
             ];
         }
 
-        $startParams = trim($instance->getTemplate()->getStartParams());
+        $startParams = trim(SourceServerSetup::parameters($instance));
         if ('' === $startParams) {
             return [
                 'ok' => false,
@@ -176,6 +177,12 @@ final class InstanceInstallService
             'secrets' => $this->buildSecretPlaceholders($instance),
             'port_block_id' => $portAllocation['port_block_id'],
         ];
+        if (null !== ($installPath = $instance->getInstallPath())) {
+            $payload['install_path'] = $installPath;
+        }
+        if (null !== ($baseDir = $instance->getInstanceBaseDir())) {
+            $payload['base_dir'] = $baseDir;
+        }
 
         if (SevenDaysToDiePorts::usesDefaultConfig($instance->getTemplate())) {
             $payload['game_key'] = $instance->getTemplate()->getGameKey();
@@ -322,6 +329,8 @@ final class InstanceInstallService
             }
             $vars[$key] = ScalarValue::text($entry['value'] ?? null);
         }
+
+        $vars = array_replace($vars, SourceServerSetup::defaults($instance));
 
         $setupVarKeys = [];
         $setupVars = $instance->getSetupVars();

@@ -8,88 +8,130 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+
+	"github.com/anmitsu/go-shlex"
 )
 
 var templateVariableRegex = regexp.MustCompile(`\{\{\s*([A-Za-z0-9_:-]+)\s*}}`)
 
 func renderTemplateStrict(template string, values map[string]string) (string, error) {
-	if template == "" {
-		return "", nil
-	}
-
 	matches := templateVariableRegex.FindAllStringSubmatch(template, -1)
 	for _, match := range matches {
-		if len(match) < 2 {
-			continue
+		if _, ok := values[match[1]]; !ok {
+			return "", fmt.Errorf("missing template variable %s", match[1])
 		}
-		key := strings.TrimSpace(match[1])
-		if key == "" {
-			continue
-		}
-		if _, ok := values[key]; !ok {
+	}
+	for _, match := range matches {
+		template = strings.ReplaceAll(template, match[0], values[match[1]])
+	}
+	return template, nil
+}
+
+func renderGameserverCommand(template string, values map[string]string) (string, error) {
+	if runtime.GOOS == "windows" {
+		return renderTemplateStrict(template, values)
+	}
+	var rendered strings.Builder
+	var quote byte
+	last := 0
+	for _, match := range templateVariableRegex.FindAllStringSubmatchIndex(template, -1) {
+		literal := template[last:match[0]]
+		rendered.WriteString(literal)
+		quote = shellQuoteAfter(literal, quote)
+		key := template[match[2]:match[3]]
+		value, ok := values[key]
+		if !ok {
 			return "", fmt.Errorf("missing template variable %s", key)
 		}
-	}
-
-	rendered := template
-	for _, match := range matches {
-		if len(match) < 2 {
-			continue
+		if filepath.IsAbs(value) {
+			switch key {
+			case "INSTANCE_DIR", "INSTALL_DIR", "GAME_DIR", "instance_dir", "install_path", "game_dir", "SERVER_DIR", "USER_HOME_DIR", "HOME_DIR":
+				value = shellPathInQuote(value, quote)
+			}
 		}
-		key := strings.TrimSpace(match[1])
-		if key == "" {
-			continue
-		}
-		rendered = strings.ReplaceAll(rendered, match[0], values[key])
+		rendered.WriteString(value)
+		last = match[1]
 	}
+	rendered.WriteString(template[last:])
+	return rendered.String(), nil
+}
 
-	return rendered, nil
+func shellQuoteAfter(text string, quote byte) byte {
+	for i := 0; i < len(text); i++ {
+		char := text[i]
+		if char == '\\' && quote != '\'' {
+			i++
+		} else if quote != 0 && char == quote {
+			quote = 0
+		} else if quote == 0 && (char == '\'' || char == '"') {
+			quote = char
+		}
+	}
+	return quote
+}
+
+func shellPathInQuote(path string, quote byte) string {
+	switch quote {
+	case '\'':
+		return strings.ReplaceAll(path, "'", "'\"'\"'")
+	case '"':
+		escaped := shellPathArgument(path)
+		if escaped == path {
+			return path
+		}
+		return `"` + escaped + `"`
+	default:
+		return shellPathArgument(path)
+	}
+}
+
+func shellPathArgument(path string) string {
+	for _, r := range path {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', strings.ContainsRune("/._-+@:", r):
+			continue
+		default:
+			return shellEscape(path)
+		}
+	}
+	return path
 }
 
 func writeStartScript(instanceDir, startCommand string) (string, error) {
-	if instanceDir == "" {
+	return writeStartScriptInGameDir(instanceDir, instanceDir, startCommand)
+}
+
+func writeStartScriptInGameDir(scriptHome, gameDir, startCommand string) (string, error) {
+	if scriptHome == "" || gameDir == "" {
 		return "", fmt.Errorf("missing instance directory")
 	}
 	if startCommand == "" {
 		return "", fmt.Errorf("missing start command")
 	}
 
-	scriptDir := filepath.Join(instanceDir, "_easywi")
-	if err := ensureInstanceDir(scriptDir); err != nil {
-		return "", err
-	}
-
-	if runtime.GOOS != "windows" {
-		if err := chownToInstanceOwner(instanceDir, scriptDir); err != nil {
+	if runtime.GOOS == "windows" {
+		scriptDir := filepath.Join(scriptHome, "_easywi")
+		if err := ensureInstanceDir(scriptDir); err != nil {
 			return "", err
 		}
-	}
-
-	if runtime.GOOS == "windows" {
 		scriptPath := filepath.Join(scriptDir, "start.bat")
-		content := fmt.Sprintf("@echo off\r\ncd /d \"%s\"\r\n%s\r\n", instanceDir, startCommand)
+		content := fmt.Sprintf("@echo off\r\ncd /d \"%s\"\r\n%s\r\n", gameDir, startCommand)
 		if err := os.WriteFile(scriptPath, []byte(content), instanceFileMode); err != nil {
 			return "", fmt.Errorf("write start script: %w", err)
 		}
 		return scriptPath, nil
 	}
 
-	scriptPath := filepath.Join(scriptDir, "start.sh")
+	scriptName := filepath.Join("_easywi", "start.sh")
 	// Write the command directly — do NOT use "bash -lc <double-quoted-string>"
 	// because the outer bash would expand $1/$2/$3 etc. from any shell function
 	// bodies in the command before the inner shell ever sees them.
-	content := fmt.Sprintf("#!/bin/bash\ncd %q\n%s\n", instanceDir, startCommand)
-	if err := os.WriteFile(scriptPath, []byte(content), instanceFileMode); err != nil {
+	content := fmt.Sprintf("#!/bin/bash\ncd -- %s || exit 1\n%s\n", shellEscape(gameDir), startCommand)
+	if err := publishInstanceFile(scriptHome, scriptName, strings.NewReader(content), 0750); err != nil {
 		return "", fmt.Errorf("write start script: %w", err)
 	}
-	if err := chownToInstanceOwner(instanceDir, scriptPath); err != nil {
-		return "", err
-	}
-	if err := os.Chmod(scriptPath, 0o750); err != nil {
-		return "", fmt.Errorf("chmod start script: %w", err)
-	}
 
-	return fmt.Sprintf("/bin/bash %q", scriptPath), nil
+	return "/bin/bash " + systemdExecArgument(filepath.Join(scriptHome, scriptName)), nil
 }
 
 func maskSensitiveValues(input string, values map[string]string) string {
@@ -153,7 +195,7 @@ func extractFirstCommandToken(command string) string {
 	if command == "" {
 		return ""
 	}
-	fields := strings.Fields(command)
+	fields := commandWords(command)
 	for i := 0; i < len(fields); i++ {
 		token := normalizeCommandToken(fields[i])
 		if token == "" || token == ";" || token == "&&" || token == "||" {
@@ -175,6 +217,15 @@ func extractFirstCommandToken(command string) string {
 		return token
 	}
 	return ""
+}
+
+func commandWords(command string) []string {
+	if runtime.GOOS != "windows" {
+		if words, err := shlex.Split(command, true); err == nil {
+			return words
+		}
+	}
+	return strings.Fields(command)
 }
 
 func normalizeCommandToken(token string) string {

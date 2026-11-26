@@ -53,6 +53,11 @@
 <label>Hostname<input class="form-input" name="hostname" pattern="[a-z][a-z0-9-]{0,47}" required></label>
 <label>{{ 'kvm.username'|trans }}<input class="form-input" name="username" value="easywi" pattern="[a-z][a-z0-9_-]{0,30}" required></label>
 <label>{{ 'kvm.ssh_keys'|trans }}<textarea class="form-input" name="ssh_keys" rows="4" maxlength="32768" placeholder="ssh-ed25519 …" required></textarea></label>
+<label>{{ 'pve.customer'|trans({}, 'proxmox') }}<select class="form-input" name="customer_id"><option value="0">—</option>{% for customer in customers %}<option value="{{ customer.id }}">{{ customer.email }}</option>{% endfor %}</select></label>
+{% if node.metadata.kvm_managed.install_access_version|default(0) == 1 %}
+    <label><input type="checkbox" name="start_after_install" value="1" checked> {{ 'kvm.start_after_install'|trans }}</label>
+    <label><input type="checkbox" name="prepare_root_password" value="1"> {{ 'vm_config.install_password'|trans({}, 'vm_config') }}</label>
+{% endif %}
 <label>vCPU<input class="form-input" type="number" name="vcpus" min="1" max="256" value="2" required></label><label>RAM (MiB)<input class="form-input" type="number" name="memory_mib" min="128" max="1048576" value="2048" required></label><label>{{ 'kvm.disk'|trans }} (GiB)<input class="form-input" type="number" name="disk_gib" min="1" max="2048" value="20" required></label>
 <label>{{ 'kvm.network'|trans }}<select class="form-input" name="network_choice" required><option value="">{{ 'kvm.choose'|trans }}</option>{{ form.networkOptions(inventory) }}</select></label>
 {% if addressPoolsSupported and inventory.address_pools|default([]) %}

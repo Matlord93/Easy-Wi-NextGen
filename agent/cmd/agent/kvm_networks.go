@@ -287,7 +287,7 @@ func (e *kvmEngine) ensureNoNetworkOverlap(candidate netip.Prefix) error {
 	return nil
 }
 
-func (e *kvmEngine) inventory() (map[string]any, error) {
+func (e *kvmEngine) inventory(reconcileReinstall bool) (map[string]any, error) {
 	out, err := e.virsh("list", "--all", "--uuid")
 	if err != nil {
 		return nil, err
@@ -419,7 +419,29 @@ func (e *kvmEngine) inventory() (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"address_pools": pools, "vm_number_range": span, "pending_operations": pending, "guests": guests, "templates": templates, "networks": networks, "bridges": bridges, "capabilities": kvmCapabilities(), "observed_at": kvmNow()}, nil
+	inventory := map[string]any{"address_pools": pools, "vm_number_range": span, "pending_operations": pending, "guests": guests, "templates": templates, "networks": networks, "bridges": bridges, "capabilities": kvmCapabilities(), "observed_at": kvmNow()}
+	if len(pending) == 1 {
+		var source kvmOperation
+		if kvmReadJSON(filepath.Join(e.root, "operations", pending[0]+".json"), &source) == nil && source.Pending {
+			if reconcileReinstall {
+				_ = e.confirmInterruptedReinstall(pending[0], &source)
+				if !source.Pending {
+					inventory["pending_operations"] = []string{}
+					return inventory, nil
+				}
+			}
+			var recovery map[string]string
+			if source.Status == "failed" {
+				recovery = kvmReinstallRecoverySummary(pending[0], source.Result)
+			} else if vmID := e.interruptedReinstallationVM(pending[0], source); vmID != "" {
+				recovery = map[string]string{"vm_id": vmID, "operation_id": pending[0]}
+			}
+			if recovery != nil {
+				inventory["reinstall_rollback"] = recovery
+			}
+		}
+	}
+	return inventory, nil
 }
 func regexpUUIDLoose(s string) bool {
 	if len(s) != 36 {

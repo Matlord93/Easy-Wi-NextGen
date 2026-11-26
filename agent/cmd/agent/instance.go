@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -145,7 +146,7 @@ func handleInstanceCreate(job jobs.Job, senders ...JobLogSender) (jobs.Result, f
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
-	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
+	renderedStartParams, err := renderGameserverCommand(startParams, templateValues)
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
@@ -765,6 +766,7 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	missing := missingValues([]requiredValue{
 		{key: "instance_id", value: instanceID},
 		{key: "customer_id", value: customerID},
+		{key: "start_params", value: startParams},
 		{key: "cpu_limit", value: cpuLimitValue},
 		{key: "ram_limit", value: ramLimitValue},
 		{key: "disk_limit", value: diskLimitValue},
@@ -783,9 +785,6 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	}
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("gs-%s", instanceID)
-	}
-	if err := ensureBaseDir(baseDir); err != nil {
-		return failureResult(job.ID, err)
 	}
 
 	allocatedPorts, err := parsePayloadPortsStrict(job.Payload, "port_block_ports", "ports")
@@ -806,11 +805,31 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		return failureResult(job.ID, err)
 	}
 	osUsername := buildInstanceUsername(customerID, instanceID)
-	instanceDir := filepath.Join(baseDir, osUsername)
+	userHomeDir, instanceDir, err := resolveGameserverDirectories(baseDir, payloadValue(job.Payload, "install_path", "instance_dir"), osUsername)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	sharedSpecs, err := parseSharedPathSpecs(job.Payload)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	// Minecraft can resolve a different Java runtime after inspecting the downloaded artifact.
+	if payloadValue(job.Payload, "minecraft_managed") != "true" && payloadValue(job.Payload, "minecraft_java_version") == "" {
+		values := buildInstanceTemplateValues(userHomeDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+		if _, err := renderGameserverCommand(startParams, values); err != nil {
+			return failureResult(job.ID, fmt.Errorf("start parameters: %w", err))
+		}
+		if _, err := renderGameserverCommand(installCommand, values); err != nil {
+			return failureResult(job.ID, fmt.Errorf("install command: %w", err))
+		}
+	}
+	if err := prepareGameserverBaseDir(baseDir); err != nil {
+		return failureResult(job.ID, err)
+	}
 	if err := ensureGroup(osUsername); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := ensureUser(osUsername, osUsername, instanceDir); err != nil {
+	if err := ensureUser(osUsername, osUsername, userHomeDir); err != nil {
 		return failureResult(job.ID, err)
 	}
 
@@ -824,14 +843,28 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		return failureResult(job.ID, err)
 	}
 
-	if err := runCommand("systemctl", "stop", serviceName); err != nil {
-		log.Printf("instance.install: stop service %s (best-effort): %v", serviceName, err)
+	if err := stopGameserverForReinstall(serviceName); err != nil {
+		return failureResult(job.ID, err)
 	}
 
 	if _, err := os.Stat(instanceDir); err == nil {
+		storageRoot := userHomeDir
+		if instanceDir == userHomeDir {
+			storageRoot = filepath.Dir(userHomeDir)
+		}
+		storage, err := os.OpenRoot(storageRoot)
+		if err != nil {
+			return failureResult(job.ID, err)
+		}
+		defer func() { _ = storage.Close() }()
+		relative, err := filepath.Rel(storageRoot, instanceDir)
+		if err != nil {
+			return failureResult(job.ID, err)
+		}
 		if backupOld {
-			backupPath = fmt.Sprintf("%s.backup.%d", instanceDir, time.Now().UTC().Unix())
-			if err := os.Rename(instanceDir, backupPath); err != nil {
+			backupName := fmt.Sprintf("%s.backup.%d", relative, time.Now().UTC().UnixNano())
+			backupPath = filepath.Join(storageRoot, backupName)
+			if err := storage.Rename(relative, backupName); err != nil {
 				return failureResult(job.ID, fmt.Errorf("backup instance dir: %w", err))
 			}
 		} else {
@@ -846,13 +879,13 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 				}
 				configStash = stash
 			}
-			if err := os.RemoveAll(instanceDir); err != nil {
+			if err := storage.RemoveAll(relative); err != nil {
 				return failureResult(job.ID, fmt.Errorf("remove instance dir: %w", err))
 			}
 		}
 	}
 
-	for _, dir := range []string{instanceDir, dataDir, logsDir, configDir} {
+	for _, dir := range []string{userHomeDir, instanceDir, dataDir, logsDir, configDir} {
 		if err := ensureInstanceDir(dir); err != nil {
 			return failureResult(job.ID, err)
 		}
@@ -871,7 +904,7 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 			return failureResult(job.ID, fmt.Errorf("remove config stash: %w", err))
 		}
 	}
-	for _, dir := range []string{instanceDir, dataDir, logsDir, configDir} {
+	for _, dir := range []string{userHomeDir, instanceDir, dataDir, logsDir, configDir} {
 		if err := os.Chown(dir, uid, gid); err != nil {
 			return failureResult(job.ID, fmt.Errorf("chown %s: %w", dir, err))
 		}
@@ -889,16 +922,12 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	if err := ensureManagedMinecraftJava(job.Payload); err != nil {
 		return failureResult(job.ID, err)
 	}
-	templateValues := buildInstanceTemplateValues(instanceDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
-	sharedSpecs, err := parseSharedPathSpecs(job.Payload)
+	templateValues := buildInstanceTemplateValues(userHomeDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+	renderedStartParams, err := renderGameserverCommand(startParams, templateValues)
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
-	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
-	if err != nil {
-		return failureResult(job.ID, err)
-	}
-	startScriptPath, err := writeStartScript(instanceDir, renderedStartParams)
+	startScriptPath, err := writeStartScriptInGameDir(userHomeDir, instanceDir, renderedStartParams)
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
@@ -943,7 +972,7 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	}
 
 	if installCommand != "" {
-		renderedInstallCommand, err := renderTemplateStrict(installCommand, templateValues)
+		renderedInstallCommand, err := renderGameserverCommand(installCommand, templateValues)
 		if err != nil {
 			return failureResult(job.ID, err)
 		}
@@ -1046,6 +1075,18 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	}, nil
 }
 
+func stopGameserverForReinstall(serviceName string) error {
+	if err := runCommand("systemctl", "stop", "--", serviceName); err != nil {
+		state, _ := commandOutputRunner("systemctl", "show", "--property=LoadState", "--property=ActiveState", "--", serviceName)
+		properties := strings.Fields(state)
+		// A failed first installation may not have created a unit yet.
+		if !slices.Contains(properties, "LoadState=not-found") || !slices.Contains(properties, "ActiveState=inactive") {
+			return fmt.Errorf("stop gameserver before reinstallation: %w", err)
+		}
+	}
+	return nil
+}
+
 func buildInstanceInstallShellCommand(instanceDir, installCommand string, usesSteamCmd bool) string {
 	installSnippet := ""
 	postInstallSnippet := ""
@@ -1055,14 +1096,7 @@ func buildInstanceInstallShellCommand(instanceDir, installCommand string, usesSt
 		postInstallSnippet = steamCmdClientSnippet(steamCmdDir, instanceDir)
 	}
 
-	return fmt.Sprintf(
-		"export HOME=%[1]s; export XDG_DATA_HOME=%[1]s/.local/share; "+
-			"mkdir -p %[1]s/.steam %[1]s/.local/share; "+
-			"%[3]s"+
-			"cd %[1]s && %[2]s; "+
-			"%[4]s",
-		instanceDir, installCommand, installSnippet, postInstallSnippet,
-	)
+	return buildSniperInstallShellCommand(instanceDir, installCommand, installSnippet, postInstallSnippet)
 }
 
 func buildInstanceUsername(customerID, instanceID string) string {
@@ -1166,9 +1200,9 @@ StartLimitBurst=3
 Type=simple
 User=%s
 WorkingDirectory=%s
-Environment=HOME=%s
-Environment=XDG_CONFIG_HOME=%s/.config
-Environment=XDG_DATA_HOME=%s/.local/share
+Environment=%s
+Environment=%s
+Environment=%s
 ExecStartPre=/usr/bin/test -d %s
 ExecStart=%s
 StandardOutput=journal
@@ -1188,7 +1222,19 @@ ReadWritePaths=%s
 
 [Install]
 WantedBy=multi-user.target
-`, serviceName, user, workingDir, workingDir, workingDir, workingDir, workingDir, execStart, readWritePath, runtimeDirectoryLine, limits)
+`, serviceName, user, systemdLiteral(workingDir),
+		strconv.Quote(systemdLiteral("HOME="+workingDir)),
+		strconv.Quote(systemdLiteral("XDG_CONFIG_HOME="+filepath.Join(workingDir, ".config"))),
+		strconv.Quote(systemdLiteral("XDG_DATA_HOME="+filepath.Join(workingDir, ".local", "share"))),
+		systemdExecArgument(workingDir), execStart, strconv.Quote(systemdLiteral(readWritePath)), runtimeDirectoryLine, limits)
+}
+
+func systemdLiteral(value string) string {
+	return strings.ReplaceAll(value, "%", "%%")
+}
+
+func systemdExecArgument(value string) string {
+	return strconv.Quote(systemdLiteral(strings.ReplaceAll(value, "$", "$$")))
 }
 
 func buildSystemdExecStart(serviceName, command string) (string, string) {
@@ -1204,7 +1250,7 @@ func buildSystemdExecStart(serviceName, command string) (string, string) {
 	// when the executable path cannot be determined.
 	wrapperBin := "/usr/local/bin/easywi-wrapper"
 	if agentExecutablePath != "" {
-		wrapperBin = agentExecutablePath + " --wrapper"
+		wrapperBin = strconv.Quote(systemdLiteral(agentExecutablePath)) + " --wrapper"
 	}
 	return fmt.Sprintf("%s --instance-id %s --command-socket %s -- %s", wrapperBin, instanceID, socketPath, command), runtimeDirectory
 }
@@ -1560,13 +1606,40 @@ func applyInstanceRuntimeOverrides(payload map[string]any) (map[string]string, e
 		return updates, nil
 	}
 
-	instanceDir, err := resolveInstanceDir(payload)
-	if err != nil {
-		return updates, err
+	installPath := payloadValue(payload, "install_path", "instance_dir", "root_path", "instance_root")
+	baseDir := payloadValue(payload, "base_dir")
+	if baseDir == "" {
+		baseDir = defaultInstanceBaseDir()
+	}
+	instanceID := payloadValue(payload, "instance_id")
+	customerID := payloadValue(payload, "customer_id")
+	var instanceDir, userHomeDir string
+	var err error
+	if home, ok := gameserverHome(baseDir, installPath, buildInstanceUsername(customerID, instanceID)); ok && customerID != "" && instanceID != "" {
+		instanceDir = filepath.Clean(installPath)
+		userHomeDir = home
+		if err := validateGameserverDirectoryPath(userHomeDir, instanceDir); err != nil {
+			return updates, err
+		}
+	} else {
+		instanceDir, err = resolveInstanceDir(payload)
+		if err != nil {
+			return updates, err
+		}
+		userHomeDir = instanceDir
 	}
 
 	if err := ensureManagedMinecraftJava(payload); err != nil {
 		return updates, err
+	}
+	startParams := payloadValue(payload, "start_params")
+	var renderedStartParams string
+	if startParams != "" {
+		values := buildInstanceTemplateValues(userHomeDir, instanceDir, payloadValue(payload, "required_ports"), parsePayloadPorts(payload), payload)
+		renderedStartParams, err = renderGameserverCommand(startParams, values)
+		if err != nil {
+			return updates, fmt.Errorf("start parameters: %w", err)
+		}
 	}
 	if err := ensureMinecraftEula(instanceDir, payload); err != nil {
 		return updates, fmt.Errorf("eula: %w", err)
@@ -1618,16 +1691,8 @@ func applyInstanceRuntimeOverrides(payload map[string]any) (map[string]string, e
 			return updates, err
 		}
 	}
-	startParams := payloadValue(payload, "start_params")
 	if startParams != "" {
-		requiredPortsRaw := payloadValue(payload, "required_ports")
-		allocatedPorts := parsePayloadPorts(payload)
-		templateValues := buildInstanceTemplateValues(instanceDir, instanceDir, requiredPortsRaw, allocatedPorts, payload)
-		renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
-		if err != nil {
-			return updates, err
-		}
-		startScriptPath, err := writeStartScript(instanceDir, renderedStartParams)
+		startScriptPath, err := writeStartScriptInGameDir(userHomeDir, instanceDir, renderedStartParams)
 		if err != nil {
 			return updates, err
 		}

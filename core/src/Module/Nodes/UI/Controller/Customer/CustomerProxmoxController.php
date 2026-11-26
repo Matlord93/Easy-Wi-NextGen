@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Nodes\UI\Controller\Customer;
 
 use App\Infrastructure\Config\JsonArray;
+use App\Infrastructure\Doctrine\EntityIdentifier;
 use App\Infrastructure\Http\RequestActor;
 
 use App\Module\Core\Application\SiteResolver;
@@ -12,6 +13,8 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Nodes\Application\InfrastructureUsage;
 use App\Module\Nodes\Application\Proxmox\ProxmoxManager;
+use App\Module\Nodes\Application\VmPasswordDelivery;
+use App\Module\Nodes\Application\VmRootPassword;
 use App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment;
 use App\Module\Nodes\Domain\Entity\ProxmoxTask;
 use Doctrine\ORM\EntityManagerInterface;
@@ -26,7 +29,7 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/customer/proxmox')]
 final class CustomerProxmoxController extends AbstractController
 {
-    public function __construct(private readonly EntityManagerInterface $em, private readonly ProxmoxManager $manager, private readonly \App\Module\Nodes\Application\Console\VmConsoleBroker $console, private readonly SiteResolver $sites)
+    public function __construct(private readonly EntityManagerInterface $em, private readonly ProxmoxManager $manager, private readonly \App\Module\Nodes\Application\Console\VmConsoleBroker $console, private readonly SiteResolver $sites, private readonly VmPasswordDelivery $passwords)
     {
     }
 
@@ -63,8 +66,8 @@ final class CustomerProxmoxController extends AbstractController
         }
         if ('qemu' === $assignment->getKind() && 'stopped' === ($detail['status']['status'] ?? null)
             && !array_any($tasks, static fn (ProxmoxTask $task): bool => $task->isActive())
-            && !array_any(JsonArray::orEmpty($detail['snapshots'] ?? null), static fn (mixed $snapshot): bool => !is_array($snapshot) || 'current' !== ($snapshot['name'] ?? null))
-            && null !== ($siteId = $this->sites->resolve($request)?->getId())) {
+            && !array_any(JsonArray::orEmpty($detail['snapshots'] ?? null), static fn (mixed $snapshot): bool => !is_array($snapshot) || 'current' !== ($snapshot['name'] ?? null))) {
+            $siteId = $this->sites->resolve($request)?->getId() ?? 0;
             try {
                 $reinstallation = $this->manager->reinstallationChoices($assignment, $actor, $siteId);
             } catch (\InvalidArgumentException|\App\Module\Nodes\Domain\Proxmox\ProxmoxApiException) {
@@ -72,7 +75,9 @@ final class CustomerProxmoxController extends AbstractController
             }
         }
 
-        return $this->render('customer/proxmox/guest.html.twig', ['assignment' => $assignment, 'kind' => $assignment->getKind(), 'vmId' => $assignment->getVmId(), 'detail' => $detail, 'error' => $error, 'tasks' => $tasks, 'requestKey' => bin2hex(random_bytes(16)), 'reinstallation' => $reinstallation, 'reinstallationRequestKey' => bin2hex(random_bytes(16)), 'addressSwitchRequestKey' => bin2hex(random_bytes(16)), 'actionUrl' => $this->generateUrl('customer_proxmox_action', ['id' => $id]), 'csrfId' => 'proxmox-customer-'.$id, 'admin' => false, 'consoleConfigured' => null === $consoleReason, 'consoleUnavailableReason' => $consoleReason, 'activeNav' => 'proxmox']);
+        $passwordState = $this->passwords->state($assignment, fn (string $operation): string => $this->manager->passwordState($assignment, $actor, $operation));
+
+        return $this->render('customer/proxmox/guest.html.twig', ['assignment' => $assignment, 'kind' => $assignment->getKind(), 'vmId' => $assignment->getVmId(), 'detail' => $detail, 'error' => $error, 'tasks' => $tasks, 'passwordState' => $passwordState, 'requestKey' => bin2hex(random_bytes(16)), 'reinstallation' => $reinstallation, 'reinstallationRequestKey' => bin2hex(random_bytes(16)), 'addressSwitchRequestKey' => bin2hex(random_bytes(16)), 'actionUrl' => $this->generateUrl('customer_proxmox_action', ['id' => $id]), 'csrfId' => 'proxmox-customer-'.$id, 'admin' => false, 'consoleConfigured' => null === $consoleReason, 'consoleUnavailableReason' => $consoleReason, 'activeNav' => 'proxmox'], new Response(headers: ['Cache-Control' => 'private, no-store']));
     }
 
     #[Route('/{id<\d+>}/guest-agent', name: 'customer_proxmox_guest_agent', methods: ['POST'])]
@@ -157,21 +162,46 @@ final class CustomerProxmoxController extends AbstractController
             throw new AccessDeniedHttpException();
         }
         try {
-            $credentials = \App\Module\Nodes\Application\VmRootPassword::generate();
-            $task = $this->manager->perform($assignment->getCluster(), $assignment->getKind(), $assignment->getVmId(), 'root-password', [
-                'confirm' => '1', 'password_hash' => $credentials->hash,
-            ], bin2hex(random_bytes(16)), $actor);
-            if ('OK' !== $task->getResult()) {
-                throw new \RuntimeException('Password reset not confirmed.');
-            }
-        } catch (\InvalidArgumentException|\RuntimeException) {
-            $this->addFlash('proxmox_error', 'pve.error.unavailable');
+            $credentials = VmRootPassword::prepare($request->request->getString('password'), $request->request->getString('password_confirm'));
+            $this->passwords->change($assignment, $credentials, function (string $hash) use ($assignment, $actor): string {
+                $task = $this->manager->perform($assignment->getCluster(), $assignment->getKind(), $assignment->getVmId(), 'root-password', [
+                    'confirm' => '1', 'password_hash' => $hash,
+                ], bin2hex(random_bytes(16)), $actor);
+                if ('OK' !== $task->getResult()) {
+                    throw new \InvalidArgumentException('permission_denied' === $task->getResult() ? 'pve.error.permissions' : 'pve.error.unavailable');
+                }
 
-            return $this->redirectToRoute('customer_proxmox_guest', ['id' => $id], 303);
+                return (string) EntityIdentifier::require($task->getId());
+            });
+        } catch (\InvalidArgumentException $exception) {
+            $key = $exception->getMessage();
+            $this->addFlash('proxmox_error', str_starts_with($key, 'vm_config.') || str_starts_with($key, 'pve.error.') ? $key : 'pve.error.unavailable');
+        } catch (\RuntimeException) {
+            $this->addFlash('proxmox_error', 'pve.error.unavailable');
+        }
+
+        return $this->redirectToRoute('customer_proxmox_guest', ['id' => $id, '_fragment' => 'pve-access'], 303);
+    }
+
+    #[Route('/{id<\d+>}/root-password/reveal', name: 'customer_proxmox_root_password_reveal', methods: ['POST'])]
+    public function revealRootPassword(Request $request, int $id): Response
+    {
+        $actor = $this->actor($request);
+        $assignment = $this->owned($actor, $id);
+        if (!$this->isCsrfTokenValid('proxmox-customer-'.$id, $request->request->getString('_token'))) {
+            throw new AccessDeniedHttpException();
+        }
+        try {
+            $this->manager->assignedGuest($assignment, $actor);
+            $password = $this->passwords->reveal($assignment, fn (string $operation): string => $this->manager->passwordState($assignment, $actor, $operation));
+        } catch (\InvalidArgumentException|\RuntimeException) {
+            $this->addFlash('proxmox_error', 'vm_config.root_password_not_revealable');
+
+            return $this->redirectToRoute('customer_proxmox_guest', ['id' => $id, '_fragment' => 'pve-access'], 303);
         }
 
         return $this->render('customer/vm/root-password.html.twig', [
-            'password' => $credentials->password, 'pending' => false, 'back' => $this->generateUrl('customer_proxmox_guest', ['id' => $id]), 'activeNav' => 'proxmox',
+            'password' => $password, 'back' => $this->generateUrl('customer_proxmox_guest', ['id' => $id, '_fragment' => 'pve-access']), 'activeNav' => 'proxmox',
         ], new Response(headers: ['Cache-Control' => 'private, no-store', 'Referrer-Policy' => 'no-referrer']));
     }
 
@@ -185,8 +215,19 @@ final class CustomerProxmoxController extends AbstractController
             throw new AccessDeniedHttpException();
         }
         try {
-            $siteId = $this->sites->resolve($request)?->getId() ?? throw new \InvalidArgumentException('pve.error.reinstall_unavailable');
-            $this->manager->queueReinstallation($assignment, $actor, $siteId, $form->getInt('product_id'), $form->getString('expected_digest'), $form->getString('request_key'));
+            $siteId = $this->sites->resolve($request)?->getId() ?? 0;
+            $productId = $form->getInt('product_id', -1);
+            if ($productId < 0 || ($productId > 0 && 0 === $siteId)) {
+                throw new \InvalidArgumentException('pve.error.reinstall_unavailable');
+            }
+            $queue = fn (?string $hash = null): ProxmoxTask => $this->manager->queueReinstallation(
+                $assignment, $actor, $siteId, $productId, $form->getString('expected_digest'), $form->getString('request_key'), $hash,
+            );
+            if ('1' === $form->getString('prepare_root_password')) {
+                $this->passwords->queueChange($assignment, VmRootPassword::prepare(), static fn (string $hash): string => (string) EntityIdentifier::require($queue($hash)->getId()));
+            } else {
+                $queue();
+            }
         } catch (\InvalidArgumentException|\App\Module\Nodes\Domain\Proxmox\ProxmoxApiException $exception) {
             $this->addFlash('proxmox_error', $exception instanceof \InvalidArgumentException ? $exception->getMessage() : 'pve.error.unavailable');
 

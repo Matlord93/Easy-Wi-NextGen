@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -61,6 +62,60 @@ func TestKVMRootPasswordRequiresRunningManagedGuestAndSendsOnlyTheRootHash(t *te
 	result, err := f.e.perform("vm.root_password", input)
 	if err != nil || result["root_password_reset"] != true || calls != 1 {
 		t.Fatalf("password reset was not confirmed: %v %v", result, err)
+	}
+}
+
+func TestKVMInstallPasswordWaitsForFreshCloudInitCompletion(t *testing.T) {
+	f := kvmNewFixture(t)
+	kvmAssertSuccess(t, f.create())
+	f.states[kvmTestVM] = "running"
+	g := kvmGuest{ID: kvmTestVM, GuestAgentEnabled: true, StaticAddresses: []kvmStaticAddress{{Address: netip.MustParsePrefix("192.0.2.5/24")}}}
+	started := time.Now().Truncate(time.Second)
+	finished := started.Add(-time.Minute)
+	hash := "$6$0123456789abcdef$" + strings.Repeat("a", 86)
+	var commands []string
+	kvmAgentFixture(t, func(_ context.Context, args ...string) ([]byte, error) {
+		var request struct {
+			Execute   string         `json:"execute"`
+			Arguments map[string]any `json:"arguments"`
+		}
+		if err := json.Unmarshal([]byte(args[6]), &request); err != nil {
+			t.Fatal(err)
+		}
+		commands = append(commands, request.Execute)
+		switch request.Execute {
+		case "guest-file-open":
+			if request.Arguments["path"] != "/var/lib/cloud/instance/boot-finished" {
+				t.Fatal("unexpected guest file")
+			}
+			return []byte(`{"return":7}`), nil
+		case "guest-file-read":
+			marker := "2.0 - " + finished.Format("Mon, 2 Jan 2006 15:04:05 -0700") + " - v. 25.1\n"
+			return json.Marshal(map[string]any{"return": map[string]any{"buf-b64": base64.StdEncoding.EncodeToString([]byte(marker))}})
+		case "guest-file-close":
+			return []byte(`{"return":{}}`), nil
+		case "guest-network-get-interfaces":
+			return []byte(`{"return":[{"name":"eth0","hardware-address":"` + kvmGuestMAC(g.ID) + `","ip-addresses":[{"ip-address-type":"ipv4","ip-address":"192.0.2.5","prefix":24}]}]}`), nil
+		case "guest-set-user-password":
+			if request.Arguments["username"] != "root" || request.Arguments["password"] != base64.StdEncoding.EncodeToString([]byte(hash)) || request.Arguments["crypted"] != true {
+				t.Fatal("installation did not send the expected root hash")
+			}
+			return []byte(`{"return":{}}`), nil
+		default:
+			t.Fatalf("unexpected command %s", request.Execute)
+			return nil, nil
+		}
+	})
+	if f.e.cloudInitFinished(g.ID, started) {
+		t.Fatal("a baked image's old cloud-init marker was accepted")
+	}
+	commands = nil
+	finished = started.Add(time.Second)
+	if err := f.e.confirmInstallation(g, hash, started); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"guest-file-open", "guest-file-read", "guest-file-close", "guest-network-get-interfaces", "guest-set-user-password"}; !reflect.DeepEqual(commands, want) {
+		t.Fatalf("got guest commands %v, want %v", commands, want)
 	}
 }
 func TestKVMGuestAgentReadsOnlySelectedGuestAndPreservesFiles(t *testing.T) {

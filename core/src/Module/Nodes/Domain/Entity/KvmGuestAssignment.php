@@ -13,6 +13,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\UniqueConstraint(name: 'uniq_kvm_guest_owner', columns: ['node_id', 'vm_uuid'])]
 class KvmGuestAssignment
 {
+    use VmPasswordHandoff;
+
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $assignedAt = null;
 

@@ -14,6 +14,7 @@
     <label>{{ 'kvm.username'|trans({}, 'kvm') }}<input name="username" class="form-input" value="easywi" pattern="[a-z][a-z0-9_-]{0,30}" required></label>
     <label>{{ 'kvm.ssh_keys'|trans({}, 'kvm') }}<textarea name="ssh_keys" class="form-input" rows="4" maxlength="32768" required></textarea></label>
     <label>{{ 'pve.customer'|trans }}<select class="form-input" name="customer_id"><option value="">—</option>{% for customer in customers %}<option value="{{ customer.id }}">{{ customer.email }}</option>{% endfor %}</select></label>
+    <label><input type="checkbox" name="prepare_root_password" value="1"> {{ 'pve.install_password'|trans }}</label>
     <label>{{ 'pve.ip_address_mode'|trans }}
         <select class="form-input" name="address_mode">
             {% if installationPools|default([]) %}
@@ -29,8 +30,10 @@
 {% else %}<div class="infra-grid"><div class="infra-stat"><span>vCPU</span><strong>{{ detail.status.cpus|default(detail.guest.maxcpu|default('—')) }}</strong></div><div class="infra-stat"><span>{{ 'pve.memory'|trans }}</span><strong>{{ detail.status.maxmem is defined ? (detail.status.maxmem / 1073741824)|number_format(1) ~ ' GiB' : '—' }}</strong></div><div class="infra-stat"><span>{{ 'pve.disk'|trans }}</span><strong>{{ detail.status.maxdisk is defined ? (detail.status.maxdisk / 1073741824)|number_format(1) ~ ' GiB' : '—' }}</strong></div></div><div class="infra-actions">{% for action in ['stop', 'reboot'] %}<form action="{{ actionUrl }}" method="post" data-pve-mutation>{% include 'proxmox/_action_fields.html.twig' %}<label><input type="checkbox" name="confirm" value="1" required> {{ 'pve.confirm_power'|trans }}</label><button class="ui-button ui-button--ghost">{{ ('pve.action.' ~ action)|trans }}</button></form>{% endfor %}</div>{% endif %}{% include 'proxmox/_disk_inventory.html.twig' %}</section></section>
 {% if not admin and kind == 'qemu' %}<section class="infra-pane" id="pve-access" data-infra-pane>
 {% include 'infrastructure/_customer_access.html.twig' with {
-    addresses: detail.staticAddresses, networkPane: '#pve-settings', resetAvailable: detail.status.status|default('') == 'running' and detail.guestAgentEnabled,
+    addresses: detail.staticAddresses, networkPane: '#pve-settings', resetAvailable: detail.status.status|default('') == 'running' and detail.guestAgentEnabled and tasks|filter(task => task.active) is empty,
     resetUrl: path('customer_proxmox_root_password', {id: assignment.id}), resetToken: csrf_token(csrfId),
+    passwordState: passwordState, revealUrl: path('customer_proxmox_root_password_reveal', {id: assignment.id}),
+    refreshUrl: path('customer_proxmox_guest', {id: assignment.id, _fragment: 'pve-access'}),
     switchChoices: tasks|filter(task => task.active) is empty ? detail.addressChoices : [],
     switchUrl: actionUrl, switchFields: {action: 'address-switch', request_key: addressSwitchRequestKey}
 } only %}
@@ -42,9 +45,11 @@
             <input type="hidden" name="request_key" value="{{ reinstallationRequestKey }}">
             <input type="hidden" name="expected_digest" value="{{ reinstallation.digest }}">
             <p>{{ 'pve.reinstall.hint'|trans }}</p>
+            <label><input type="checkbox" name="prepare_root_password" value="1"> {{ 'pve.install_password'|trans }}</label>
             <label>{{ 'pve.reinstall.image'|trans }}
                 <select name="product_id" class="form-input" required>
                     <option value="">{{ 'pve.reinstall.select'|trans }}</option>
+                    {% if reinstallation.original %}<option value="0">{{ 'pve.reinstall.original'|trans }}</option>{% endif %}
                     {% for id, name in reinstallation.images %}<option value="{{ id }}">{{ name }}</option>{% endfor %}
                 </select>
             </label>

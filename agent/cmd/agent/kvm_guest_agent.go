@@ -85,6 +85,63 @@ func (e *kvmEngine) resetRootPassword(g kvmGuest, p map[string]any) (map[string]
 	return map[string]any{"vm_id": g.ID, "root_password_reset": true}, nil
 }
 
+func (e *kvmEngine) confirmInstallation(g kvmGuest, passwordHash string, started time.Time) error {
+	ctx, cancel := context.WithTimeout(e.ctx, 5*time.Minute)
+	defer cancel()
+	engine := *e
+	engine.ctx = ctx
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	bootFinished := false
+	for {
+		bootFinished = bootFinished || engine.cloudInitFinished(g.ID, started)
+		if bootFinished && engine.installNetworkReady(g) {
+			if passwordHash == "" {
+				return nil
+			}
+			_, err := engine.resetRootPassword(g, map[string]any{"confirm": "1", "password_hash": passwordHash})
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			if bootFinished {
+				return errors.New("the guest agent did not confirm the reserved IP addresses on the primary interface")
+			}
+			return errors.New("the guest agent did not confirm cloud-init completion")
+		case <-ticker.C:
+		}
+	}
+}
+
+func (e *kvmEngine) cloudInitFinished(id string, started time.Time) bool {
+	raw, err := e.guestAgentRequest(id, map[string]any{
+		"execute": "guest-file-open", "arguments": map[string]any{"path": "/var/lib/cloud/instance/boot-finished", "mode": "r"},
+	})
+	handle, valid := raw.(float64)
+	if err != nil || !valid || handle < 0 || handle > 1<<53 || float64(int64(handle)) != handle {
+		return false
+	}
+	defer func() {
+		_, _ = e.guestAgentRequest(id, map[string]any{"execute": "guest-file-close", "arguments": map[string]any{"handle": handle}})
+	}()
+	raw, err = e.guestAgentRequest(id, map[string]any{"execute": "guest-file-read", "arguments": map[string]any{"handle": handle, "count": 256}})
+	result, valid := raw.(map[string]any)
+	if err != nil || !valid {
+		return false
+	}
+	encoded, valid := result["buf-b64"].(string)
+	if !valid || len(encoded) > 344 {
+		return false
+	}
+	data, err := base64.StdEncoding.DecodeString(encoded)
+	parts := strings.SplitN(string(data), " - ", 3)
+	if err != nil || len(parts) != 3 || !strings.HasPrefix(parts[2], "v. ") {
+		return false
+	}
+	finished, err := time.Parse("Mon, 2 Jan 2006 15:04:05 -0700", parts[1])
+	return err == nil && finished.Unix() >= started.Unix()
+}
+
 func (e *kvmEngine) guestAgentRequest(id string, input map[string]any) (any, error) {
 	uri := os.Getenv("EASYWI_KVM_URI")
 	if uri == "" {

@@ -476,6 +476,7 @@ final class RentalContractWorkflowTest extends KernelTestCase
         yield 'accepted clone with lost response' => ['clone-lost'];
         yield 'VM ID taken by another guest during lost clone' => ['clone-foreign'];
         yield 'cancel while recovering a lost clone response' => ['clone-cancel'];
+        yield 'cancel while password confirmation is pending' => ['password-cancel'];
     }
 
     #[DataProvider('proxmoxRentalOutcomes')]
@@ -589,6 +590,7 @@ final class RentalContractWorkflowTest extends KernelTestCase
             $sync->run(25);
             self::assertCount(1, $fixture->writes());
             $fixture->auditPermission = true;
+            $fixture->propagatePermissions = false;
             $fixture->activeJobs = [['id' => '900', 'type' => 'qmclone']];
             if ('clone-cancel' === $outcome) {
                 $this->service->cancel($contract, $this->customer, $request, $now->modify('+1 minute'));
@@ -673,8 +675,29 @@ final class RentalContractWorkflowTest extends KernelTestCase
         if ('changed-key' === $outcome) {
             $fixture->configs[$vmId]['sshkeys'] = '';
         }
+        if ('password-cancel' === $outcome) {
+            $fixture->rootPasswordPermission = true;
+            $fixture->loseResponseAfterWrite = '/nodes/pve-a/qemu/'.$vmId.'/agent/set-user-password';
+        }
         $sync->run(25);
         $this->service->run($now->modify('+2 minutes'), $request);
+        if ('password-cancel' === $outcome) {
+            $assignments = $this->em->getRepository(\App\Module\Nodes\Domain\Entity\ProxmoxGuestAssignment::class);
+            self::assertSame('submitting', $installation->getState());
+            self::assertSame('setting_password', $installation->getInstallation()['phase']);
+            self::assertSame('provisioning', $contract->getStatus());
+            self::assertNull($contract->getStartedAt());
+            self::assertSame(0, $assignments->count(['customer' => $this->customer]));
+            $writes = count($fixture->writes());
+            $this->service->cancel($contract, $this->customer, $request, $now->modify('+3 minutes'));
+            $sync->run(25);
+            self::assertSame('cancelled', $installation->getResult());
+            self::assertArrayNotHasKey('root_password_setup', $installation->getInstallation());
+            self::assertCount($writes, $fixture->writes());
+            self::assertSame(0, $contract->getChargedMinutes());
+
+            return;
+        }
         if ('changed-key' === $outcome) {
             self::assertSame('rental_cloud_init_unconfirmed', $installation->getResult());
             self::assertSame('uncertain', $installation->getState());
@@ -724,6 +747,7 @@ final class RentalContractWorkflowTest extends KernelTestCase
         $sync->run(25);
         self::assertCount(1, $pools->leases($installation));
         $fixture->auditPermission = true;
+        $fixture->propagatePermissions = false;
         $sync->run(25);
         self::assertCount($writes + 1, $fixture->writes());
         $cleanup->run($now->modify('+109 days'));

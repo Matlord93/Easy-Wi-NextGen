@@ -142,9 +142,13 @@ final class CustomerJobApiController
             $extraPayload = JsonArray::orEmpty($payload['payload'] ?? null);
             $jobPayload = array_merge(
                 $extraPayload,
-                $this->instanceJobPayloadBuilder->buildRuntimePayload($instance),
                 $this->buildBasePayload($instance),
+                $this->instanceJobPayloadBuilder->buildRuntimePayload($instance),
             );
+        } elseif ($jobType === 'instance.reinstall') {
+            $installPayload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance);
+            unset($installPayload['autostart']);
+            $jobPayload = array_merge(JsonArray::orEmpty($payload['payload'] ?? null), $this->buildBasePayload($instance), $installPayload);
         } else {
             $extraPayload = JsonArray::orEmpty($payload['payload'] ?? null);
             $jobPayload = array_merge($extraPayload, $this->buildBasePayload($instance));

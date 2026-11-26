@@ -142,8 +142,7 @@ final readonly class ProxmoxRentalLifecycle
 
                 return;
             }
-            $nodePath = '/nodes/'.$node;
-            if (empty($this->api->permissions($connection, $nodePath)[$nodePath]['Sys.Audit'])) {
+            if (!$this->api->hasPrivilege($connection, '/nodes/'.$node, 'Sys.Audit')) {
                 $task->uncertain('permission_denied');
                 $this->em->flush();
 

@@ -17,9 +17,11 @@ interface InstanceRepositoryInterface extends \App\Repository\EntityRepositoryQu
     public function findByCustomer(User $customer): array;
 
     /**
+     * @param list<Agent> $nodes
+     * @param list<int|string> $excludedIds
      * @return Instance[]
      */
-    public function findScanCandidates(Agent $node, \DateTimeImmutable $threshold, int $limit): array;
+    public function findScanCandidates(array $nodes, \DateTimeImmutable $now, int $limit, array $excludedIds): array;
 
     /**
      * @return Instance[]

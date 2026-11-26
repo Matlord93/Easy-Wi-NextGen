@@ -30,13 +30,31 @@
     {% endif %}
     <h3>{{ 'vm_config.root_password'|trans }}</h3>
     <p>{{ 'vm_config.root_password_hint'|trans }}</p>
-    {% if resetAvailable %}
+    {% if passwordState == 'ready' %}
+        <form method="post" action="{{ revealUrl }}" class="infra-form">
+            <input type="hidden" name="_token" value="{{ resetToken }}">
+            <button type="submit" class="ui-button ui-button--primary">{{ 'vm_config.root_password_reveal'|trans }}</button>
+        </form>
+        <p>{{ 'vm_config.root_password_expiry_hint'|trans }}</p>
+    {% elseif passwordState == 'pending' %}
+        <p role="status">{{ 'vm_config.root_password_pending'|trans }}</p>
+        <a class="ui-button ui-button--ghost" href="{{ refreshUrl }}">{{ 'vm_config.root_password_refresh'|trans }}</a>
+    {% elseif passwordState in ['failed', 'expired'] %}
+        <p role="status">{{ 'vm_config.root_password_not_revealable'|trans }}</p>
+    {% endif %}
+    {% if resetAvailable and passwordState != 'pending' %}
         <form method="post" action="{{ resetUrl }}" class="infra-form">
             <input type="hidden" name="_token" value="{{ resetToken }}">
+            <details>
+                <summary>{{ 'vm_config.root_password_custom'|trans }}</summary>
+                <p>{{ 'vm_config.root_password_custom_hint'|trans }}</p>
+                <label>{{ 'vm_config.root_password_new'|trans }}<input class="form-input" type="password" name="password" minlength="12" maxlength="128" autocomplete="new-password"></label>
+                <label>{{ 'vm_config.root_password_repeat'|trans }}<input class="form-input" type="password" name="password_confirm" minlength="12" maxlength="128" autocomplete="new-password"></label>
+            </details>
             <label><input type="checkbox" name="confirm" value="1" required> {{ 'vm_config.root_password_confirm'|trans }}</label>
             <button type="submit" class="ui-button ui-button--ghost">{{ 'vm_config.root_password_reset'|trans }}</button>
         </form>
-    {% else %}
+    {% elseif passwordState not in ['ready', 'pending'] %}
         <p>{{ 'vm_config.root_password_unavailable'|trans }}</p>
     {% endif %}
 </section>

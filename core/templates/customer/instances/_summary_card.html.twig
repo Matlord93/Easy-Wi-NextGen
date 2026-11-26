@@ -103,6 +103,7 @@
         <div class="rounded-lg border border-slate-700/40 bg-slate-900/50 px-2.5 py-2">
             <p class="uppercase tracking-wide text-slate-500">{{ t('customer_instance_disk_used', page_locale()) }}</p>
             <p class="mt-0.5 font-semibold {{ diskBadgeClass }}">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}</p>
+            {% if instance.disk_measurement_state != 'current' %}<small>{{ ('workspace_disk_' ~ instance.disk_measurement_state)|trans({}, 'panel_modules') }}</small>{% endif %}
         </div>
     </div>
 

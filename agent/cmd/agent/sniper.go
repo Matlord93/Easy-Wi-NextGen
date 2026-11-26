@@ -22,7 +22,7 @@ var (
 	buildIDRegex                                   = regexp.MustCompile(`(?i)build(?:[_\s-]?id)?[:\s]+([0-9]+)`)
 	versionRegex                                   = regexp.MustCompile(`(?i)version[:\s]+([0-9a-zA-Z._-]+)`)
 	jsonLineRegex                                  = regexp.MustCompile(`\{.*\}`)
-	forceInstallDirRegex                           = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(\"[^\"]+\"|'[^']+'|\S+)`)
+	forceInstallDirRegex                           = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(?:'[^']*'|"(?:[^"\\]|\\.)*"|\\.|[^\s'"\\;&|])+`)
 	forceInstallDirPresenceRegex                   = regexp.MustCompile(`(?i)\+force_install_dir\b`)
 	steamcmdInjectRegex                            = regexp.MustCompile(`(?i)(^|\s)([^\s]*steamcmd(?:\.sh|\.exe)?)(\s)`)
 	steamcmdCommandRegex                           = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
@@ -149,7 +149,7 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 	}
 	osUsername := buildInstanceUsername(payloadValue(job.Payload, "customer_id"), payloadValue(job.Payload, "instance_id"))
 	templateValues := buildInstanceTemplateValues(sharedServer, sharedServer, payloadValue(job.Payload, "required_ports"), parsePayloadPorts(job.Payload), job.Payload)
-	renderedCommand, err := renderTemplateStrict(updateCommand, templateValues)
+	renderedCommand, err := renderGameserverCommand(updateCommand, templateValues)
 	if err != nil {
 		_ = markSharedManifestFailed(manifestPath, err)
 		return failureResult(job.ID, fmt.Errorf("SHARED_UPDATE_FAILED: %w", err))
@@ -220,7 +220,7 @@ func handleSniperSharedUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result
 			return failureResult(job.ID, fmt.Errorf("SHARED_UPDATE_FAILED: %w", err))
 		}
 		defer func() { _ = os.Remove(runScriptPath) }()
-		shellCmd = buildSniperInstallShellCommand(sharedServer, fmt.Sprintf("%s +runscript %s", steamCmdExecPath, shellEscape(runScriptPath)), installSnippet, postInstallSnippet)
+		shellCmd = buildSniperInstallShellCommand(sharedServer, fmt.Sprintf("%s +runscript %s", steamCmdExecutableArgument(steamCmdExecPath), shellEscape(runScriptPath)), installSnippet, postInstallSnippet)
 	}
 	if usesSteamCmd && logSender != nil {
 		steamCmdValidate := resolveSteamCmdValidateFlag(job.Payload, "shared_update", true)
@@ -400,6 +400,9 @@ func writeSteamCmdRunScript(path, installDir, login, appID, username string, val
 	if validate {
 		validateArg = " validate"
 	}
+	if shellPathArgument(installDir) != installDir {
+		installDir = strconv.Quote(installDir)
+	}
 	content := fmt.Sprintf("force_install_dir %s\nlogin %s\napp_update %s%s\nquit\n", installDir, login, appID, validateArg)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return err
@@ -571,9 +574,19 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if payloadInstallPath == "" {
 		payloadInstallPath = defaultHomeDir
 	}
-	userHomeDir, instanceDir, err := resolveSniperUserHomeAndGameDir(payloadInstallPath, osUsername)
+	userHomeDir, instanceDir, err := resolveGameserverDirectories(baseDir, payloadInstallPath, osUsername)
 	if err != nil {
 		return failureResult(job.ID, err)
+	}
+	allocatedPorts := parsePayloadPorts(job.Payload)
+	templateValues := buildInstanceTemplateValues(userHomeDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+	var renderedStartParams string
+	prepareMinecraft := payloadValue(job.Payload, "minecraft_managed") == "true" || payloadValue(job.Payload, "minecraft_java_version") != ""
+	if !prepareMinecraft {
+		renderedStartParams, err = renderGameserverCommand(startParams, templateValues)
+		if err != nil {
+			return failureResult(job.ID, fmt.Errorf("start parameters: %w", err))
+		}
 	}
 	if err := ensureGroup(osUsername); err != nil {
 		return failureResult(job.ID, err)
@@ -581,7 +594,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if err := ensureUser(osUsername, osUsername, userHomeDir); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := ensureBaseDir(baseDir); err != nil {
+	if err := prepareGameserverBaseDir(baseDir); err != nil {
 		return failureResult(job.ID, err)
 	}
 	if err := ensureInstanceDir(userHomeDir); err != nil {
@@ -607,14 +620,19 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		return failureResult(job.ID, fmt.Errorf("chmod %s: %w", instanceDir, err))
 	}
 
-	allocatedPorts := parsePayloadPorts(job.Payload)
-	if err := prepareManagedMinecraftInstall(instanceDir, osUsername, job.Payload, minecraftInstallProgress(job.ID, logSender)); err != nil {
-		return failureResult(job.ID, err)
+	if prepareMinecraft {
+		if err := prepareManagedMinecraftInstall(instanceDir, osUsername, job.Payload, minecraftInstallProgress(job.ID, logSender)); err != nil {
+			return failureResult(job.ID, err)
+		}
+		if err := ensureManagedMinecraftJava(job.Payload); err != nil {
+			return failureResult(job.ID, err)
+		}
+		templateValues = buildInstanceTemplateValues(userHomeDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+		renderedStartParams, err = renderGameserverCommand(startParams, templateValues)
+		if err != nil {
+			return failureResult(job.ID, fmt.Errorf("start parameters: %w", err))
+		}
 	}
-	if err := ensureManagedMinecraftJava(job.Payload); err != nil {
-		return failureResult(job.ID, err)
-	}
-	templateValues := buildInstanceTemplateValues(userHomeDir, instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
 
 	cpuLimit, err := parsePositiveInt(cpuLimitValue, "cpu_limit")
 	if err != nil {
@@ -649,7 +667,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		}, nil
 	}
 
-	renderedCommand, err := renderTemplateStrict(command, templateValues)
+	renderedCommand, err := renderGameserverCommand(command, templateValues)
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
@@ -664,7 +682,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		command = replaceSteamCmdExecutable(command, steamCmdExecPath)
 	}
 
-	installRoot := userHomeDir
+	installRoot := instanceDir
 	installRootSource := "existing_instance"
 	installTargetDir := installRoot
 	runtimeRoot := instanceDir
@@ -802,7 +820,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		if err := writeSteamCmdRunScript(runScriptPath, installTargetDir, login, steamAppID, osUsername, steamCmdValidate); err != nil {
 			return failureResult(job.ID, err)
 		}
-		shellCmd = buildSniperInstallShellCommand(commandWorkDir, fmt.Sprintf("%s +runscript %s", steamCmdExecPath, shellEscape(runScriptPath)), installSnippet, postInstallSnippet)
+		shellCmd = buildSniperInstallShellCommand(commandWorkDir, fmt.Sprintf("%s +runscript %s", steamCmdExecutableArgument(steamCmdExecPath), shellEscape(runScriptPath)), installSnippet, postInstallSnippet)
 	}
 
 	sharedResult := ""
@@ -969,11 +987,6 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		return failureResult(job.ID, fmt.Errorf("serverconfig.xml: %w", err))
 	}
 
-	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
-	if err != nil {
-		markSharedFailure(err)
-		return failureResult(job.ID, err)
-	}
 	isCS2 := isCS2Template(job.Payload, templateValues)
 	startScriptName := resolveStartScriptName(job.Payload, templateValues, isCS2)
 	generatedStartScriptPath := ""
@@ -1058,7 +1071,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			return failureResult(job.ID, err)
 		}
 	}
-	startScriptPath, err := writeStartScript(userHomeDir, renderedStartParams)
+	startScriptPath, err := writeStartScriptInGameDir(userHomeDir, instanceDir, renderedStartParams)
 	if err != nil {
 		markSharedFailure(err)
 		return failureResult(job.ID, err)
@@ -1176,7 +1189,7 @@ func resolveStartScriptName(payload map[string]any, templateValues map[string]st
 		}
 	}
 	if cmd := strings.TrimSpace(templateValues["START_COMMAND"]); cmd != "" {
-		first := strings.Fields(cmd)
+		first := commandWords(cmd)
 		if len(first) > 0 && strings.HasSuffix(first[0], ".sh") {
 			return filepath.Base(first[0])
 		}
@@ -1192,7 +1205,7 @@ func parseCommandFirstToken(command string) string {
 	if cmd == "" {
 		return ""
 	}
-	fields := strings.Fields(cmd)
+	fields := commandWords(cmd)
 	if len(fields) == 0 {
 		return ""
 	}
@@ -1281,20 +1294,6 @@ func validateExpectedStartExecutablePath(gameDir, expectedPath string, allowExte
 	execOk := st.Mode()&0o111 != 0
 	return true, execOk, nil
 }
-func resolveSniperUserHomeAndGameDir(payloadInstallPath string, osUsername string) (string, string, error) {
-	installPath := filepath.Clean(strings.TrimSpace(payloadInstallPath))
-	if installPath == "" || !filepath.IsAbs(installPath) {
-		return "", "", fmt.Errorf("invalid install_path")
-	}
-	userHome := filepath.Clean(filepath.Join("/home", osUsername))
-	instanceDir := installPath
-	rel, err := filepath.Rel(userHome, instanceDir)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", "", fmt.Errorf("instance dir must be inside user home")
-	}
-	return userHome, instanceDir, nil
-}
-
 func ensureSharedStartScript(gameDir, sharedServer, osUsername, scriptName string) error {
 	if strings.TrimSpace(scriptName) == "" {
 		scriptName = "start.sh"
@@ -1650,7 +1649,7 @@ func buildSniperInstallShellCommand(commandWorkDir, installCommand, installSnipp
 		"export HOME=%[1]s; export XDG_DATA_HOME=%[1]s/.local/share; "+
 			"mkdir -p %[1]s/.steam %[1]s/.local/share; "+
 			"%[3]s"+
-			"cd %[1]s && %[2]s; "+
+			"cd %[1]s && %[2]s; easywi_install_exit=$?; [ \"$easywi_install_exit\" -eq 0 ] || exit \"$easywi_install_exit\"; "+
 			"%[4]s",
 		escapedDir, installCommand, installSnippet, postInstallSnippet,
 	)
@@ -1687,8 +1686,8 @@ func buildSteamCmdCommand(steamCmdPath, instanceDir, steamAppID string, validate
 		return ""
 	}
 	parts := []string{
-		steamCmdPath,
-		"+force_install_dir", instanceDir,
+		steamCmdExecutableArgument(steamCmdPath),
+		"+force_install_dir", shellPathArgument(instanceDir),
 		"+login", "anonymous",
 		"+app_update", steamAppID,
 	}
@@ -1704,20 +1703,20 @@ func instanceDirSteamCmdDir(instanceDir string) string {
 }
 
 func steamCmdInstallSnippet(steamCmdDir string) string {
-	escapedDir := strings.ReplaceAll(steamCmdDir, "$", "$$")
+	escapedDir := shellPathArgument(steamCmdDir)
 	return fmt.Sprintf(
 		"mkdir -p %[1]s; "+
 			"if [ ! -x %[1]s/steamcmd.sh ] && [ ! -x %[1]s/linux64/steamcmd ] && [ ! -x %[1]s/linux32/steamcmd ]; then "+
 			"archive=%[1]s/steamcmd_linux.tar.gz; "+
 			"if command -v curl >/dev/null 2>&1; then "+
-			"curl -fsSL %[2]q -o $archive; "+
+			"curl -fsSL %[2]q -o \"$archive\"; "+
 			"elif command -v wget >/dev/null 2>&1; then "+
-			"wget -qO $archive %[2]q; "+
+			"wget -qO \"$archive\" %[2]q; "+
 			"else "+
 			"echo \"steamcmd download failed: missing curl or wget\" >&2; exit 1; "+
 			"fi; "+
-			"tar -xzf $archive -C %[1]s; "+
-			"rm -f $archive; "+
+			"tar -xzf \"$archive\" -C %[1]s; "+
+			"rm -f \"$archive\"; "+
 			"fi; "+
 			"if [ -x %[1]s/steamcmd.sh ]; then "+
 			"STEAMCMD_EXEC=%[1]s/steamcmd.sh; "+
@@ -1735,8 +1734,8 @@ func steamCmdInstallSnippet(steamCmdDir string) string {
 }
 
 func steamCmdClientSnippet(steamCmdDir, instanceDir string) string {
-	escapedDir := strings.ReplaceAll(steamCmdDir, "$", "$$")
-	escapedInstance := strings.ReplaceAll(instanceDir, "$", "$$")
+	escapedDir := shellPathArgument(steamCmdDir)
+	escapedInstance := shellPathArgument(instanceDir)
 	return fmt.Sprintf(
 		"if [ -d %[1]s ]; then "+
 			"mkdir -p %[2]s/.steam/sdk32 %[2]s/.steam/sdk64; "+
@@ -1752,11 +1751,18 @@ func steamCmdClientSnippet(steamCmdDir, instanceDir string) string {
 	)
 }
 
+func steamCmdExecutableArgument(path string) string {
+	if path == "$STEAMCMD_EXEC" {
+		return `"$STEAMCMD_EXEC"`
+	}
+	return shellPathArgument(path)
+}
+
 func replaceSteamCmdExecutable(command, steamCmdPath string) string {
 	if command == "" {
 		return ""
 	}
-	escapedPath := strings.ReplaceAll(steamCmdPath, "$", "$$")
+	escapedPath := strings.ReplaceAll(steamCmdExecutableArgument(steamCmdPath), "$", "$$")
 	return steamcmdCommandRegex.ReplaceAllString(command, "${1}"+escapedPath+"${3}")
 }
 
@@ -1768,7 +1774,7 @@ func normalizeSteamCmdInstallDir(command, instanceDir string) string {
 	normalized := strings.ReplaceAll(command, "{{INSTANCE_DIR}}", instanceDir)
 	normalized = strings.ReplaceAll(normalized, "{{INSTALL_DIR}}", instanceDir)
 
-	escapedDir := strings.ReplaceAll(instanceDir, "$", "$$")
+	escapedDir := strings.ReplaceAll(shellPathArgument(instanceDir), "$", "$$")
 	if forceInstallDirPresenceRegex.MatchString(normalized) {
 		normalized = forceInstallDirRegex.ReplaceAllString(normalized, "${1}"+escapedDir)
 	}

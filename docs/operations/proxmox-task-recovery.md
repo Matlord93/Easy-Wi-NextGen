@@ -35,3 +35,37 @@ die inhaltliche Prüfung des Ergebnisses durch den Betreiber. Verlorene Antworte
 werden deshalb nicht automatisch als Erfolg oder Fehlschlag interpretiert.
 Ein späterer separater Root-Eingriff direkt auf Proxmox liegt außerhalb der
 Panel-Sperre.
+
+## Passwortübergabe bei der Erstinstallation
+
+Nach einer verlorenen Antwort auf die Passwortänderung prüft das Panel beim
+nächsten Versuch die Ziel-VM und verwendet die verschlüsselt am Auftrag
+hinterlegten Zugangsdaten. Nach einer Ablehnung oder fünf Minuten ohne
+Bestätigung ist eine manuelle Prüfung erforderlich. In diesem Zustand bleiben
+die Kundenzuordnung, der Passwortabruf und der Abrechnungsbeginn ausstehend.
+
+## Unterbrochene Neuinstallation
+
+Unter **Auftragsdetails** kann ein Admin die vorherige Systemdisk wiederherstellen.
+Bei einer verlorenen Importantwort muss die eingebundene Disk die beim Import
+gesetzte Seriennummer des Auftrags tragen und die bisherige Disk als ungenutzt
+vorhanden sein. Das Panel prüft beides bei der Bestätigung. Ein laufender Import,
+ausstehende Änderungen oder eine uneindeutige Zuordnung blockieren den Rücktausch.
+Die Ersatzdisk bleibt nach der Wiederherstellung auf dem Storage erhalten.
+
+Nach einer verlorenen Antwort beim Ändern der Laufwerksoptionen, beim Vergrößern
+oder beim Start prüft das Panel bis zu fünf Minuten lang die VM-Konfiguration,
+den Datenträger und den Auftragsstatus. Ist der erwartete Zustand bestätigt,
+läuft die Neuinstallation mit dem nächsten Schritt weiter. Bei fehlender
+Bestätigung bleiben die Auftragsdetails für die manuelle Prüfung verfügbar.
+
+Bei einer unterbrochenen Antwort auf die Passwortänderung prüft das Panel die
+VM und sendet denselben Passwort-Hash erneut. Eine Ablehnung oder der Ablauf
+der Bestätigungsfrist hält die bisherige Systemdisk für die Prüfung vor.
+
+Geht die Antwort beim Entfernen der bisherigen Systemdisk verloren, prüft das
+Panel die VM und den Storage bis zu fünf Minuten lang. In **Auftragsdetails**
+steht anschließend **Entfernung der bisherigen Systemdisk prüfen** zur Verfügung.
+Der Abschluss setzt eine passende VM-Konfiguration, eine sichtbare Ersatzdisk
+und das Fehlen der ursprünglichen Disk im Storage voraus. Für die Abfrage
+benötigt der Token `Datastore.Audit` auf dem Ziel-Storage.

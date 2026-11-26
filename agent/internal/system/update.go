@@ -323,16 +323,41 @@ func verifySHA256(path, expected string) (err error) {
 }
 
 func atomicSwap(binaryPath, updatePath string) error {
-	backupPath := binaryPath + ".bak"
-	_ = os.Remove(backupPath)
-	if err := os.Rename(binaryPath, backupPath); err != nil {
-		return fmt.Errorf("backup binary: %w", err)
+	staged, err := os.Open(updatePath)
+	if err != nil {
+		return fmt.Errorf("open staged agent binary: %w", err)
 	}
+	defer func() { _ = staged.Close() }()
+
+	if err := ensureAgentExecutableMode(staged); err != nil {
+		return err
+	}
+	if err := preserveAgentUpdateOwnership(binaryPath, staged); err != nil {
+		return err
+	}
+	// The staged file is next to the installed binary. A single rename keeps
+	// the old executable in place until the new one has the required permissions.
 	if err := os.Rename(updatePath, binaryPath); err != nil {
-		_ = os.Rename(backupPath, binaryPath)
 		return fmt.Errorf("swap binary: %w", err)
 	}
-	_ = os.Remove(backupPath)
+	return nil
+}
+
+func ensureAgentExecutableMode(file *os.File) error {
+	info, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("stat agent binary: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("agent binary must be a regular file")
+	}
+	// Gameserver services execute this binary as their own unprivileged users.
+	if info.Mode() == 0o755 {
+		return nil
+	}
+	if err := file.Chmod(0o755); err != nil {
+		return fmt.Errorf("set agent binary permissions to 0755: %w", err)
+	}
 	return nil
 }
 

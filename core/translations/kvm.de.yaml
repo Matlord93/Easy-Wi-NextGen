@@ -142,11 +142,17 @@ kvm.action.host.vm_number_range: 'VM-Nummernbereich speichern'
 
 kvm.action.vm.root_password: "Root-Passwort ändern"
 kvm.action.vm.reinstall: "System neu installieren"
+kvm.action.vm.reinstall_rollback: "Vorherige Systemdisk wiederherstellen"
+kvm.reinstall_rollback_hint: "Der Agent fährt die VM bei Bedarf regulär herunter und setzt die bisherige Systemdisk ein. Die Disk aus dem fehlgeschlagenen Versuch wird auf dem Host aufbewahrt. Anschließend kannst du die VM starten."
+kvm.reinstall_rollback_confirm: "Ich bestätige die Wiederherstellung der bisherigen Systemdisk und das Herunterfahren der VM, falls sie noch läuft."
+kvm.reinstall_rollback_unavailable: "Für diesen Gast ist der gewählte Neuinstallationsauftrag nicht zur Wiederherstellung verfügbar. Aktualisiere den Host-Bestand und prüfe den Auftrag."
 kvm.reinstall: "System neu installieren"
 kvm.reinstall_template: "Betriebssystem wählen"
-kvm.reinstall_hint: "Die VM startet nach dem Austausch ihrer Systemdisk automatisch. Hostname, SSH-Schlüssel und Netzwerkeinstellungen bleiben erhalten."
+kvm.reinstall_hint: "Die VM startet nach dem Austausch ihrer Systemdisk automatisch. Der QEMU-Gastagent bestätigt den Abschluss von Cloud-Init und die reservierten IP-Adressen, bevor die bisherige Disk gelöscht wird. Hostname, SSH-Schlüssel und Netzwerkeinstellungen bleiben erhalten."
 kvm.reinstall_confirm: "Ich bestätige, dass die Daten auf der bisherigen Systemdisk gelöscht werden dürfen."
-kvm.customer_reinstall_unavailable: "Für die Neuinstallation muss die VM ausgeschaltet sein und vom Datenträger starten. Es müssen eine passende Vorlage und ein aktueller Host-Agent verfügbar sein. Vorhandene Snapshots sperren den Austausch."
+kvm.customer_reinstall_unavailable: "Für die Neuinstallation muss die VM ausgeschaltet sein und von ihrer Systemdisk starten. Nötig sind eine passende Vorlage, ein aktueller Host-Agent und ein aktivierter QEMU-Gastagent. Vorhandene Snapshots sperren den Austausch."
 kvm.role_required: 'Für die Host-Einrichtung muss dem Agenten die Rolle KVM zugewiesen sein.'
 kvm.assign_role: 'Agent-Rollen öffnen'
 kvm.action.vm.address_switch: 'Reservierte IP wechseln'
+kvm.start_after_install: "VM nach der Installation direkt starten"
+kvm.install_customer_required: "Wähle einen Kunden, damit das vorbereitete Root-Passwort sicher zugeordnet werden kann."

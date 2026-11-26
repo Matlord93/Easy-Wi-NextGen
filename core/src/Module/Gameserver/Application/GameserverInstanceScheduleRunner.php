@@ -14,6 +14,7 @@ use App\Module\Core\Domain\Entity\ScheduledTaskRun;
 use App\Module\Core\Application\JobHistoryPolicy;
 use App\Module\Core\Domain\Enum\InstanceScheduleAction;
 use App\Module\Core\Domain\Enum\InstanceStatus;
+use App\Module\Gameserver\Application\Configuration\SourceServerSetup;
 use App\Repository\InstanceScheduleRepository;
 use App\Repository\JobRepositoryInterface;
 use Cron\CronExpression;
@@ -54,6 +55,7 @@ final class GameserverInstanceScheduleRunner
         #[Autowire('%app.windows_nodes_enabled%')]
         private readonly bool $windowsNodesEnabled,
         private readonly JobHistoryPolicy $history,
+        private readonly InstanceJobPayloadBuilder $payloadBuilder,
     ) {
     }
 
@@ -237,6 +239,9 @@ final class GameserverInstanceScheduleRunner
             'reason' => 'scheduled_restart',
             'schedule_id' => (string) ($schedule->getId() ?? ''),
         ];
+        if (SourceServerSetup::supports($instance->getTemplate())) {
+            $payload = array_replace($payload, $this->payloadBuilder->buildRuntimePayload($instance));
+        }
 
         $job = new Job('instance.restart', $payload);
         $this->entityManager->persist($job);

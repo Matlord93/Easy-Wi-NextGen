@@ -25,13 +25,13 @@ vm_config.access: "Zugang"
 vm_config.assigned_ip: "Zugewiesene IP-Adressen"
 vm_config.live_ip: "IP-Adressen im Gast prüfen"
 vm_config.root_password: "Root-Passwort"
-vm_config.root_password_hint: "Das Panel kann ein vergessenes Passwort durch ein neues ersetzen. Die SSH-Anmelderegeln des Systems gelten weiterhin."
-vm_config.root_password_confirm: "Das bisherige Root-Passwort ersetzen"
-vm_config.root_password_reset: "Neues Passwort erzeugen"
+vm_config.root_password_hint: "Richte nach der Installation ein Root-Passwort ein oder ersetze ein vergessenes Passwort. Die SSH-Anmelderegeln der VM gelten weiterhin."
+vm_config.root_password_confirm: "Root-Passwort in der VM setzen und ein vorhandenes Passwort ersetzen"
+vm_config.root_password_reset: "Root-Passwort setzen"
 vm_config.root_password_unavailable: "Der Passwortwechsel benötigt eine laufende VM mit aktiviertem QEMU Guest Agent und einen aktuellen Host-Agenten beziehungsweise die nötige Proxmox-Berechtigung."
 vm_config.root_password_copy: "Neues Passwort zur einmaligen Anzeige"
-vm_config.root_password_pending: "Speichere das angezeigte Passwort. Es gilt, sobald der Auftrag in der Aktivität als erfolgreich angezeigt wird."
-vm_config.root_password_ready: "Das Root-Passwort wurde geändert. Speichere das angezeigte Passwort jetzt."
+vm_config.root_password_pending: "Die VM muss das Setzen des Passworts noch bestätigen. Danach kannst du es hier abrufen."
+vm_config.root_password_ready: "Die VM hat das Setzen des Passworts bestätigt. Speichere das angezeigte Passwort jetzt."
 vm_config.root_password_back: "Zur VM"
 
 vm_config.address_switch: 'Reservierte IP wechseln'
@@ -40,3 +40,14 @@ vm_config.address_switch_proxmox_ssh: 'Cloud-Init kann beim Neustart die SSH-Hos
 vm_config.address_switch_current: 'Aktuell konfigurierte Adresse'
 vm_config.address_switch_confirm: 'Ich bestätige den Wechsel für diese Adresse.'
 vm_config.address_switch_unavailable: 'Der Wechsel ist bei ausgeschalteten VMs mit einer verwalteten Pooladresse und Cloud-Init möglich.'
+vm_config.root_password_reveal: "Root-Passwort einmal anzeigen"
+vm_config.root_password_expiry_hint: "Das Passwort kann innerhalb von 24 Stunden einmal angezeigt werden."
+vm_config.root_password_refresh: "Status aktualisieren"
+vm_config.root_password_custom: "Eigenes Passwort eingeben"
+vm_config.root_password_custom_hint: "Lass beide Felder leer, um ein zufälliges Passwort zu erzeugen."
+vm_config.root_password_new: "Neues Passwort"
+vm_config.root_password_repeat: "Passwort wiederholen"
+vm_config.root_password_invalid: "Beide Eingaben müssen identisch sein und 12 bis 128 Bytes ohne Steuerzeichen enthalten."
+vm_config.root_password_busy: "Für diese VM wird bereits ein Passwort gesetzt. Aktualisiere den Status."
+vm_config.root_password_not_revealable: "Das Passwort ist noch ausstehend, abgelaufen oder durch eine andere VM-Aktion ungültig geworden. Prüfe den Auftrag unter Aktivität."
+vm_config.install_password: "Neues Root-Passwort nach dem ersten Start zum Abruf bereitstellen"

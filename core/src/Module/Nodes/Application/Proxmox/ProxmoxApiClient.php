@@ -33,10 +33,25 @@ final readonly class ProxmoxApiClient
         return $this->list($connection, '/nodes');
     }
 
-    /** @return array<array-key, mixed> */
-    public function permissions(ProxmoxConnection $connection, string $path): array
+    /** @return array<string, mixed> */
+    public function privilegesAt(ProxmoxConnection $connection, string $path): array
     {
-        return $this->item($connection, '/access/permissions?'.http_build_query(['path' => $path]));
+        $permissions = $this->item($connection, '/access/permissions?'.http_build_query(['path' => $path]));
+
+        return JsonMap::fromValue($permissions[$path] ?? null) ?? [];
+    }
+
+    public function hasPrivilege(ProxmoxConnection $connection, string $path, string $privilege): bool
+    {
+        $privileges = $this->privilegesAt($connection, $path);
+
+        // A privilege granted only at this path has a propagation flag of 0.
+        return isset($privileges[$privilege]);
+    }
+
+    public function hasRootPasswordPermission(ProxmoxConnection $connection, int $vmId): bool
+    {
+        return $this->hasPrivilege($connection, '/vms/'.$vmId, 'VM.GuestAgent.Unrestricted');
     }
 
     /** @return list<array<array-key, mixed>> */
@@ -145,7 +160,7 @@ final readonly class ProxmoxApiClient
     {
         if (!ProxmoxDisks::validDevice('qemu', $device) || !preg_match('/^[A-Za-z][A-Za-z0-9_.-]*$/D', $storage)
             || !preg_match('~^[A-Za-z][A-Za-z0-9_.-]*:[A-Za-z0-9_./-]+$~D', $source)
-            || !preg_match('/^(?:,[a-z_]+=[A-Za-z0-9_.-]+)*$/D', $options) || '' === $digest) {
+            || !ProxmoxDisks::validOptions($options) || '' === $digest) {
             throw new \InvalidArgumentException('pve.error.reinstall_unavailable');
         }
 
@@ -162,6 +177,18 @@ final readonly class ProxmoxApiClient
         }
 
         return $this->item($connection, sprintf('/nodes/%s/qemu/%d/config', rawurlencode($node), $vmId), 'PUT', ['delete' => $device, 'digest' => $digest]);
+    }
+
+    /** @return array<array-key, mixed> */
+    public function attachSystemDisk(ProxmoxConnection $connection, string $node, int $vmId, string $device, string $volume, string $options, string $digest): array
+    {
+        if (!ProxmoxDisks::validDevice('qemu', $device) || !preg_match('~^[A-Za-z][A-Za-z0-9_.-]*:(?:'.$vmId.'/)?(?:vm|base)-'.$vmId.'-[A-Za-z0-9_.-]+$~D', $volume)
+            || !ProxmoxDisks::validOptions($options) || '' === $digest) {
+            throw new \InvalidArgumentException('pve.error.reinstall_rollback');
+        }
+
+        // If this changes the volume, Proxmox registers the displaced volume as unused.
+        return $this->item($connection, sprintf('/nodes/%s/qemu/%d/config', rawurlencode($node), $vmId), 'POST', [$device => $volume.$options, 'digest' => $digest]);
     }
 
     /** A fixed read-only QGA allowlist; arbitrary guest commands are never forwarded. */
@@ -396,9 +423,16 @@ final readonly class ProxmoxApiClient
     /** @return array<array-key, mixed> */
     public function setRootPasswordHash(ProxmoxConnection $connection, string $node, int $vmId, #[\SensitiveParameter] string $hash): array
     {
-        return $this->item($connection, sprintf('/nodes/%s/qemu/%d/agent/set-user-password', rawurlencode($node), $vmId), 'POST', [
+        $path = sprintf('/nodes/%s/qemu/%d/agent/set-user-password', rawurlencode($node), $vmId);
+        $result = $this->item($connection, $path, 'POST', [
             'username' => 'root', 'password' => $hash, 'crypted' => 1,
         ]);
+        // This QEMU guest-agent command has an empty successful result object.
+        if (['result' => []] !== $result) {
+            throw new ProxmoxApiException('Proxmox did not confirm the root password change.', 0, $path);
+        }
+
+        return ['result' => []];
     }
 
     public function nextVmId(ProxmoxConnection $connection, ?int $requested = null): int
@@ -433,8 +467,7 @@ final readonly class ProxmoxApiClient
             if ('' === $node || 'online' !== ($row['status'] ?? null)) {
                 return false;
             }
-            $path = '/nodes/'.$node;
-            if (empty($this->permissions($connection, $path)[$path]['Sys.Audit']) || [] !== $this->activeTasks($connection, $node, $vmId)) {
+            if (!$this->hasPrivilege($connection, '/nodes/'.$node, 'Sys.Audit') || [] !== $this->activeTasks($connection, $node, $vmId)) {
                 return false;
             }
         }

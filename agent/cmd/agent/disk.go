@@ -31,7 +31,14 @@ func handleInstanceDiskScan(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
-	output, err := runCommandOutputWithTimeout(diskScanTimeout, "du", "-sb", instanceDir)
+	info, err := os.Lstat(instanceDir)
+	if err != nil {
+		return failureResult(job.ID, fmt.Errorf("inspect gameserver disk directory: %w", err))
+	}
+	if !info.IsDir() {
+		return failureResult(job.ID, fmt.Errorf("gameserver disk path is not a directory"))
+	}
+	output, err := runCommandOutputWithTimeout(diskScanTimeout, "du", "-sb", "--", instanceDir)
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
@@ -43,6 +50,9 @@ func handleInstanceDiskScan(job jobs.Job) (jobs.Result, func() error) {
 	usedBytes, err := strconv.ParseInt(fields[0], 10, 64)
 	if err != nil {
 		return failureResult(job.ID, fmt.Errorf("parse du output: %w", err))
+	}
+	if usedBytes < 0 {
+		return failureResult(job.ID, fmt.Errorf("negative disk usage reported by du"))
 	}
 
 	return jobs.Result{

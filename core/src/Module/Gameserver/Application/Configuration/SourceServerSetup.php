@@ -12,6 +12,7 @@ use App\Module\Core\Domain\Entity\Template;
 final class SourceServerSetup
 {
     private const GAMES = ['cs2', 'csgo_legacy', 'css', 'tf2', 'hl2dm', 'l4d', 'l4d2', 'dods', 'garrys_mod'];
+    private const ARGUMENT_VALUE = '(?:"[^"\r\n]*"|\{\{\s*[A-Za-z0-9_:-]+\s*\}\}|[^\s+-][^\s]*)';
 
     private static function game(Template $template): string
     {
@@ -167,7 +168,7 @@ final class SourceServerSetup
 
     private static function bind(string $parameters, string $argument, string $variable, bool $append): string
     {
-        $pattern = '/(^|\s)'.preg_quote($argument, '/').'\s+(?:"[^"\r\n]*"|[^\s]+)/';
+        $pattern = '/(^|\s)'.preg_quote($argument, '/').'\s+'.self::ARGUMENT_VALUE.'(?=\s|$)/';
         $matched = 1 === preg_match($pattern, $parameters);
         $bound = preg_replace_callback($pattern, static fn (array $match): string => $match[1].$argument.' {{'.$variable.'}}', $parameters) ?? $parameters;
 
@@ -176,7 +177,7 @@ final class SourceServerSetup
 
     private static function removeArgument(string $parameters, string $argument): string
     {
-        return preg_replace('/(?:^|\s)'.preg_quote($argument, '/').'\s+(?:"[^"\r\n]*"|[^\s+-][^\s]*)(?=\s|$)/i', '', $parameters) ?? $parameters;
+        return preg_replace('/(?:^|\s)'.preg_quote($argument, '/').'(?:\s+'.self::ARGUMENT_VALUE.')?(?=\s|$)/i', '', $parameters) ?? $parameters;
     }
 
     public static function parameters(Instance $instance): string

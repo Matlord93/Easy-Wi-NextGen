@@ -16,6 +16,8 @@
     addresses: guest.static_addresses, networkPane: '#kvm-settings',
     resetAvailable: guest.state == 'running' and guest.guest_agent_enabled and not busy and assignment.node.metadata.kvm_managed.root_password_version|default(0) == 1,
     resetUrl: path('customer_kvm_root_password', {id: assignment.id}), resetToken: csrf_token('kvm-customer-' ~ assignment.id),
+    passwordState: passwordState, revealUrl: path('customer_kvm_root_password_reveal', {id: assignment.id}),
+    refreshUrl: path('customer_kvm_guest', {id: assignment.id, _fragment: 'kvm-access'}),
     switchChoices: guest.state == 'shut off' and guest.cloud_init and not guest.network_boot_first and not busy and assignment.node.metadata.kvm_managed.address_switch_version|default(0) == 1 ? guest.static_addresses : [],
     switchUrl: path('customer_kvm_action', {id: assignment.id}), switchFields: {action: 'vm.address_switch', operation_id: operationId}
 } only %}
@@ -30,6 +32,9 @@
                 {% for template in guest.reinstall_templates %}<option value="{{ template }}">{{ template|replace({'--': ' · '}) }}</option>{% endfor %}
             </select>
         </label>
+        {% if guest.guest_agent_enabled and assignment.node.metadata.kvm_managed.install_access_version|default(0) == 1 %}
+            <label><input type="checkbox" name="prepare_root_password" value="1" checked> {{ 'vm_config.install_password'|trans({}, 'vm_config') }}</label>
+        {% endif %}
         <label><input type="checkbox" name="confirm" value="1" required> {{ 'kvm.reinstall_confirm'|trans({}, 'kvm') }}</label>
         <button type="submit" class="ui-button ui-button--ghost" {% if busy %}disabled{% endif %}>{{ 'kvm.reinstall'|trans({}, 'kvm') }}</button>
         </form>

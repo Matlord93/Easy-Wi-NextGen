@@ -735,18 +735,20 @@ final class AgentApiController
             new \App\Extension\Event\JobAfterResultEvent($job, $jobResult, $agent),
             'extension.job.after_result',
         );
-        $this->auditLogger->log(null, 'agent.job.completed', [
-            'agent_id' => $agent->getId(),
-            'job_id' => $job->getId(),
-            'status' => $resultStatus->value,
-        ]);
-        $this->notificationService->notifyAdmins(
-            sprintf('job.completed.%s', $job->getId()),
-            sprintf('Job %s completed', $job->getId()),
-            sprintf('%s · %s', $job->getType(), $resultStatus->value),
-            'jobs',
-            '/admin/jobs',
-        );
+        if ($resultStatus !== JobResultStatus::Succeeded || !in_array($job->getType(), ['instance.disk.scan', 'node.disk.stat'], true)) {
+            $this->auditLogger->log(null, 'agent.job.completed', [
+                'agent_id' => $agent->getId(),
+                'job_id' => $job->getId(),
+                'status' => $resultStatus->value,
+            ]);
+            $this->notificationService->notifyAdmins(
+                sprintf('job.completed.%s', $job->getId()),
+                sprintf('Job %s completed', $job->getId()),
+                sprintf('%s · %s', $job->getType(), $resultStatus->value),
+                'jobs',
+                '/admin/jobs',
+            );
+        }
         $this->entityManager->flush();
 
         $response = new JsonResponse(['status' => 'ok']);
@@ -2319,7 +2321,6 @@ final class AgentApiController
         }
 
         if (in_array($job->getType(), ['instance.create', 'instance.start', 'instance.restart', 'instance.reinstall'], true)) {
-            $this->queueDiskScanIfNeeded($instance, $completedAt);
             $this->queueAutoAccessProvisionIfNeeded($instance, $job);
         }
 
@@ -2565,43 +2566,6 @@ final class AgentApiController
         return $expiresAt;
     }
 
-    private function queueDiskScanIfNeeded(\App\Module\Core\Domain\Entity\Instance $instance, DateTimeImmutable $completedAt): void
-    {
-        if ($instance->getDiskLastScannedAt() !== null) {
-            return;
-        }
-
-        $recentJobs = $this->jobRepository->findLatestByType('instance.disk.scan', 50);
-        foreach ($recentJobs as $job) {
-            $payload = $job->getPayload();
-            if ((string) ($payload['instance_id'] ?? '') !== (string) $instance->getId()) {
-                continue;
-            }
-            if (in_array($job->getStatus(), [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running], true)) {
-                return;
-            }
-        }
-
-        $payload = [
-            'instance_id' => (string) ($instance->getId() ?? ''),
-            'customer_id' => (string) $instance->getCustomer()->getId(),
-            'agent_id' => $instance->getNode()->getId(),
-            'instance_dir' => $this->resolveInstanceDir($instance),
-        ];
-
-        $job = new \App\Module\Core\Domain\Entity\Job('instance.disk.scan', $payload);
-        $this->entityManager->persist($job);
-        $this->jobLogger->log($job, 'Job queued.', 0);
-
-        $this->auditLogger->log(null, 'instance.disk.scan_queued', [
-            'instance_id' => $instance->getId(),
-            'node_id' => $instance->getNode()->getId(),
-            'job_id' => $job->getId(),
-            'queued_at' => $completedAt->format(DATE_RFC3339),
-        ]);
-    }
-
-
     private function resolveInstanceBaseDir(Instance $instance): string
     {
         $baseDir = trim(($instance->getInstanceBaseDir() ?? ''));
@@ -2701,27 +2665,33 @@ final class AgentApiController
                 return;
             }
 
-            if ($resultStatus === JobResultStatus::Succeeded) {
-                $usedBytes = is_numeric($output['used_bytes'] ?? null) ? (int) $output['used_bytes'] : null;
-                if ($usedBytes === null) {
-                    return;
-                }
+            $lastScan = $instance->getDiskLastScannedAt();
+            if ($lastScan !== null && $completedAt <= $lastScan) {
+                return;
+            }
+            $requestedPath = JsonMap::strings($payload)['instance_dir'] ?? '';
+            try {
+                $currentPath = $this->resolveInstanceDir($instance);
+            } catch (\RuntimeException) {
+                return;
+            }
+            if ($requestedPath === '' || rtrim($requestedPath, '/') !== rtrim($currentPath, '/')) {
+                return;
+            }
 
+            $rawUsedBytes = self::identifier($output['used_bytes'] ?? null);
+            $usedBytes = $rawUsedBytes !== null
+                ? filter_var($rawUsedBytes, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]])
+                : false;
+            if ($resultStatus === JobResultStatus::Succeeded && $usedBytes !== false) {
                 $instance->setDiskUsedBytes($usedBytes);
                 $instance->setDiskLastScannedAt($completedAt);
                 $instance->setDiskScanError(null);
                 $this->entityManager->persist($instance);
-
-                $this->auditLogger->log(null, 'instance.disk.scanned', [
-                    'instance_id' => $instance->getId(),
-                    'node_id' => $instance->getNode()->getId(),
-                    'job_id' => $job->getId(),
-                    'disk_used_bytes' => $usedBytes,
-                    'inode_count' => is_numeric($output['inode_count'] ?? null) ? (int) $output['inode_count'] : null,
-                    'completed_at' => $completedAt->format(DATE_RFC3339),
-                ]);
             } else {
-                $message = JsonMap::strings($output)['message'] ?? 'Disk scan failed.';
+                $message = $resultStatus === JobResultStatus::Succeeded
+                    ? 'Invalid disk scan result.'
+                    : (JsonMap::strings($output)['message'] ?? 'Disk scan failed.');
                 $instance->setDiskLastScannedAt($completedAt);
                 $instance->setDiskScanError($message);
                 $this->entityManager->persist($instance);
@@ -2741,18 +2711,23 @@ final class AgentApiController
             return;
         }
 
-        $payload = $job->getPayload();
+        $payload = JsonMap::strings($job->getPayload());
         $nodeId = $payload['node_id'] ?? $payload['agent_id'] ?? null;
-        if (!is_string($nodeId) || $nodeId === '') {
+        if ($nodeId !== $agentId) {
             return;
         }
 
-        $node = $this->agentRepository->find($nodeId);
+        $node = $this->agentRepository->find($agentId);
         if ($node === null) {
             return;
         }
 
         if ($resultStatus !== JobResultStatus::Succeeded) {
+            $metadata = $node->getMetadata() ?? [];
+            $diskStat = JsonMap::fromValue($metadata['disk_stat'] ?? null) ?? [];
+            $diskStat['last_attempt_at'] = $completedAt->format(DATE_RFC3339);
+            $metadata['disk_stat'] = $diskStat;
+            $node->setMetadata($metadata);
             $this->auditLogger->log(null, 'node.disk.stat_failed', [
                 'node_id' => $node->getId(),
                 'job_id' => $job->getId(),
@@ -2769,14 +2744,6 @@ final class AgentApiController
 
         $states = $this->nodeDiskProtectionService->updateDiskStat($node, $freeBytes, $freePercent, $completedAt);
         $this->entityManager->persist($node);
-
-        $this->auditLogger->log(null, 'node.disk.stat_updated', [
-            'node_id' => $node->getId(),
-            'job_id' => $job->getId(),
-            'free_bytes' => $freeBytes,
-            'free_percent' => $freePercent,
-            'checked_at' => $completedAt->format(DATE_RFC3339),
-        ]);
 
         if ($node->getNodeDiskProtectionOverrideUntil() !== null && $freePercent >= $node->getNodeDiskProtectionThresholdPercent()) {
             $node->setNodeDiskProtectionOverrideUntil(null);

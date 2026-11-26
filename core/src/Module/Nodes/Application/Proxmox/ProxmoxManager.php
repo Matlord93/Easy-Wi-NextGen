@@ -373,7 +373,7 @@ final readonly class ProxmoxManager
         });
     }
 
-    /** @return array{digest: string, images: array<int, string>}|null */
+    /** @return array{digest: string, images: array<int, string>, original: bool}|null */
     public function reinstallationChoices(ProxmoxGuestAssignment $assignment, User $actor, int $siteId): ?array
     {
         $guest = $this->assignedGuest($assignment, $actor);
@@ -384,7 +384,7 @@ final readonly class ProxmoxManager
         return $this->reinstallation->choices($assignment, (string) $guest['node'], $siteId);
     }
 
-    public function queueReinstallation(ProxmoxGuestAssignment $assignment, User $actor, int $siteId, int $productId, string $digest, string $requestKey): void
+    public function queueReinstallation(ProxmoxGuestAssignment $assignment, User $actor, int $siteId, int $productId, string $digest, string $requestKey, ?string $installPasswordHash = null): ProxmoxTask
     {
         if (!$actor->isCustomer() || 'qemu' !== $assignment->getKind() || !preg_match('/^[a-f0-9]{32}$/D', $requestKey)) {
             throw new \InvalidArgumentException('pve.error.reinstall_unavailable');
@@ -403,7 +403,7 @@ final readonly class ProxmoxManager
                 throw new \InvalidArgumentException('pve.error.task_active');
             }
             $this->assertOnlineNode($cluster->connection($this->crypto), $node);
-            $plan = $this->reinstallation->plan($assignment, $node, $siteId, $productId, $digest);
+            $plan = $this->reinstallation->plan($assignment, $node, $siteId, $productId, $digest, $installPasswordHash);
             [$task, $created] = $this->claim($cluster, $node, 'qemu', $vmId, 'reinstall', $requestKey, $actor, null, null, ['reinstall' => $plan], null, true);
             if ($created) {
                 $this->audit->log($actor, 'proxmox.reinstallation_queued', ['cluster_id' => $cluster->getId(), 'vm_id' => $vmId, 'task_id' => $task->getId()]);
@@ -412,9 +412,39 @@ final readonly class ProxmoxManager
         }
         $plan = $task->getReinstallation();
         if ('reinstall' !== $task->getAction() || $task->getActorId() !== $actor->getId() || ($plan['assignment_id'] ?? null) !== $assignment->getId()
-            || ($plan['tag'] ?? null) !== $assignment->getIdentityTag() || ($plan['product_id'] ?? null) !== $productId || ($plan['digest'] ?? null) !== $digest) {
+            || ($plan['tag'] ?? null) !== $assignment->getIdentityTag() || ($plan['product_id'] ?? null) !== $productId || ($plan['digest'] ?? null) !== $digest
+            || ($plan['install_password_hash'] ?? null) !== $installPasswordHash) {
             throw new \InvalidArgumentException('pve.error.request_key');
         }
+
+        return $task;
+    }
+
+    public function passwordState(ProxmoxGuestAssignment $assignment, User $actor, string $operation): string
+    {
+        $id = filter_var($operation, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $task = $id === false ? null : $this->em->find(ProxmoxTask::class, $id);
+        if (null === $task || $task->getCluster()->getId() !== $assignment->getCluster()->getId() || 'qemu' !== $task->getKind()) {
+            return 'failed';
+        }
+        $matches = match ($task->getAction()) {
+            'install-template' => $task->getTargetVmId() === $assignment->getVmId() && ($task->getInstallation()['customer_id'] ?? null) === $actor->getId()
+                && $assignment->getIdentityTag() === 'easywi-owned-'.substr($task->getRequestKey(), 0, 16),
+            'root-password', 'reinstall' => $task->getVmId() === $assignment->getVmId() && $task->getActorId() === $actor->getId(),
+            default => false,
+        };
+        if (!$matches) {
+            return 'failed';
+        }
+        $latest = $this->em->getRepository(ProxmoxTask::class)->findOneBy([
+            'cluster' => $assignment->getCluster(), 'vmId' => $assignment->getVmId(), 'kind' => $assignment->getKind(),
+            'action' => ['root-password', 'reinstall', 'snapshot-rollback', 'backup-restore'],
+        ], ['id' => 'DESC']);
+        if (null !== $latest && $latest->getId() > $id) {
+            return 'failed';
+        }
+
+        return 'uncertain' !== $task->getState() && $task->isActive() ? 'pending' : ('OK' === $task->getResult() ? 'ready' : 'failed');
     }
 
     public function perform(ProxmoxCluster $cluster, string $kind, int $vmId, string $action, array $input, string $requestKey, User $actor, ?string $allowedBackupStorage = null): ProxmoxTask
@@ -480,6 +510,9 @@ final readonly class ProxmoxManager
             }
             $template = $this->api->guestConfig($connection, $node, $vmId);
             ProxmoxInstallation::assertTemplate($template);
+            if (null !== $targetId && 'required' === ($installation['prepare_root_password'] ?? null)) {
+                $this->installation->assertRootPasswordPermission($connection, $targetId);
+            }
             if (!in_array($input['address_mode'] ?? 'dhcp', ['dhcp', 'pool'], true)) {
                 throw new \InvalidArgumentException('pve.error.ip_pool_network');
             }
@@ -542,6 +575,7 @@ final readonly class ProxmoxManager
         if (null !== $rentalId && null !== $resources) {
             $settings['rental_id'] = $rentalId;
             $settings['resources'] = $resources;
+            $settings['prepare_root_password'] = 'if-supported';
         }
         $customer = $settings['customer_id'];
         if (null !== $customer && !$this->em->find(User::class, $customer)?->isCustomer()) {
@@ -558,6 +592,9 @@ final readonly class ProxmoxManager
             default => throw new \InvalidArgumentException('pve.error.ip_pool_network'),
         };
         $target = $this->chooseVmId($cluster, $connection, $node, $requested);
+        if ('required' === ($settings['prepare_root_password'] ?? null)) {
+            $this->installation->assertRootPasswordPermission($connection, $target);
+        }
         [$task] = $this->claim($cluster, $node, 'qemu', $vmId, 'install-template', $requestKey, $actor, $target, $requested, $settings, $poolNet, true);
 
         return $task;
@@ -683,7 +720,9 @@ final readonly class ProxmoxManager
             throw new \InvalidArgumentException('pve.error.review_rental_installation');
         }
         if ($success && 'reinstall' === $task->getAction()) {
-            throw new \InvalidArgumentException('pve.error.review_reinstallation');
+            $this->reinstallation->confirmRemoval($task, $actor, trim($note));
+
+            return;
         }
         $connection = $task->getCluster()->connection($this->crypto);
         $overview = $this->overview($task->getCluster());
@@ -695,9 +734,7 @@ final readonly class ProxmoxManager
             }
             $checkedSource = $checkedSource || $name === $task->getNode();
             // Without Sys.Audit the provider may silently omit another user's tasks.
-            $path = '/nodes/'.$name;
-            $permissions = $this->api->permissions($connection, $path);
-            if (empty($permissions[$path]['Sys.Audit'])) {
+            if (!$this->api->hasPrivilege($connection, '/nodes/'.$name, 'Sys.Audit')) {
                 throw new \InvalidArgumentException('pve.error.review_permissions');
             }
             if ([] !== $this->api->activeTasks($connection, $name, $task->getTargetVmId() ?? ($task->getVmId() ?: null))) {
@@ -1103,10 +1140,8 @@ final readonly class ProxmoxManager
         if ('' === $digest || null === $origin || !self::supportsAddressSwitch($config) || $this->api->hasPendingGuestConfiguration($connection, $node, $vmId)) {
             throw new \InvalidArgumentException('vm_config.address_switch_unavailable');
         }
-        $nodePath = '/nodes/'.$node;
-        $vmPath = '/vms/'.$vmId;
-        if (empty($this->api->permissions($connection, $nodePath)[$nodePath]['Sys.Audit'])
-            || empty($this->api->permissions($connection, $vmPath)[$vmPath]['VM.Config.Cloudinit'])) {
+        if (!$this->api->hasPrivilege($connection, '/nodes/'.$node, 'Sys.Audit')
+            || !$this->api->hasPrivilege($connection, '/vms/'.$vmId, 'VM.Config.Cloudinit')) {
             throw new \InvalidArgumentException('pve.error.permissions');
         }
         if ([] !== $this->api->activeTasks($connection, $node, $vmId)) {

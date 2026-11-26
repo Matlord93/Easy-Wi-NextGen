@@ -29,6 +29,7 @@ type orchestratorResult struct {
 	logText       string
 	errorText     string
 	resultPayload map[string]any
+	deferDelivery bool
 }
 
 type ts6ConfigOptions struct {

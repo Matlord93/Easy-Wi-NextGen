@@ -46,3 +46,13 @@ Each agent release must include the platform asset and checksum/signature files 
 3. Panel creates async `agent.update` / `agent.self_update` job with `version`, `channel`, asset URL and checksums URL.
 4. Agent downloads the archive asset, verifies checksum/signature, extracts the contained `easywi-agent` / `easywi-agent.exe`, swaps the running binary, and restarts.
 5. The node details show the last update job and any failure message. After the agent reports that the update was prepared, the next heartbeat must report the target version to confirm installation.
+
+## Linux executable permissions
+
+Gameserver units execute the agent binary in wrapper mode under their own users. The standard installation uses mode `0755` on `/usr/local/bin/easywi-agent`. Updates set this mode before replacing the file and retain its existing owner and group. The agent service also checks the mode at startup for standard installations. Its `UMask=0027` still applies to other files.
+
+If an older update left the binary at `0750`, gameserver starts can fail with `203/EXEC` and `Permission denied`. Restore the executable mode on the affected agent host and retry the gameserver start.
+
+```sh
+sudo chmod 0755 /usr/local/bin/easywi-agent
+```

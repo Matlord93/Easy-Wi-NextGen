@@ -137,6 +137,16 @@ final class CustomerInstanceController
         return $this->renderNamedTabPage($request, $id, 'overview');
     }
 
+    #[Route(path: '/{id}/disk-usage', name: 'customer_instance_disk_usage', methods: ['GET'])]
+    public function diskUsage(Request $request, int $id): Response
+    {
+        $instance = $this->findCustomerInstance($this->requireCustomer($request), $id);
+
+        return new Response($this->twig->render('customer/instances/_disk_usage.html.twig', [
+            'instance' => ['id' => $id] + $this->diskUsageFormatter->describeInstance($instance),
+        ]), headers: ['Cache-Control' => 'private, no-store']);
+    }
+
     #[Route(path: '/{id}/console', name: 'customer_instance_console_page', methods: ['GET'])]
     public function consolePage(Request $request, int $id): Response
     {
@@ -1000,9 +1010,6 @@ final class CustomerInstanceController
         ?string $notice = null,
         ?string $error = null,
     ): array {
-        $diskLimitBytes = $instance->getDiskLimitBytes();
-        $diskUsedBytes = $instance->getDiskUsedBytes();
-        $diskPercent = $diskLimitBytes > 0 ? ((float) $diskUsedBytes / (float) $diskLimitBytes) * 100.0 : 0.0;
         $ports = $this->normalizeInstancePorts($instance);
         $connection = $this->buildConnectionData($instance, $portBlock, $ports);
         $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, $queueQuery);
@@ -1064,14 +1071,8 @@ final class CustomerInstanceController
                 || $instance->getCurrentVersion() !== null
                 || $instance->getStartScriptPath() !== null,
             'shared_storage_enabled' => $instance->isSharedStorageEnabled(),
-            'disk_limit_bytes' => $diskLimitBytes,
-            'disk_used_bytes' => $diskUsedBytes,
-            'disk_limit_human' => $this->diskUsageFormatter->formatBytes($diskLimitBytes),
-            'disk_used_human' => $this->diskUsageFormatter->formatBytes($diskUsedBytes),
-            'disk_percent' => $diskPercent,
+            ...$this->diskUsageFormatter->describeInstance($instance),
             'disk_state' => $instance->getDiskState()->value,
-            'disk_last_scanned_at' => $instance->getDiskLastScannedAt(),
-            'disk_scan_error' => $instance->getDiskScanError(),
             'current_slots' => $instance->getCurrentSlots(),
             'max_slots' => $instance->getMaxSlots(),
             'lock_slots' => $instance->isLockSlots(),

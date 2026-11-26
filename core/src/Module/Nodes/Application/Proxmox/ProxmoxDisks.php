@@ -23,6 +23,11 @@ final class ProxmoxDisks
         return $kind === 'qemu' && preg_match('/^(?:ide[0-3]|sata[0-5]|scsi(?:[0-9]|[12][0-9]|30)|virtio(?:[0-9]|1[0-5]))$/D', $device) === 1;
     }
 
+    public static function validOptions(string $options): bool
+    {
+        return 1 === preg_match('/^(?:,(?:[a-z_]+=[A-Za-z0-9_.-]+|serial=(?:[A-Za-z0-9_.~-]|%[0-9A-Fa-f]{2})+))*$/D', $options);
+    }
+
     /** @return list<array{device: string, size_bytes: int, minimum_gib: int}> */
     public static function attached(array $config, string $kind): array
     {

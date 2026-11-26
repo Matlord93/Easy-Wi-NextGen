@@ -18,6 +18,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\UniqueConstraint(name: 'uniq_proxmox_guest', columns: ['cluster_id', 'vm_id'])]
 class ProxmoxGuestAssignment
 {
+    use VmPasswordHandoff;
+
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $assignedAt = null;
 
