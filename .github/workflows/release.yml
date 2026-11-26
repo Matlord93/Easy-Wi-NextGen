@@ -4,6 +4,10 @@ on:
   push:
     tags: ['v*.*.*']
   workflow_call:
+    inputs:
+      repair_tag:
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -28,14 +32,20 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          REPAIR_TAG: ${{ inputs.repair_tag }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+          head=HEAD
+          if [[ -n "$REPAIR_TAG" ]]; then
+            tag="$REPAIR_TAG"
+            head="refs/tags/$tag"
+            git show-ref --verify --quiet "$head"
+          elif [[ "$GITHUB_REF_TYPE" == tag ]]; then
             tag="$GITHUB_REF_NAME"
           else
             tag="v$(cat VERSION)"
           fi
-          python3 scripts/ci-changelog.py --tag "$tag" --check-releases --github-output "$GITHUB_OUTPUT" \
+          python3 scripts/ci-changelog.py --tag "$tag" --head "$head" --check-releases --github-output "$GITHUB_OUTPUT" \
             --output dist/notes/CHANGELOG.md --release-body dist/notes/release-notes.md
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
@@ -53,6 +63,7 @@ jobs:
     with:
       release_package: true
       version: ${{ needs.changelog.outputs.version }}
+      ref: ${{ needs.changelog.outputs.commit }}
     secrets: inherit
 
   installer:
@@ -60,15 +71,13 @@ jobs:
     uses: ./.github/workflows/ci-installer.yml
     with:
       release_package: true
+      ref: ${{ needs.changelog.outputs.commit }}
 
-  release:
+  build:
     needs: [changelog, core, installer]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    concurrency:
-      group: easywi-release-${{ needs.changelog.outputs.tag }}
-      cancel-in-progress: false
+    outputs:
+      mode: ${{ steps.publication.outputs.mode }}
     env:
       RELEASE_TAG: ${{ needs.changelog.outputs.tag }}
       RELEASE_VERSION: ${{ needs.changelog.outputs.version }}
@@ -78,26 +87,31 @@ jobs:
         id: publication
         env:
           GH_TOKEN: ${{ github.token }}
+          REPAIR_TAG: ${{ inputs.repair_tag }}
         shell: bash
         run: |
           set -euo pipefail
           error_log="$(mktemp)"
           trap 'rm -f "$error_log"' EXIT
-          if draft="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>"$error_log")"; then
-            case "$draft" in
-              false)
-                echo "Release $RELEASE_TAG is already published."
-                echo 'pending=false' >> "$GITHUB_OUTPUT"
-                exit 0
-                ;;
-              true) ;;
-              *) echo 'Unexpected GitHub release state.' >&2; exit 1 ;;
-            esac
+          mode=new
+          if details="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,assets 2>"$error_log")"; then
+            mode="$(jq -er '
+              if (.isDraft | type) != "boolean" or (.assets | type) != "array" then error("Invalid release state")
+              elif .isDraft then "draft" elif (.assets | length) == 0 then "empty" else "with-assets" end
+            ' <<< "$details")"
           elif ! grep -Fqi 'release not found' "$error_log"; then
             cat "$error_log" >&2
             exit 1
           fi
-          echo 'pending=true' >> "$GITHUB_OUTPUT"
+          if [[ -n "$REPAIR_TAG" && "$mode" != empty ]]; then
+            echo "A manual repair requires a published release without uploaded assets. Found: $mode." >&2
+            exit 1
+          fi
+          echo "Release $RELEASE_TAG: $mode"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          if [[ "$mode" != with-assets ]]; then
+            echo 'pending=true' >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/checkout@v7
         if: steps.publication.outputs.pending == 'true'
@@ -108,7 +122,7 @@ jobs:
       - uses: actions/download-artifact@v8
         if: steps.publication.outputs.pending == 'true'
         with:
-          pattern: release-*
+          pattern: release-[cin]*
           path: dist/downloads
 
       - name: Prepare panel and installer assets
@@ -264,8 +278,62 @@ jobs:
             gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --detach-sign "$file"
           done
 
-      - name: Upload complete release as draft
+      - uses: actions/upload-artifact@v7
         if: steps.publication.outputs.pending == 'true'
+        with:
+          name: release-ready
+          path: dist/release/*
+          if-no-files-found: error
+          overwrite: true
+
+  publish:
+    needs: [changelog, build]
+    if: needs.build.outputs.mode != 'with-assets'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: easywi-release-${{ needs.changelog.outputs.tag }}
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ needs.changelog.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-ready
+          path: dist/release
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: dist/notes
+
+      - name: Recheck the release before upload
+        id: publication
+        env:
+          REPAIR_TAG: ${{ inputs.repair_tag }}
+        run: |
+          mode="$(python3 scripts/complete-published-release.py state "$RELEASE_TAG")"
+          if [[ -n "$REPAIR_TAG" && ( "$mode" == new || "$mode" == draft ) ]]; then
+            echo 'The release is no longer published.' >&2
+            exit 1
+          fi
+          if [[ "$mode" == with-assets ]]; then
+            mode=empty
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
+      - name: Attach packages to an already published release
+        if: steps.publication.outputs.mode == 'empty'
+        run: python3 scripts/complete-published-release.py upload "$RELEASE_TAG" dist/release dist/notes/release-notes.md
+
+      - name: Upload complete release as draft
+        if: steps.publication.outputs.mode == 'new' || steps.publication.outputs.mode == 'draft'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.changelog.outputs.tag }}
@@ -273,11 +341,9 @@ jobs:
           prerelease: ${{ needs.changelog.outputs.channel != 'stable' }}
           draft: true
           fail_on_unmatched_files: true
-          body_path: dist/downloads/release-notes/release-notes.md
+          body_path: dist/notes/release-notes.md
           files: dist/release/*
 
       - name: Publish after all assets were uploaded
-        if: steps.publication.outputs.pending == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
+        if: steps.publication.outputs.mode == 'new' || steps.publication.outputs.mode == 'draft'
         run: gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false

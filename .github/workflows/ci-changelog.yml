@@ -30,8 +30,12 @@ jobs:
           persist-credentials: false
           ref: ${{ github.event_name == 'release' && github.event.repository.default_branch || '' }}
 
-      - name: Test changelog generation
-        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -p 'test_ci_changelog.py' -v
+      - name: Test changelog and release publication
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -m unittest discover -s scripts/tests -p 'test_ci_changelog.py' -v
+          python3 -m unittest discover -s scripts/tests -p 'test_complete_published_release.py' -v
 
       - name: Verify and copy the manual changelog
         shell: bash

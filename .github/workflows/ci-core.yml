@@ -12,6 +12,9 @@ on:
       version:
         type: string
         default: ''
+      ref:
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -26,6 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
 
@@ -116,6 +120,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
       - name: Ensure non-root runner user
@@ -174,6 +179,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
 

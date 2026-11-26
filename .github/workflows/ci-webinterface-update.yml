@@ -2,6 +2,10 @@ name: Webinterface Update (manual)
 
 on:
   workflow_dispatch:
+    inputs:
+      repair_tag:
+        description: 'Vorhandener Tag für einen Release ohne hochgeladene Pakete'
+        type: string
 
 permissions:
   contents: write
@@ -9,4 +13,6 @@ permissions:
 jobs:
   release:
     uses: ./.github/workflows/release.yml
+    with:
+      repair_tag: ${{ inputs.repair_tag }}
     secrets: inherit

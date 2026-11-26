@@ -58,15 +58,22 @@ def published_releases(repository, releases_file, check_releases):
     elif check_releases:
         output = subprocess.check_output([
             "gh", "api", "--paginate", f"repos/{repository}/releases?per_page=100", "--jq",
-            '.[] | select(.draft == false and .published_at != null) | {tag_name, published_at} | @json',
+            '.[] | select(.draft == false and .published_at != null) | {tag_name, published_at, assets: [.assets[] | {name, state}]} | @json',
         ], text=True)
         rows = [json.loads(line) for line in output.splitlines()]
     else:
-        return None
-    return {
-        row["tag_name"]: datetime.fromisoformat(row["published_at"].replace("Z", "+00:00")).astimezone(timezone.utc)
-        for row in rows if not row.get("draft") and row.get("published_at") and TAG.fullmatch(row["tag_name"])
-    }
+        return None, set()
+    dates = {}
+    with_webinterface = set()
+    for row in rows:
+        tag = row["tag_name"]
+        if row.get("draft") or not row.get("published_at") or not TAG.fullmatch(tag):
+            continue
+        dates[tag] = datetime.fromisoformat(row["published_at"].replace("Z", "+00:00")).astimezone(timezone.utc)
+        assets = {asset["name"] for asset in row.get("assets", []) if asset["state"] == "uploaded"}
+        if {f"easywi-webinterface-{tag[1:]}.zip", "checksums-core.txt", "manifest.json"} <= assets:
+            with_webinterface.add(tag)
+    return dates, with_webinterface
 
 
 def previous_tag(releases, tag, channel):
@@ -169,7 +176,7 @@ def main():
     if args.tag and (existing := commit_ref(f"refs/tags/{args.tag}")) and existing != head:
         parser.error("The release tag already points to a different commit")
     try:
-        releases = published_releases(args.repository, args.releases_file, args.check_releases)
+        releases, with_webinterface = published_releases(args.repository, args.releases_file, args.check_releases)
     except (OSError, ValueError, TypeError, KeyError, subprocess.CalledProcessError) as error:
         parser.error(f"Could not verify published releases: {error}")
 
@@ -188,7 +195,10 @@ def main():
     base_tag = None
     if args.tag and available:
         reachable = git("tag", "--merged", head).decode().splitlines()
-        base_tag = previous_tag({tag: available[tag] for tag in reachable if tag in available}, args.tag, channel)
+        candidates = {tag: available[tag] for tag in reachable if tag in available}
+        if args.tag.startswith("v"):
+            candidates = {tag: published_at for tag, published_at in candidates.items() if tag in with_webinterface}
+        base_tag = previous_tag(candidates, args.tag, channel)
     base = commit_ref(f"refs/tags/{base_tag}") if base_tag else None
 
     latest_panel = max(

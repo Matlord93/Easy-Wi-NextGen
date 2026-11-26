@@ -45,8 +45,10 @@ class ChangelogTest(unittest.TestCase):
         self.git(*args, timestamp=timestamp)
         return self.git("rev-parse", "HEAD")
 
-    def publish(self, tag, published_at, *, draft=False):
-        self.releases.append({"tag_name": tag, "published_at": published_at, "draft": draft})
+    def publish(self, tag, published_at, *, draft=False, complete=True):
+        names = (f"easywi-webinterface-{tag[1:]}.zip", "checksums-core.txt", "manifest.json") if complete else ()
+        assets = [{"name": name, "state": "uploaded"} for name in names]
+        self.releases.append({"tag_name": tag, "published_at": published_at, "draft": draft, "assets": assets})
 
     def run_script(self, name, *args, check=True, env=None):
         return subprocess.run(
@@ -127,6 +129,7 @@ class ChangelogTest(unittest.TestCase):
         self.publish("v1.0.0-beta.2", "2026-01-04T12:00:00Z")
         self.commit("core/untagged", "Only Git tag")
         self.git("tag", "v1.0.0-beta.3")
+        self.publish("v1.0.0-beta.3", "2026-01-02T15:00:00Z", complete=False)
         target = self.commit("core/current", "Target")
         self.git("tag", "v1.0.0-beta.4")
         self.publish("v1.0.0-beta.4", "2026-01-03T12:00:00Z")
