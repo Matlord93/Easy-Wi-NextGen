@@ -26,6 +26,21 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final readonly class ProxmoxManager
 {
+    private const CUSTOMER_ACTIONS = [
+        'start' => true,
+        'shutdown' => true,
+        'stop' => true,
+        'reboot' => true,
+        'snapshot-create' => true,
+        'snapshot-delete' => true,
+        'snapshot-rollback' => true,
+        'backup' => true,
+        'backup-restore' => true,
+        'cloud-init' => true,
+        'root-password' => true,
+        'address-switch' => true,
+    ];
+
     public function __construct(private ProxmoxApiClient $api, private SecretsCryptoInterface $crypto, private EntityManagerInterface $em, private AuditLoggerInterface $audit, private ProxmoxGuestAgent $guestAgent, private ProxmoxRrdUsage $rrd, private ProxmoxInstallation $installation, private ProxmoxIpPools $ipPools, private ProxmoxRentalLifecycle $rental, private ProxmoxReinstallation $reinstallation)
     {
     }
@@ -456,7 +471,7 @@ final readonly class ProxmoxManager
             throw new \InvalidArgumentException('pve.error.request_key');
         }
         if (!$actor->isAdmin()) {
-            if (!$actor->isCustomer() || !in_array($action, ['start', 'shutdown', 'stop', 'reboot', 'snapshot-create', 'snapshot-delete', 'snapshot-rollback', 'backup', 'backup-restore', 'cloud-init', 'root-password', 'address-switch'], true)) {
+            if (!$actor->isCustomer() || !isset(self::CUSTOMER_ACTIONS[$action])) {
                 throw new \InvalidArgumentException('pve.error.forbidden');
             }
             $assignment = $this->em->getRepository(ProxmoxGuestAssignment::class)->findOneBy(['cluster' => $cluster, 'vmId' => $vmId, 'kind' => $kind, 'customer' => $actor]);

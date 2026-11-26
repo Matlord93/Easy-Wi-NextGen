@@ -10,7 +10,7 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/gliderlabs/ssh v0.3.8
 	github.com/go-sql-driver/mysql v1.10.2
-	github.com/gorilla/websocket v1.5.3
+	github.com/gorilla/websocket v1.5.4-0.20240701034025-d67f41855da4
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/pkg/sftp v1.13.12
 	github.com/shirou/gopsutil/v4 v4.26.10
@@ -35,5 +35,6 @@ require (
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/text v0.44.0 // indirect
 )

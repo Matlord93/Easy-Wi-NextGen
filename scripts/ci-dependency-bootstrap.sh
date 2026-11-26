@@ -113,7 +113,8 @@ go_bootstrap() {
 
   section "Go module network preflight"
   local proxy_ok=0 direct_ok=0
-  network_probe "proxy.golang.org" "https://proxy.golang.org/github.com/gorilla/websocket/@v/v1.5.3.info" || proxy_ok=$?
+  local websocket_version="v1.5.4-0.20240701034025-d67f41855da4"
+  network_probe "proxy.golang.org" "https://proxy.golang.org/github.com/gorilla/websocket/@v/$websocket_version.info" || proxy_ok=$?
   network_probe "direct GitHub module access" "https://github.com/gorilla/websocket" || direct_ok=$?
 
   local proxy="${EASYWI_GOPROXY_MIRROR:-https://proxy.golang.org,direct}"
@@ -136,7 +137,7 @@ MSG
     cat >&2 <<MSG
 Go module download failed with GOPROXY=$GOPROXY.
 This is an environment/network policy issue for the dependency gate, not a Musicbot code failure.
-If proxy.golang.org or direct GitHub is blocked, set EASYWI_GOPROXY_MIRROR to an approved internal Go module mirror that contains github.com/gorilla/websocket@v1.5.3 and the remaining agent modules.
+If proxy.golang.org or direct GitHub is blocked, set EASYWI_GOPROXY_MIRROR to an approved internal Go module mirror that contains github.com/gorilla/websocket@$websocket_version and the remaining agent modules.
 MSG
     return "$status"
   fi
