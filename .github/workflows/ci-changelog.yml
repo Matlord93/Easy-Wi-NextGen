@@ -1,0 +1,65 @@
+name: CI Changelog
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*.*.*', 'agent-v*.*.*']
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'UTC-Stichtag (YYYY-MM-DD), leer für heute'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    if: >-
+      (github.event_name != 'push' || !github.event.deleted) &&
+      (github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v') ||
+        startsWith(github.event.release.tag_name, 'agent-v'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event_name == 'release' && github.event.repository.default_branch || '' }}
+
+      - name: Test changelog generation
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -p 'test_ci_changelog.py' -v
+
+      - name: Verify and copy the manual changelog
+        shell: bash
+        env:
+          CHANGELOG_DATE: ${{ inputs.date }}
+          PUBLISHED_TAG: ${{ github.event.release.tag_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          args=(--check-releases)
+          if [[ -n "$CHANGELOG_DATE" ]]; then
+            args+=(--date "$CHANGELOG_DATE")
+          fi
+          if [[ "${GITHUB_EVENT_NAME}" == release ]]; then
+            args+=(--tag "$PUBLISHED_TAG" --head "refs/tags/$PUBLISHED_TAG")
+          elif [[ "${GITHUB_REF_TYPE}" == tag ]]; then
+            args+=(--tag "${GITHUB_REF_NAME}")
+          fi
+          python3 scripts/ci-changelog.py "${args[@]}" --summary "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        id: artifact
+        with:
+          name: changelog
+          path: dist/CHANGELOG.md
+          if-no-files-found: error
+
+      - name: Link the complete changelog
+        env:
+          CHANGELOG_URL: ${{ steps.artifact.outputs.artifact-url }}
+        run: printf '\n[Vollständiges Changelog](%s)\n' "$CHANGELOG_URL" >> "$GITHUB_STEP_SUMMARY"

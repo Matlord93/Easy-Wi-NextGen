@@ -70,6 +70,13 @@ final class TemplateInstallResolverTest extends TestCase
 
         self::assertStringContainsString('powershell -Command', $command);
         self::assertStringContainsString('https://example.com/paper-1.20.4-123.jar', $command);
+
+        $repository->add(new MinecraftVersionCatalog('paper', '1.21.4', '56', 'https://example.com/paper-1.21.4-56.jar'));
+        $reinstall = $resolver->resolveInstallCommand($instance, '1.21.4');
+        self::assertStringContainsString('powershell -Command', $reinstall);
+        self::assertStringContainsString('https://example.com/paper-1.21.4-56.jar', $reinstall);
+        self::assertSame('1.20.4', $instance->getLockedVersion());
+        self::assertSame('123', $instance->getLockedBuildId());
     }
 
 

@@ -19,7 +19,7 @@ final class TemplateInstallResolver implements TemplateInstallResolverInterface
     }
 
     #[\Override]
-    public function resolveInstallCommand(Instance $instance): string
+    public function resolveInstallCommand(Instance $instance, ?string $targetVersion = null, ?string $targetBuild = null): string
     {
         $template = $instance->getTemplate();
         $installCommand = $template->getInstallCommand();
@@ -30,9 +30,9 @@ final class TemplateInstallResolver implements TemplateInstallResolverInterface
         $type = (string) ($resolver['type'] ?? '');
 
         $command = match ($type) {
-            'minecraft_vanilla' => $this->resolveMinecraftCommand($instance, 'vanilla'),
-            'papermc_paper' => $this->resolveMinecraftCommand($instance, 'paper'),
-            'minecraft_bedrock' => $this->resolveMinecraftCommand($instance, 'bedrock'),
+            'minecraft_vanilla' => $this->resolveMinecraftCommand($instance, 'vanilla', $targetVersion, $targetBuild),
+            'papermc_paper' => $this->resolveMinecraftCommand($instance, 'paper', $targetVersion, $targetBuild),
+            'minecraft_bedrock' => $this->resolveMinecraftCommand($instance, 'bedrock', $targetVersion, $targetBuild),
             default => $installCommand,
         };
 
@@ -94,12 +94,12 @@ final class TemplateInstallResolver implements TemplateInstallResolverInterface
         return $resolver->javaBin($mcVersion, $javaVersion);
     }
 
-    private function resolveMinecraftCommand(Instance $instance, string $channel): string
+    private function resolveMinecraftCommand(Instance $instance, string $channel, ?string $targetVersion = null, ?string $targetBuild = null): string
     {
         $entry = $this->catalogService->resolveEntry(
             $channel,
-            $instance->getLockedVersion(),
-            $instance->getLockedBuildId(),
+            $targetVersion ?? $instance->getLockedVersion(),
+            $targetBuild ?? ($targetVersion === null || $targetVersion === $instance->getLockedVersion() ? $instance->getLockedBuildId() : null),
         );
 
         $os = $this->resolveOs($instance->getNode());

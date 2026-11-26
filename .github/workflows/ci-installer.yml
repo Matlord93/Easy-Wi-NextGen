@@ -3,8 +3,12 @@ name: Installer CI
 on:
   push:
     branches: [ main, Dev, Beta ]
-    tags: [ "v*.*.*" ]
   pull_request:
+  workflow_call:
+    inputs:
+      release_package:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -25,12 +29,10 @@ jobs:
           scandir: installer
 
   release:
-    name: Installer - publish release assets
+    name: Installer - package release assets
     needs: lint
-    if: startsWith(github.ref, 'refs/tags/')
+    if: inputs.release_package
     runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v7
 
@@ -43,33 +45,9 @@ jobs:
           cp installer/easywi-installer-menu-linux.sh dist/
           cp installer/easywi-installer-menu-windows.ps1 dist/
 
-      - name: Generate checksums
-        run: |
-          cd dist
-          sha256sum easywi-installer-* > checksums-installer.txt
-
-      - name: Sign checksums (optional)
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}
-          GPG_PASSPHRASE: ${{ secrets.EASYWI_GPG_PASSPHRASE }}
-        run: |
-          if [[ -z "${GPG_PRIVATE_KEY}" ]]; then
-            echo "EASYWI_GPG_PRIVATE_KEY is not configured; skipping checksum signing." >&2
-            exit 0
-          fi
-          export GNUPGHOME
-          GNUPGHOME="$(mktemp -d)"
-          chmod 700 "${GNUPGHOME}"
-          printf '%s' "${GPG_PRIVATE_KEY}" | gpg --batch --import
-          gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" \
-            --armor --detach-sign dist/checksums-installer.txt
-
-      - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v3
+      - uses: actions/upload-artifact@v7
         with:
-          files: |
-            dist/easywi-installer-*
-            dist/checksums-installer.txt
-            dist/checksums-installer.txt.asc
-          generate_release_notes: false
-          fail_on_unmatched_files: false
+          name: release-installer
+          overwrite: true
+          path: dist/easywi-installer-*
+          if-no-files-found: error

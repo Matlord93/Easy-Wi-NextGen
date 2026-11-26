@@ -137,8 +137,8 @@
                             <div class="peer" style="height:1.25rem;width:2.25rem;border-radius:9999px;border:1px solid var(--ng-border);background:var(--ng-surface-soft)"></div>
                         </label>
                     </div>
-                    <div style="margin-top:0.75rem">
-                        <label class="form-label" style="font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em">{{ t('customer_instance_settings_version_label', page_locale()) }}</label>
+                    <div id="gs-version-lock-fields" style="margin-top:0.75rem" hidden>
+                        <label for="gs-version-lock-version" class="form-label" style="font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em">{{ t('customer_instance_settings_version_label', page_locale()) }}</label>
                         <select id="gs-version-lock-version" class="form-input" style="font-size:0.75rem;padding:0.375rem 0.5rem;margin-top:0.25rem"></select>
                         {% if minecraftType %}<label><input type="checkbox" id="gs-minecraft-previews"> {{ t('minecraft_show_previews', page_locale()) }}</label>{% endif %}
                         <div id="gs-version-lock-build-wrap" hidden>

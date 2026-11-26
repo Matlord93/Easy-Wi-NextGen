@@ -53,6 +53,7 @@
     const autoUpdateTimeWrap = document.getElementById('gs-auto-update-time-wrap');
     const autoUpdateStatus = document.getElementById('gs-auto-update-status');
     const versionLockEnabled = document.getElementById('gs-version-lock-enabled');
+    const versionLockFields = document.getElementById('gs-version-lock-fields');
     const versionLockVersion = document.getElementById('gs-version-lock-version');
     const versionLockBuild = document.getElementById('gs-version-lock-build');
     const versionLockBuildWrap = document.getElementById('gs-version-lock-build-wrap');
@@ -163,7 +164,11 @@
         updateStatusLabel(autoBackupStatus, Boolean(autoBackupEnabled?.checked));
         updateStatusLabel(autoRestartStatus, Boolean(autoRestartEnabled?.checked));
         updateStatusLabel(autoUpdateStatus, Boolean(autoUpdateEnabled?.checked));
-        updateStatusLabel(versionLockStatus, Boolean(versionLockEnabled?.checked));
+        const lockEnabled = Boolean(versionLockEnabled?.checked);
+        if (versionLockFields) {
+            versionLockFields.hidden = !lockEnabled;
+        }
+        updateStatusLabel(versionLockStatus, lockEnabled);
     };
 
     const endpointFromTemplate = (templateKey, configId) => mount.dataset[templateKey].replace('__CONFIG_ID__', encodeURIComponent(configId));
@@ -466,6 +471,7 @@
     autoBackupEnabled?.addEventListener('change', updateAutomationTimeVisibility);
     autoRestartEnabled?.addEventListener('change', updateAutomationTimeVisibility);
     autoUpdateEnabled?.addEventListener('change', updateAutomationTimeVisibility);
+    versionLockEnabled?.addEventListener('change', updateAutomationTimeVisibility);
 
     (async () => {
         try {

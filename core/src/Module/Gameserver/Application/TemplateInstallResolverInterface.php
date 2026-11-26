@@ -8,7 +8,7 @@ use App\Module\Core\Domain\Entity\Instance;
 
 interface TemplateInstallResolverInterface
 {
-    public function resolveInstallCommand(Instance $instance): string;
+    public function resolveInstallCommand(Instance $instance, ?string $targetVersion = null, ?string $targetBuild = null): string;
     public function resolveUpdateCommand(Instance $instance): string;
     public function resolveJavaBin(Instance $instance): ?string;
 }

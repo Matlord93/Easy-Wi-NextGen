@@ -78,9 +78,9 @@ final class InstanceJobPayloadBuilder
     /**
      * @return JobPayload
      */
-    public function buildSniperInstallPayload(Instance $instance, bool $useSharedStorage = false): array
+    public function buildSniperInstallPayload(Instance $instance, bool $useSharedStorage = false, ?string $targetVersion = null): array
     {
-        $payload = $this->buildBasePayload($instance);
+        $payload = $this->buildBasePayload($instance, targetVersion: $targetVersion);
         if ($useSharedStorage) {
             $template = $instance->getTemplate();
             $sharedTemplate = $template->supportsSharedStorage()
@@ -132,6 +132,9 @@ final class InstanceJobPayloadBuilder
     private function buildBasePayload(Instance $instance, bool $install = true, ?string $targetVersion = null, ?string $targetBuild = null): array
     {
         $template = $instance->getTemplate();
+        $lockedVersion = $instance->getLockedVersion();
+        $installVersion = $targetVersion ?? $lockedVersion;
+        $installBuild = $targetBuild ?? ($targetVersion === null || $targetVersion === $lockedVersion ? $instance->getLockedBuildId() : null);
         $payload = [
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $instance->getCustomer()->getId(),
@@ -147,11 +150,11 @@ final class InstanceJobPayloadBuilder
             'ram_limit' => (string) GameserverMemoryBudget::runtimeMiB($instance->getRamLimit(), (string) ($template->getInstallResolver()['type'] ?? '')),
             'booked_ram_mib' => (string) $instance->getRamLimit(),
             'disk_limit' => (string) $instance->getDiskLimit(),
-            'install_command' => $this->templateInstallResolver->resolveInstallCommand($instance),
+            'install_command' => $this->templateInstallResolver->resolveInstallCommand($instance, $targetVersion, $targetBuild),
             'update_command' => $this->templateInstallResolver->resolveUpdateCommand($instance),
             'start_params' => \App\Module\Gameserver\Application\Configuration\GameSetupProfiles::startupParameters($instance),
             'required_ports' => implode(',', array_column(MinecraftPortPlan::forInstance($instance), 'name')),
-            'env_vars' => $this->buildEnvVars($instance),
+            'env_vars' => $this->buildEnvVars($instance, $installVersion, $installBuild),
             'secrets' => $this->buildSecretPlaceholders($instance),
         ];
         $payload['shared_runtime_mode'] = $this->resolveSharedRuntimeMode($template->getGameKey(), $template->getSharedPaths());
@@ -177,9 +180,9 @@ final class InstanceJobPayloadBuilder
             $payload['locked_version'] = $value;
         }
 
-        $javaBin = $this->resolveMinecraftJavaBin($instance);
+        $javaBin = $this->resolveMinecraftJavaBin($instance, $installVersion, $installBuild);
         if ($javaBin === null && str_contains($template->getStartParams(), '{{JAVA_BIN}}')) {
-            $mcVersion = $instance->getLockedVersion() ?? $instance->getInstalledVersion();
+            $mcVersion = $installVersion ?? $instance->getInstalledVersion();
             $javaBin = $this->minecraftJavaVersionResolver->javaBin($mcVersion, $instance->getInstalledJavaVersion());
         }
         if ($javaBin !== null) {
@@ -194,8 +197,8 @@ final class InstanceJobPayloadBuilder
             throw new \RuntimeException('MINECRAFT_AGENT_UPDATE_REQUIRED');
         }
         if ($channel !== null && $this->managedCatalogAvailable && $linux && $managedCapable) {
-            $version = $install ? ($targetVersion ?? $instance->getLockedVersion()) : ($instance->getInstalledVersion() ?? $instance->getLockedVersion());
-            $build = $install ? ($targetBuild ?? $instance->getLockedBuildId()) : ($instance->getInstalledBuildId() ?? $instance->getLockedBuildId());
+            $version = $install ? $installVersion : ($instance->getInstalledVersion() ?? $lockedVersion);
+            $build = $install ? $installBuild : ($instance->getInstalledBuildId() ?? $instance->getLockedBuildId());
             $entry = $install ? $this->minecraftCatalogService->resolveEntry($channel, $version, $build) : $this->minecraftCatalogService->resolveInstalledEntry($channel, $version, $build);
             if ($entry === null && !$install && $version !== null) {
                 $entry = new \App\Module\Core\Domain\Entity\MinecraftVersionCatalog($channel, $version, $build, '');
@@ -239,15 +242,15 @@ final class InstanceJobPayloadBuilder
     }
 
 
-    private function resolveMinecraftJavaBin(Instance $instance): ?string
+    private function resolveMinecraftJavaBin(Instance $instance, ?string $version, ?string $build): ?string
     {
         $channel = $this->minecraftCatalogService->channelFromResolver($instance);
         if (!in_array($channel, ['vanilla', 'paper', 'spigot', 'bungeecord'], true)) {
             return null;
         }
 
-        $entry = $this->minecraftCatalogService->resolveEntry($channel, $instance->getLockedVersion(), $instance->getLockedBuildId());
-        $mcVersion = $entry?->getMcVersion() ?? $instance->getLockedVersion() ?? $instance->getInstalledVersion();
+        $entry = $this->minecraftCatalogService->resolveEntry($channel, $version, $build);
+        $mcVersion = $entry?->getMcVersion() ?? $version ?? $instance->getInstalledVersion();
         $javaVersion = $entry?->getJavaVersion() ?? ($instance->getInstalledJavaVersion() ?? '');
 
         return $this->minecraftJavaVersionResolver->javaBin($mcVersion, $javaVersion);
@@ -344,7 +347,7 @@ final class InstanceJobPayloadBuilder
     /**
      * @return list<array{key: string, value: string}>
      */
-    private function buildEnvVars(Instance $instance): array
+    private function buildEnvVars(Instance $instance, ?string $version, ?string $build): array
     {
         $vars = [];
         $envVars = $instance->getTemplate()->getEnvVars();
@@ -396,13 +399,13 @@ final class InstanceJobPayloadBuilder
             $vars['SERVER_MEMORY'] = (string) $instance->getRamLimit();
         }
 
-        $javaBin = $this->resolveMinecraftJavaBin($instance);
+        $javaBin = $this->resolveMinecraftJavaBin($instance, $version, $build);
         if ($javaBin !== null && (!isset($setupVarKeys['JAVA_BIN']) || ($vars['JAVA_BIN'] ?? '') === '')) {
             $vars['JAVA_BIN'] = $javaBin;
         }
 
         if (!isset($vars['JAVA_BIN']) && str_contains($instance->getTemplate()->getStartParams(), '{{JAVA_BIN}}')) {
-            $mcVersion = $instance->getLockedVersion() ?? $instance->getInstalledVersion();
+            $mcVersion = $version ?? $instance->getInstalledVersion();
             $vars['JAVA_BIN'] = $this->minecraftJavaVersionResolver->javaBin($mcVersion, $instance->getInstalledJavaVersion());
         }
 

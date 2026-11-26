@@ -148,7 +148,10 @@ final class CustomerInstanceSettingsApiController
             $updateTime = $validated;
         }
 
-        if ($updateInput !== null && (bool) ($updateInput['enabled'] ?? false) && $instance->getLockedVersion() !== null) {
+        $lockEnabled = $lockInput !== null
+            ? (bool) ($lockInput['enabled'] ?? false)
+            : ($instance->getLockedVersion() !== null || $instance->getLockedBuildId() !== null);
+        if ($lockEnabled && (bool) ($updateInput['enabled'] ?? false)) {
             return $this->apiError($request, 'CONFLICT', 'Auto-update cannot be enabled while version lock is active.', JsonResponse::HTTP_CONFLICT);
         }
 
@@ -208,27 +211,28 @@ final class CustomerInstanceSettingsApiController
         }
 
         if ($lockInput !== null) {
-            $enabled = (bool) ($lockInput['enabled'] ?? false);
             $versionRaw = trim(ScalarValue::text($lockInput['version'] ?? ''));
 
-            if ($enabled && $versionRaw === '') {
+            if ($lockEnabled && $versionRaw === '') {
                 return $this->apiError($request, 'INVALID_INPUT', 'version_lock.version is required when enabled.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
             }
 
-            $availableVersions = $this->resolveAvailableVersions($instance);
-            if ($enabled && $availableVersions !== [] && !in_array($versionRaw, $availableVersions, true)) {
+            if ($lockEnabled && ($availableVersions = $this->resolveAvailableVersions($instance)) !== [] && !in_array($versionRaw, $availableVersions, true)) {
                 return $this->apiError($request, 'INVALID_INPUT', 'Selected lock version is not available.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
             }
 
             $channel = MinecraftCatalogService::channelFromResolver($instance);
             $buildRaw = trim(ScalarValue::text($lockInput['build'] ?? ''));
-            if ($enabled && $channel !== null && ($error = $this->minecraftCatalogService->validateSelection($channel, $versionRaw, $buildRaw)) !== null) {
+            if ($lockEnabled && $channel !== null && ($error = $this->minecraftCatalogService->validateSelection($channel, $versionRaw, $buildRaw)) !== null) {
                 return $this->apiError($request, 'INVALID_INPUT', $error, 422);
             }
-            if ($enabled) {
-                if ($channel !== null) { $this->minecraftCatalogService->pinSelection($instance, $versionRaw, $buildRaw); }
-                else { $instance->setLockedVersion($versionRaw); $instance->setLockedBuildId($buildRaw !== '' ? $buildRaw : null); }
-
+            if ($lockEnabled) {
+                if ($channel !== null) {
+                    $this->minecraftCatalogService->pinSelection($instance, $versionRaw, $buildRaw);
+                } else {
+                    $instance->setLockedVersion($versionRaw);
+                    $instance->setLockedBuildId($buildRaw !== '' ? $buildRaw : null);
+                }
             } else {
                 $instance->setLockedVersion(null);
                 $instance->setLockedBuildId(null);
@@ -381,7 +385,7 @@ final class CustomerInstanceSettingsApiController
                 'time' => $updateTime,
             ],
             'version_lock' => [
-                'enabled' => $instance->getLockedVersion() !== null,
+                'enabled' => $instance->getLockedVersion() !== null || $instance->getLockedBuildId() !== null,
                 'version' => $instance->getLockedVersion(),
                 'build' => $instance->getLockedBuildId(),
                 'channel' => MinecraftCatalogService::channelFromResolver($instance),

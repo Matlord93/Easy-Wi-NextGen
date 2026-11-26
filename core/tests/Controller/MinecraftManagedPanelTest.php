@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Module\Core\Application\GameTemplateSeeder;
+use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
+use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\MinecraftConfigurationPolicy;
 use Doctrine\ORM\EntityManagerInterface;
@@ -90,6 +93,56 @@ final class MinecraftManagedPanelTest extends AbstractWebTestCase
         $client->request('GET', '/api/v1/customer/instances/'.$id.'/reinstall/options');
         self::assertResponseIsSuccessful();
         self::assertSame([], json_decode((string) $client->getResponse()->getContent(), true)['data']['options']);
+    }
+
+    public function testReinstallVersionAppliesOnlyToTheJobAndVersionLockCanBeClearedWithAutoUpdates(): void
+    {
+        $this->seedSite();
+        $instance = $this->seedInstance();
+        $id = $instance->getId();
+        $instance->getTemplate()->setInstallResolver(['type' => 'papermc_paper']);
+        $instance->getNode()->recordHeartbeat(['os' => 'linux'], 'test', '127.0.0.1', [], ['minecraft_managed_install' => true]);
+        $instance->setLockedVersion('1.20.4');
+        $instance->setLockedBuildId('14');
+
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $selected = new MinecraftVersionCatalog('paper', '1.21.4', '121', 'https://example.test/paper-121.jar');
+        $em->persist($selected);
+        $em->flush();
+        self::ensureKernelShutdown();
+        $client = static::createClient();
+        $client->request('GET', '/');
+        $client->request('POST', '/login', ['email' => 'instance-customer@example.test', 'password' => 'P@ssw0rd!']);
+        $api = '/api/v1/customer/instances/'.$id;
+        $client->jsonRequest('POST', $api.'/reinstall', ['confirm' => true, 'version' => '1.21.4']);
+        self::assertResponseStatusCodeSame(202);
+
+        $jobId = json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['data']['job_id'];
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $job = $em->find(Job::class, $jobId);
+        self::assertInstanceOf(Job::class, $job);
+        self::assertSame('1.21.4', $job->getPayload()['minecraft_version']);
+        self::assertSame('121', $job->getPayload()['minecraft_build']);
+        $instance = $em->find(Instance::class, $id);
+        self::assertInstanceOf(Instance::class, $instance);
+        self::assertSame('1.20.4', $instance->getLockedVersion());
+        self::assertSame('14', $instance->getLockedBuildId());
+
+        $client->jsonRequest('PATCH', $api.'/settings/automation', ['automation' => [
+            'version_lock' => ['enabled' => false],
+            'auto_update' => ['enabled' => true, 'time' => '05:00'],
+        ]]);
+        self::assertResponseIsSuccessful();
+        $automation = json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR)['data']['automation'];
+        self::assertFalse($automation['version_lock']['enabled']);
+        self::assertTrue($automation['auto_update']['enabled']);
+
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $instance = $em->find(Instance::class, $id);
+        self::assertInstanceOf(Instance::class, $instance);
+        self::assertNull($instance->getLockedVersion());
+        self::assertNull($instance->getLockedBuildId());
+        self::assertSame(InstanceUpdatePolicy::Auto, $instance->getUpdatePolicy());
     }
 
     public function testManagedInstallCommandsRejectMissingArtifactsInsteadOfReportingSuccess(): void

@@ -1497,18 +1497,20 @@ final class CustomerInstanceActionApiController
             return $this->apiError($request, 'CONFLICT', $blockMessage, JsonResponse::HTTP_CONFLICT);
         }
 
-        $selectedVersion = trim((string) ($payload['version'] ?? ''));
-        if ($selectedVersion !== '') {
-            $instance->setLockedVersion($selectedVersion);
-            $this->entityManager->persist($instance);
-            $this->entityManager->flush();
+        $selectedVersion = trim(ScalarValue::text($payload['version'] ?? ''));
+        $targetVersion = null;
+        if ($selectedVersion !== '' && ($channel = MinecraftCatalogService::channelFromResolver($instance)) !== null) {
+            if (($error = $this->minecraftCatalogService->validateSelection($channel, $selectedVersion, null)) !== null) {
+                return $this->apiError($request, 'INVALID_INPUT', $error, JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            }
+            $targetVersion = $selectedVersion;
         }
 
         $useSharedStorage = (bool) ($payload['use_shared_storage'] ?? false);
         if ($useSharedStorage && !$this->supportsSharedStorage($instance)) {
             return $this->apiError($request, 'INVALID_INPUT', 'Shared storage is not supported for this template.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
-        $jobPayload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance, $useSharedStorage);
+        $jobPayload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance, $useSharedStorage, $targetVersion);
         $jobPayload['autostart'] = 'false';
 
         $message = new InstanceActionMessage('instance.reinstall', EntityIdentifier::require($customer->getId()), EntityIdentifier::require($instance->getId()), $jobPayload);

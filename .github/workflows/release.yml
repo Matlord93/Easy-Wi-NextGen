@@ -2,54 +2,144 @@ name: release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ['v*.*.*']
+  workflow_call:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  changelog:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.history.outputs.tag }}
+      version: ${{ steps.history.outputs.version }}
+      commit: ${{ steps.history.outputs.head_sha }}
+      base_tag: ${{ steps.history.outputs.base_tag }}
+      base_sha: ${{ steps.history.outputs.base_sha }}
+      channel: ${{ steps.history.outputs.channel }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
-      - name: Detect release channel
-        id: channel
+      - name: Resolve version and prepare the manual changelog
+        id: history
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="v$(cat VERSION)"
+          fi
+          python3 scripts/ci-changelog.py --tag "$tag" --check-releases --github-output "$GITHUB_OUTPUT" \
+            --output dist/notes/CHANGELOG.md --release-body dist/notes/release-notes.md
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          overwrite: true
+          path: dist/notes/*.md
+          if-no-files-found: error
+
+  core:
+    needs: changelog
+    uses: ./.github/workflows/ci-core.yml
+    with:
+      release_package: true
+      version: ${{ needs.changelog.outputs.version }}
+    secrets: inherit
+
+  installer:
+    needs: changelog
+    uses: ./.github/workflows/ci-installer.yml
+    with:
+      release_package: true
+
+  release:
+    needs: [changelog, core, installer]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: easywi-release-${{ needs.changelog.outputs.tag }}
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ needs.changelog.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.changelog.outputs.version }}
+      RELEASE_COMMIT: ${{ needs.changelog.outputs.commit }}
+    steps:
+      - name: Check release publication state
+        id: publication
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          tag="${GITHUB_REF_NAME}"
-          shopt -s nocasematch
-          if [[ "$tag" == *-predev* || "$tag" == *-dev* || "$tag" == *-alpha* || "$tag" == *-snapshot* || "$tag" == *-nightly* ]]; then
-            channel="dev"
-            prerelease="true"
-          elif [[ "$tag" == *-beta* || "$tag" == *-preview* || "$tag" == *-rc* ]]; then
-            channel="beta"
-            prerelease="true"
-          else
-            channel="stable"
-            prerelease="false"
+          set -euo pipefail
+          error_log="$(mktemp)"
+          trap 'rm -f "$error_log"' EXIT
+          if draft="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>"$error_log")"; then
+            case "$draft" in
+              false)
+                echo "Release $RELEASE_TAG is already published."
+                echo 'pending=false' >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+              true) ;;
+              *) echo 'Unexpected GitHub release state.' >&2; exit 1 ;;
+            esac
+          elif ! grep -Fqi 'release not found' "$error_log"; then
+            cat "$error_log" >&2
+            exit 1
           fi
-          echo "channel=$channel" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo 'pending=true' >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        if: steps.publication.outputs.pending == 'true'
+        with:
+          ref: ${{ needs.changelog.outputs.commit }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v8
+        if: steps.publication.outputs.pending == 'true'
+        with:
+          pattern: release-*
+          path: dist/downloads
+
+      - name: Prepare panel and installer assets
+        if: steps.publication.outputs.pending == 'true'
+        env:
+          BASE_TAG: ${{ needs.changelog.outputs.base_tag }}
+          BASE_SHA: ${{ needs.changelog.outputs.base_sha }}
+        run: |
+          mkdir -p dist/release
+          cp "dist/downloads/release-core/easywi-core-${RELEASE_VERSION}.tar.gz" dist/release/
+          cp dist/downloads/release-installer/easywi-installer-* dist/release/
+          cp dist/downloads/release-notes/CHANGELOG.md dist/release/
+          bash scripts/build-panel-release.sh "$RELEASE_TAG" "$BASE_TAG" "$BASE_SHA" \
+            dist/release dist/downloads/release-notes/release-notes.md
 
       - name: Setup Go for agent builds
+        if: steps.publication.outputs.pending == 'true'
         uses: actions/setup-go@v7
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
 
       - name: Build release assets
+        if: steps.publication.outputs.pending == 'true'
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist/release
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="$RELEASE_VERSION"
           BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          AGENT_LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=${BUILD_DATE}"
-
-          bash scripts/prepare-minecraft-catalog.sh core
+          AGENT_LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${RELEASE_COMMIT} -X main.date=${BUILD_DATE}"
 
           tar \
             --exclude='core/.env.local' \
@@ -62,10 +152,7 @@ jobs:
             --exclude='vendor' \
             --exclude='.git' \
             -czf dist/release/easywi-core.tar.gz core
-          (cd . && zip -qr "dist/release/easywi-webinterface-${VERSION}.zip" core \
-            -x 'core/.env.local' 'core/.env.local.php' 'core/var/*' 'core/storage/*' 'core/uploads/*' 'core/srv/*' 'core/node_modules/*' 'core/vendor/*')
-
-          python - <<'PYTAR'
+          python3 - <<'PYTAR'
           import tarfile
           import sys
 
@@ -80,13 +167,6 @@ jobs:
                   if 'core/resources/minecraft/' + name not in archive.getnames():
                       raise SystemExit(name + ' missing from core archive')
           PYTAR
-          unzip -l "dist/release/easywi-webinterface-${VERSION}.zip" core/.env >/dev/null \
-            || { echo 'core/.env missing from easywi-webinterface zip' >&2; exit 1; }
-          for f in core/resources/minecraft/bedrock-server.json core/resources/minecraft/minecraft-server.json core/resources/minecraft/paper-versions.json core/tools/console/configure-live-console.py core/tools/console/live-console.conf.template core/public/js/gameserver/console-live.js; do
-            unzip -l "dist/release/easywi-webinterface-${VERSION}.zip" "$f" >/dev/null \
-              || { echo "$f missing from easywi-webinterface zip" >&2; exit 1; }
-          done
-
           for target in linux-amd64 linux-arm64 windows-amd64; do
             goos="${target%-*}"
             goarch="${target##*-}"
@@ -120,11 +200,19 @@ jobs:
           done
 
       - name: Generate checksums
+        if: steps.publication.outputs.pending == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          (cd dist/release && sha256sum easywi-core.tar.gz > checksums-core.txt)
-          (cd dist/release && sha256sum easywi-webinterface-*.zip > checksums-webinterface.txt)
+          (
+            cd dist/release
+            sha256sum easywi-webinterface-*.zip > checksums-webinterface.txt
+            sha256sum easywi-core*.tar.gz easywi-webinterface-*.zip > checksums-core.txt
+            sha256sum easywi-installer-* > checksums-installer.txt
+            sha256sum --check checksums-core.txt
+            sha256sum --check checksums-webinterface.txt
+            sha256sum --check checksums-installer.txt
+          )
           (
             cd dist/release
             shopt -s nullglob
@@ -137,6 +225,7 @@ jobs:
           )
 
       - name: Sign core checksums (optional)
+        if: steps.publication.outputs.pending == 'true'
         env:
           EASYWI_RELEASE_PRIVATE_KEY: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY }}
         shell: bash
@@ -153,7 +242,8 @@ jobs:
           openssl dgst -sha256 -sign "$key_file" -out dist/release/checksums-core.txt.asc dist/release/checksums-core.txt
           openssl dgst -sha256 -sign "$key_file" -out dist/release/checksums-webinterface.txt.asc dist/release/checksums-webinterface.txt
 
-      - name: Sign agent checksums (optional)
+      - name: Sign released updates and checksums with GPG (optional)
+        if: steps.publication.outputs.pending == 'true'
         env:
           GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.EASYWI_GPG_PASSPHRASE }}
@@ -161,45 +251,33 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${GPG_PRIVATE_KEY}" ]]; then
-            echo "EASYWI_GPG_PRIVATE_KEY is not configured; skipping agent checksum signing" >&2
+            echo "EASYWI_GPG_PRIVATE_KEY is not configured; skipping GPG signing" >&2
             exit 0
           fi
           export GNUPGHOME
           GNUPGHOME="$(mktemp -d)"
           trap 'rm -rf "$GNUPGHOME"' EXIT
           printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
-          for file in dist/release/checksums-agent*.txt; do
+          for file in dist/release/checksums-agent*.txt dist/release/checksums-installer.txt \
+            dist/release/checksums-core.txt dist/release/checksums-webinterface.txt dist/release/manifest*.json; do
+            [[ ! -f "$file.asc" ]] || continue
             gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --detach-sign "$file"
           done
 
-      - name: Publish GitHub Release
+      - name: Upload complete release as draft
+        if: steps.publication.outputs.pending == 'true'
         uses: softprops/action-gh-release@v3
         with:
-          prerelease: ${{ steps.channel.outputs.prerelease }}
-          fail_on_unmatched_files: false
-          body: |
-            channel: ${{ steps.channel.outputs.channel }}
-            commit: ${{ github.sha }}
+          tag_name: ${{ needs.changelog.outputs.tag }}
+          target_commitish: ${{ needs.changelog.outputs.commit }}
+          prerelease: ${{ needs.changelog.outputs.channel != 'stable' }}
+          draft: true
+          fail_on_unmatched_files: true
+          body_path: dist/downloads/release-notes/release-notes.md
+          files: dist/release/*
 
-            Assets:
-            - easywi-core.tar.gz
-            - easywi-webinterface-<version>.zip (version without leading v)
-            - checksums-core.txt
-            - checksums-webinterface.txt
-            - Agent and Musicbot archives for Linux amd64, Linux arm64 and Windows amd64
-            - TeamSpeak bridge packages for Linux
-            - checksums-agent.txt and platform checksum files
-          files: |
-            dist/release/easywi-core.tar.gz
-            dist/release/easywi-webinterface-*.zip
-            dist/release/checksums-core.txt
-            dist/release/checksums-core.txt.asc
-            dist/release/checksums-webinterface.txt
-            dist/release/checksums-webinterface.txt.asc
-            dist/release/easywi-agent-*.tar.gz
-            dist/release/easywi-agent-*.zip
-            dist/release/easywi-musicbot-*.tar.gz
-            dist/release/easywi-musicbot-*.zip
-            dist/release/easywi-teamspeak-bridge-*.zip
-            dist/release/checksums-agent*.txt
-            dist/release/checksums-agent*.txt.asc
+      - name: Publish after all assets were uploaded
+        if: steps.publication.outputs.pending == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false

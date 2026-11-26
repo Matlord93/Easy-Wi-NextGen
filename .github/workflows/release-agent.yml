@@ -30,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.event_name == 'release' && github.event.release.tag_name || github.ref }}
 
 
@@ -69,6 +70,7 @@ jobs:
 
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "tag=${raw_version}" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Detect release channel
         id: channel
@@ -104,6 +106,7 @@ jobs:
       - name: Build agent binaries
         env:
           AGENT_VERSION: ${{ steps.version.outputs.version }}
+          AGENT_COMMIT: ${{ steps.version.outputs.commit }}
         run: |
           set -euo pipefail
           mkdir -p ../dist
@@ -113,7 +116,7 @@ jobs:
             suffix=""
             [[ "$goos" == "windows" ]] && suffix=".exe"
             build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            ldflags="-s -w -X main.version=${AGENT_VERSION} -X main.commit=${GITHUB_SHA} -X main.date=${build_date}"
+            ldflags="-s -w -X main.version=${AGENT_VERSION} -X main.commit=${AGENT_COMMIT} -X main.date=${build_date}"
             for binary in easywi-agent easywi-musicbot; do
               out="../dist/${binary}-${goos}-${goarch}${suffix}"
               package="$binary"
@@ -144,7 +147,7 @@ jobs:
           cat > manifest.json <<JSON
           {
             "version": "${{ steps.version.outputs.version }}",
-            "commit": "${{ github.sha }}",
+            "commit": "${{ steps.version.outputs.commit }}",
             "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "artifacts": ["easywi-agent-linux-amd64.tar.gz","easywi-agent-linux-amd64.zip","easywi-agent-linux-arm64.tar.gz","easywi-agent-linux-arm64.zip","easywi-agent-windows-amd64.zip","easywi-musicbot-linux-amd64.tar.gz","easywi-musicbot-linux-amd64.zip","easywi-musicbot-linux-arm64.tar.gz","easywi-musicbot-linux-arm64.zip","easywi-musicbot-windows-amd64.zip"]
           }
@@ -160,6 +163,15 @@ jobs:
           gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}"             --armor --detach-sign ../dist/checksums-agent.txt
           cp ../dist/checksums-agent.txt.asc ../dist/checksums.sha256.asc
 
+      - name: Prepare the manual release changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_CHANNEL: ${{ steps.channel.outputs.channel }}
+        run: |
+          python3 ../scripts/ci-changelog.py --source ../CHANGELOG.md --tag "$RELEASE_TAG" --channel "$RELEASE_CHANNEL" --check-releases \
+            --output ../dist/CHANGELOG.md --release-body ../dist/release-notes.md
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -167,6 +179,7 @@ jobs:
           name: Agent ${{ steps.version.outputs.version }}
           prerelease: ${{ steps.channel.outputs.prerelease }}
           files: |
+            dist/CHANGELOG.md
             dist/easywi-agent-*.zip
             dist/easywi-agent-*.tar.gz
             dist/easywi-musicbot-*.zip
@@ -176,5 +189,5 @@ jobs:
             dist/checksums.sha256
             dist/checksums.sha256.asc
             dist/manifest.json
-          generate_release_notes: true
+          body_path: ${{ (github.event_name != 'release' || !github.event.release.body) && 'dist/release-notes.md' || '' }}
           fail_on_unmatched_files: false

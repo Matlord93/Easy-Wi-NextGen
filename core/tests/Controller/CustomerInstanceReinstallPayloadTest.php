@@ -48,7 +48,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class CustomerInstanceReinstallPayloadTest extends TestCase
 {
-    public function testReinstallPayloadUsesBuilderAndDisablesAutostart(): void
+    public function testReinstallWithDefaultVersionUsesBuilderWithoutLockingUpdates(): void
     {
         $instance = $this->buildInstance();
         $instanceRepository = $this->createStub(InstanceRepositoryInterface::class);
@@ -153,7 +153,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             [],
             [],
             [],
-            json_encode(['confirm' => true], JSON_THROW_ON_ERROR),
+            json_encode(['confirm' => true, 'version' => 'default'], JSON_THROW_ON_ERROR),
         );
         $request->attributes->set('current_user', $customer);
 
@@ -166,6 +166,8 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         self::assertSame('false', $payload['autostart'] ?? null);
         self::assertNotEmpty($payload['install_command'] ?? null);
         self::assertNotEmpty($payload['env_vars'] ?? null);
+        self::assertArrayNotHasKey('locked_version', $payload);
+        self::assertNull($instance->getLockedVersion());
     }
 
 
